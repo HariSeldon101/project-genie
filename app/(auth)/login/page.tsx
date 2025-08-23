@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
@@ -13,7 +13,7 @@ import { Navigation } from '@/components/navigation'
 import { Loader2, Mail, Github, Linkedin } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo') || '/dashboard'
@@ -195,5 +195,21 @@ export default function LoginPage() {
       </Card>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen relative">
+        <StarfieldBackground />
+        <Navigation />
+        <div className="relative z-10 flex items-center justify-center min-h-[calc(100vh-88px)] p-4">
+          <div className="text-white">Loading...</div>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }
