@@ -10,11 +10,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { ArrowLeft, ArrowRight, Loader2, Sparkles, FileText, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Sparkles, FileText, Users, Globe, Building2 } from 'lucide-react'
 import { AnimatedBackgroundSubtle } from '@/components/animated-background-subtle'
 
 type MethodologyType = 'agile' | 'prince2' | 'hybrid'
+
+interface Stakeholder {
+  name: string
+  email: string
+  title: string
+}
 
 interface ProjectData {
   name: string
@@ -22,11 +29,13 @@ interface ProjectData {
   vision: string
   businessCase: string
   methodology: MethodologyType
-  stakeholders: string[]
+  companyWebsite: string
+  sector: string
+  stakeholders: Stakeholder[]
   prince2Stakeholders?: {
-    seniorUser: string
-    seniorSupplier: string
-    executive: string
+    seniorUser: Stakeholder
+    seniorSupplier: Stakeholder
+    executive: Stakeholder
   }
   agilometer?: {
     flexibility: number
@@ -36,6 +45,25 @@ interface ProjectData {
     governance: number
   }
 }
+
+const SECTORS = [
+  'Technology',
+  'Healthcare',
+  'Finance & Banking',
+  'Retail & E-commerce',
+  'Manufacturing',
+  'Education',
+  'Government & Public Sector',
+  'Energy & Utilities',
+  'Real Estate',
+  'Transportation & Logistics',
+  'Media & Entertainment',
+  'Telecommunications',
+  'Agriculture',
+  'Hospitality & Tourism',
+  'Non-profit',
+  'Other'
+]
 
 const STEPS = [
   { id: 'methodology', title: 'Choose Methodology', description: 'Select your project management approach' },
@@ -55,11 +83,13 @@ export default function NewProjectPage() {
     vision: '',
     businessCase: '',
     methodology: 'agile',
-    stakeholders: [''],
+    companyWebsite: '',
+    sector: '',
+    stakeholders: [{ name: '', email: '', title: '' }],
     prince2Stakeholders: {
-      seniorUser: '',
-      seniorSupplier: '',
-      executive: ''
+      seniorUser: { name: '', email: '', title: '' },
+      seniorSupplier: { name: '', email: '', title: '' },
+      executive: { name: '', email: '', title: '' }
     },
     agilometer: {
       flexibility: 50,
@@ -82,16 +112,16 @@ export default function NewProjectPage() {
   const canProceed = () => {
     switch (activeSteps[currentStep].id) {
       case 'methodology':
-        return true
+        return projectData.companyWebsite && projectData.sector
       case 'basics':
         return projectData.name && projectData.vision
       case 'stakeholders':
         if (projectData.methodology === 'prince2') {
-          return projectData.prince2Stakeholders?.seniorUser && 
-                 projectData.prince2Stakeholders?.seniorSupplier && 
-                 projectData.prince2Stakeholders?.executive
+          return projectData.prince2Stakeholders?.seniorUser.name && 
+                 projectData.prince2Stakeholders?.seniorSupplier.name && 
+                 projectData.prince2Stakeholders?.executive.name
         }
-        return projectData.stakeholders.some(s => s.trim() !== '')
+        return projectData.stakeholders.some(s => s.name.trim() !== '')
       case 'agilometer':
         return true
       case 'review':
@@ -138,14 +168,48 @@ export default function NewProjectPage() {
       if (projectError) throw projectError
 
       // Add stakeholders
-      if (project && projectData.stakeholders.length > 0) {
-        const stakeholdersToInsert = projectData.stakeholders
-          .filter(s => s.trim() !== '')
-          .map(name => ({
-            project_id: project.id,
-            name: name.trim(),
-            role: 'Stakeholder',
-          }))
+      if (project) {
+        const stakeholdersToInsert = []
+        
+        // Add Prince2 stakeholders if applicable
+        if (projectData.methodology === 'prince2' && projectData.prince2Stakeholders) {
+          if (projectData.prince2Stakeholders.seniorUser.name) {
+            stakeholdersToInsert.push({
+              project_id: project.id,
+              name: projectData.prince2Stakeholders.seniorUser.name,
+              role: projectData.prince2Stakeholders.seniorUser.title || 'Senior User',
+              email: projectData.prince2Stakeholders.seniorUser.email,
+            })
+          }
+          if (projectData.prince2Stakeholders.seniorSupplier.name) {
+            stakeholdersToInsert.push({
+              project_id: project.id,
+              name: projectData.prince2Stakeholders.seniorSupplier.name,
+              role: projectData.prince2Stakeholders.seniorSupplier.title || 'Senior Supplier',
+              email: projectData.prince2Stakeholders.seniorSupplier.email,
+            })
+          }
+          if (projectData.prince2Stakeholders.executive.name) {
+            stakeholdersToInsert.push({
+              project_id: project.id,
+              name: projectData.prince2Stakeholders.executive.name,
+              role: projectData.prince2Stakeholders.executive.title || 'Executive',
+              email: projectData.prince2Stakeholders.executive.email,
+            })
+          }
+        }
+        
+        // Add regular stakeholders
+        projectData.stakeholders
+          .filter(s => s.name.trim() !== '')
+          .forEach(stakeholder => {
+            stakeholdersToInsert.push({
+              project_id: project.id,
+              name: stakeholder.name.trim(),
+              role: stakeholder.title || 'Stakeholder',
+              email: stakeholder.email,
+            })
+          })
 
         if (stakeholdersToInsert.length > 0) {
           await supabase.from('stakeholders').insert(stakeholdersToInsert)
@@ -168,53 +232,102 @@ export default function NewProjectPage() {
       case 'methodology':
         return (
           <div className="space-y-6">
-            <RadioGroup
-              value={projectData.methodology}
-              onValueChange={(value: MethodologyType) => 
-                setProjectData({ ...projectData, methodology: value })
-              }
-            >
-              <div className="grid gap-4">
-                <Label
-                  htmlFor="agile"
-                  className="flex items-start space-x-3 space-y-0 rounded-lg border p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  <RadioGroupItem value="agile" id="agile" />
-                  <div className="space-y-1 flex-1">
-                    <div className="font-medium">Agile (Scrum)</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Iterative development with sprints, user stories, and continuous delivery
-                    </div>
-                  </div>
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                Company information is required to help our AI research and generate relevant project documentation.
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="website">
+                  <Globe className="inline-block w-4 h-4 mr-1" />
+                  Company Website URL *
                 </Label>
-
-                <Label
-                  htmlFor="prince2"
-                  className="flex items-start space-x-3 space-y-0 rounded-lg border p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  <RadioGroupItem value="prince2" id="prince2" />
-                  <div className="space-y-1 flex-1">
-                    <div className="font-medium">Prince2</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Structured approach with defined stages, formal governance, and comprehensive documentation
-                    </div>
-                  </div>
-                </Label>
-
-                <Label
-                  htmlFor="hybrid"
-                  className="flex items-start space-x-3 space-y-0 rounded-lg border p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  <RadioGroupItem value="hybrid" id="hybrid" />
-                  <div className="space-y-1 flex-1">
-                    <div className="font-medium">Hybrid</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Combine Prince2 governance with Agile delivery, customized to your needs
-                    </div>
-                  </div>
-                </Label>
+                <Input
+                  id="website"
+                  type="url"
+                  value={projectData.companyWebsite}
+                  onChange={(e) => setProjectData({ ...projectData, companyWebsite: e.target.value })}
+                  placeholder="https://www.example.com"
+                />
+                <p className="text-xs text-gray-500">Your company's main website for context and research</p>
               </div>
-            </RadioGroup>
+              
+              <div className="space-y-2">
+                <Label htmlFor="sector">
+                  <Building2 className="inline-block w-4 h-4 mr-1" />
+                  Industry Sector *
+                </Label>
+                <Select 
+                  value={projectData.sector} 
+                  onValueChange={(value) => setProjectData({ ...projectData, sector: value })}
+                >
+                  <SelectTrigger id="sector">
+                    <SelectValue placeholder="Select your industry sector" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECTORS.map((sector) => (
+                      <SelectItem key={sector} value={sector}>
+                        {sector}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">Helps generate industry-specific documentation</p>
+              </div>
+            </div>
+            
+            <div className="border-t pt-6">
+              <Label className="text-base font-medium mb-4 block">Select Project Methodology</Label>
+              <RadioGroup
+                value={projectData.methodology}
+                onValueChange={(value: MethodologyType) => 
+                  setProjectData({ ...projectData, methodology: value })
+                }
+              >
+                <div className="grid gap-4">
+                  <Label
+                    htmlFor="agile"
+                    className="flex items-start space-x-3 space-y-0 rounded-lg border p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <RadioGroupItem value="agile" id="agile" />
+                    <div className="space-y-1 flex-1">
+                      <div className="font-medium">Agile (Scrum)</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        Iterative development with sprints, user stories, and continuous delivery
+                      </div>
+                    </div>
+                  </Label>
+
+                  <Label
+                    htmlFor="prince2"
+                    className="flex items-start space-x-3 space-y-0 rounded-lg border p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <RadioGroupItem value="prince2" id="prince2" />
+                    <div className="space-y-1 flex-1">
+                      <div className="font-medium">Prince2</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        Structured approach with defined stages, formal governance, and comprehensive documentation
+                      </div>
+                    </div>
+                  </Label>
+
+                  <Label
+                    htmlFor="hybrid"
+                    className="flex items-start space-x-3 space-y-0 rounded-lg border p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <RadioGroupItem value="hybrid" id="hybrid" />
+                    <div className="space-y-1 flex-1">
+                      <div className="font-medium">Hybrid</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        Combine Prince2 governance with Agile delivery, customized to your needs
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
           </div>
         )
 
@@ -276,56 +389,131 @@ export default function NewProjectPage() {
                     Prince2 requires three key stakeholder roles. These can be the same person if needed.
                   </p>
                   
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="senior-user">Senior User *</Label>
-                      <Input
-                        id="senior-user"
-                        value={projectData.prince2Stakeholders?.seniorUser || ''}
-                        onChange={(e) => setProjectData({
-                          ...projectData,
-                          prince2Stakeholders: {
-                            ...projectData.prince2Stakeholders!,
-                            seniorUser: e.target.value
-                          }
-                        })}
-                        placeholder="Name of the Senior User (represents end users)"
-                      />
+                  <div className="space-y-6">
+                    {/* Senior User */}
+                    <div className="border rounded-lg p-4 space-y-3">
+                      <h4 className="font-medium text-sm">Senior User *</h4>
                       <p className="text-xs text-gray-500">Represents those who will use the project's outputs</p>
+                      <div className="grid gap-3">
+                        <Input
+                          value={projectData.prince2Stakeholders?.seniorUser.name || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              seniorUser: { ...projectData.prince2Stakeholders!.seniorUser, name: e.target.value }
+                            }
+                          })}
+                          placeholder="Full name"
+                        />
+                        <Input
+                          type="email"
+                          value={projectData.prince2Stakeholders?.seniorUser.email || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              seniorUser: { ...projectData.prince2Stakeholders!.seniorUser, email: e.target.value }
+                            }
+                          })}
+                          placeholder="Email address (optional)"
+                        />
+                        <Input
+                          value={projectData.prince2Stakeholders?.seniorUser.title || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              seniorUser: { ...projectData.prince2Stakeholders!.seniorUser, title: e.target.value }
+                            }
+                          })}
+                          placeholder="Job title (optional)"
+                        />
+                      </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="senior-supplier">Senior Supplier *</Label>
-                      <Input
-                        id="senior-supplier"
-                        value={projectData.prince2Stakeholders?.seniorSupplier || ''}
-                        onChange={(e) => setProjectData({
-                          ...projectData,
-                          prince2Stakeholders: {
-                            ...projectData.prince2Stakeholders!,
-                            seniorSupplier: e.target.value
-                          }
-                        })}
-                        placeholder="Name of the Senior Supplier (provides resources)"
-                      />
+                    {/* Senior Supplier */}
+                    <div className="border rounded-lg p-4 space-y-3">
+                      <h4 className="font-medium text-sm">Senior Supplier *</h4>
                       <p className="text-xs text-gray-500">Represents those providing resources and expertise</p>
+                      <div className="grid gap-3">
+                        <Input
+                          value={projectData.prince2Stakeholders?.seniorSupplier.name || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              seniorSupplier: { ...projectData.prince2Stakeholders!.seniorSupplier, name: e.target.value }
+                            }
+                          })}
+                          placeholder="Full name"
+                        />
+                        <Input
+                          type="email"
+                          value={projectData.prince2Stakeholders?.seniorSupplier.email || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              seniorSupplier: { ...projectData.prince2Stakeholders!.seniorSupplier, email: e.target.value }
+                            }
+                          })}
+                          placeholder="Email address (optional)"
+                        />
+                        <Input
+                          value={projectData.prince2Stakeholders?.seniorSupplier.title || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              seniorSupplier: { ...projectData.prince2Stakeholders!.seniorSupplier, title: e.target.value }
+                            }
+                          })}
+                          placeholder="Job title (optional)"
+                        />
+                      </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="executive">Executive *</Label>
-                      <Input
-                        id="executive"
-                        value={projectData.prince2Stakeholders?.executive || ''}
-                        onChange={(e) => setProjectData({
-                          ...projectData,
-                          prince2Stakeholders: {
-                            ...projectData.prince2Stakeholders!,
-                            executive: e.target.value
-                          }
-                        })}
-                        placeholder="Name of the Executive (owns the business case)"
-                      />
+                    {/* Executive */}
+                    <div className="border rounded-lg p-4 space-y-3">
+                      <h4 className="font-medium text-sm">Executive *</h4>
                       <p className="text-xs text-gray-500">Owns the business case and has decision authority</p>
+                      <div className="grid gap-3">
+                        <Input
+                          value={projectData.prince2Stakeholders?.executive.name || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              executive: { ...projectData.prince2Stakeholders!.executive, name: e.target.value }
+                            }
+                          })}
+                          placeholder="Full name"
+                        />
+                        <Input
+                          type="email"
+                          value={projectData.prince2Stakeholders?.executive.email || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              executive: { ...projectData.prince2Stakeholders!.executive, email: e.target.value }
+                            }
+                          })}
+                          placeholder="Email address (optional)"
+                        />
+                        <Input
+                          value={projectData.prince2Stakeholders?.executive.title || ''}
+                          onChange={(e) => setProjectData({
+                            ...projectData,
+                            prince2Stakeholders: {
+                              ...projectData.prince2Stakeholders!,
+                              executive: { ...projectData.prince2Stakeholders!.executive, title: e.target.value }
+                            }
+                          })}
+                          placeholder="Job title (optional)"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -338,28 +526,54 @@ export default function NewProjectPage() {
             
             <div className="space-y-4">
               {projectData.stakeholders.map((stakeholder, index) => (
-                <div key={index} className="flex gap-2">
-                  <Input
-                    value={stakeholder}
-                    onChange={(e) => {
-                      const newStakeholders = [...projectData.stakeholders]
-                      newStakeholders[index] = e.target.value
-                      setProjectData({ ...projectData, stakeholders: newStakeholders })
-                    }}
-                    placeholder={projectData.methodology === 'prince2' ? "Additional stakeholder name and role" : "Stakeholder name and role"}
-                  />
-                  {projectData.stakeholders.length > 1 && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        const newStakeholders = projectData.stakeholders.filter((_, i) => i !== index)
+                <div key={index} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <Label className="text-sm font-medium">
+                      {projectData.methodology === 'prince2' ? 'Additional ' : ''}Stakeholder {index + 1}
+                    </Label>
+                    {projectData.stakeholders.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const newStakeholders = projectData.stakeholders.filter((_, i) => i !== index)
+                          setProjectData({ ...projectData, stakeholders: newStakeholders })
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  <div className="grid gap-3">
+                    <Input
+                      value={stakeholder.name}
+                      onChange={(e) => {
+                        const newStakeholders = [...projectData.stakeholders]
+                        newStakeholders[index] = { ...newStakeholders[index], name: e.target.value }
                         setProjectData({ ...projectData, stakeholders: newStakeholders })
                       }}
-                    >
-                      ×
-                    </Button>
-                  )}
+                      placeholder="Full name"
+                    />
+                    <Input
+                      type="email"
+                      value={stakeholder.email}
+                      onChange={(e) => {
+                        const newStakeholders = [...projectData.stakeholders]
+                        newStakeholders[index] = { ...newStakeholders[index], email: e.target.value }
+                        setProjectData({ ...projectData, stakeholders: newStakeholders })
+                      }}
+                      placeholder="Email address (optional)"
+                    />
+                    <Input
+                      value={stakeholder.title}
+                      onChange={(e) => {
+                        const newStakeholders = [...projectData.stakeholders]
+                        newStakeholders[index] = { ...newStakeholders[index], title: e.target.value }
+                        setProjectData({ ...projectData, stakeholders: newStakeholders })
+                      }}
+                      placeholder="Job title (optional)"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -368,7 +582,7 @@ export default function NewProjectPage() {
               variant="outline"
               onClick={() => setProjectData({ 
                 ...projectData, 
-                stakeholders: [...projectData.stakeholders, ''] 
+                stakeholders: [...projectData.stakeholders, { name: '', email: '', title: '' }] 
               })}
               className="w-full"
             >
@@ -426,6 +640,14 @@ export default function NewProjectPage() {
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
+                <h4 className="font-medium mb-1">Company Information</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>Website:</strong> {projectData.companyWebsite}<br />
+                  <strong>Sector:</strong> {projectData.sector}
+                </p>
+              </div>
+
+              <div>
                 <h4 className="font-medium mb-1">Methodology</h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   {projectData.methodology.charAt(0).toUpperCase() + projectData.methodology.slice(1)}
@@ -451,16 +673,32 @@ export default function NewProjectPage() {
 
               <div>
                 <h4 className="font-medium mb-1">Stakeholders</h4>
-                <ul className="text-sm text-gray-600 dark:text-gray-400">
+                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
                   {projectData.methodology === 'prince2' && projectData.prince2Stakeholders && (
                     <>
-                      <li>• <strong>Senior User:</strong> {projectData.prince2Stakeholders.seniorUser}</li>
-                      <li>• <strong>Senior Supplier:</strong> {projectData.prince2Stakeholders.seniorSupplier}</li>
-                      <li>• <strong>Executive:</strong> {projectData.prince2Stakeholders.executive}</li>
+                      <li>
+                        • <strong>Senior User:</strong> {projectData.prince2Stakeholders.seniorUser.name}
+                        {projectData.prince2Stakeholders.seniorUser.title && ` (${projectData.prince2Stakeholders.seniorUser.title})`}
+                        {projectData.prince2Stakeholders.seniorUser.email && ` - ${projectData.prince2Stakeholders.seniorUser.email}`}
+                      </li>
+                      <li>
+                        • <strong>Senior Supplier:</strong> {projectData.prince2Stakeholders.seniorSupplier.name}
+                        {projectData.prince2Stakeholders.seniorSupplier.title && ` (${projectData.prince2Stakeholders.seniorSupplier.title})`}
+                        {projectData.prince2Stakeholders.seniorSupplier.email && ` - ${projectData.prince2Stakeholders.seniorSupplier.email}`}
+                      </li>
+                      <li>
+                        • <strong>Executive:</strong> {projectData.prince2Stakeholders.executive.name}
+                        {projectData.prince2Stakeholders.executive.title && ` (${projectData.prince2Stakeholders.executive.title})`}
+                        {projectData.prince2Stakeholders.executive.email && ` - ${projectData.prince2Stakeholders.executive.email}`}
+                      </li>
                     </>
                   )}
-                  {projectData.stakeholders.filter(s => s).map((stakeholder, i) => (
-                    <li key={i}>• {stakeholder}</li>
+                  {projectData.stakeholders.filter(s => s.name).map((stakeholder, i) => (
+                    <li key={i}>
+                      • {stakeholder.name}
+                      {stakeholder.title && ` (${stakeholder.title})`}
+                      {stakeholder.email && ` - ${stakeholder.email}`}
+                    </li>
                   ))}
                 </ul>
               </div>
