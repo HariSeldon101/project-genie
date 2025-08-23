@@ -23,6 +23,11 @@ interface ProjectData {
   businessCase: string
   methodology: MethodologyType
   stakeholders: string[]
+  prince2Stakeholders?: {
+    seniorUser: string
+    seniorSupplier: string
+    executive: string
+  }
   agilometer?: {
     flexibility: number
     teamExperience: number
@@ -51,6 +56,11 @@ export default function NewProjectPage() {
     businessCase: '',
     methodology: 'agile',
     stakeholders: [''],
+    prince2Stakeholders: {
+      seniorUser: '',
+      seniorSupplier: '',
+      executive: ''
+    },
     agilometer: {
       flexibility: 50,
       teamExperience: 50,
@@ -76,6 +86,11 @@ export default function NewProjectPage() {
       case 'basics':
         return projectData.name && projectData.vision
       case 'stakeholders':
+        if (projectData.methodology === 'prince2') {
+          return projectData.prince2Stakeholders?.seniorUser && 
+                 projectData.prince2Stakeholders?.seniorSupplier && 
+                 projectData.prince2Stakeholders?.executive
+        }
         return projectData.stakeholders.some(s => s.trim() !== '')
       case 'agilometer':
         return true
@@ -254,6 +269,73 @@ export default function NewProjectPage() {
       case 'stakeholders':
         return (
           <div className="space-y-6">
+            {projectData.methodology === 'prince2' && (
+              <>
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-blue-800 dark:text-blue-200 mb-4">
+                    Prince2 requires three key stakeholder roles. These can be the same person if needed.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="senior-user">Senior User *</Label>
+                      <Input
+                        id="senior-user"
+                        value={projectData.prince2Stakeholders?.seniorUser || ''}
+                        onChange={(e) => setProjectData({
+                          ...projectData,
+                          prince2Stakeholders: {
+                            ...projectData.prince2Stakeholders!,
+                            seniorUser: e.target.value
+                          }
+                        })}
+                        placeholder="Name of the Senior User (represents end users)"
+                      />
+                      <p className="text-xs text-gray-500">Represents those who will use the project's outputs</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="senior-supplier">Senior Supplier *</Label>
+                      <Input
+                        id="senior-supplier"
+                        value={projectData.prince2Stakeholders?.seniorSupplier || ''}
+                        onChange={(e) => setProjectData({
+                          ...projectData,
+                          prince2Stakeholders: {
+                            ...projectData.prince2Stakeholders!,
+                            seniorSupplier: e.target.value
+                          }
+                        })}
+                        placeholder="Name of the Senior Supplier (provides resources)"
+                      />
+                      <p className="text-xs text-gray-500">Represents those providing resources and expertise</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="executive">Executive *</Label>
+                      <Input
+                        id="executive"
+                        value={projectData.prince2Stakeholders?.executive || ''}
+                        onChange={(e) => setProjectData({
+                          ...projectData,
+                          prince2Stakeholders: {
+                            ...projectData.prince2Stakeholders!,
+                            executive: e.target.value
+                          }
+                        })}
+                        placeholder="Name of the Executive (owns the business case)"
+                      />
+                      <p className="text-xs text-gray-500">Owns the business case and has decision authority</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-medium mb-3 block">Additional Stakeholders (Optional)</Label>
+                </div>
+              </>
+            )}
+            
             <div className="space-y-4">
               {projectData.stakeholders.map((stakeholder, index) => (
                 <div key={index} className="flex gap-2">
@@ -264,7 +346,7 @@ export default function NewProjectPage() {
                       newStakeholders[index] = e.target.value
                       setProjectData({ ...projectData, stakeholders: newStakeholders })
                     }}
-                    placeholder="Stakeholder name and role"
+                    placeholder={projectData.methodology === 'prince2' ? "Additional stakeholder name and role" : "Stakeholder name and role"}
                   />
                   {projectData.stakeholders.length > 1 && (
                     <Button
@@ -291,7 +373,7 @@ export default function NewProjectPage() {
               className="w-full"
             >
               <Users className="mr-2 h-4 w-4" />
-              Add Stakeholder
+              Add {projectData.methodology === 'prince2' ? 'Additional ' : ''}Stakeholder
             </Button>
           </div>
         )
@@ -370,6 +452,13 @@ export default function NewProjectPage() {
               <div>
                 <h4 className="font-medium mb-1">Stakeholders</h4>
                 <ul className="text-sm text-gray-600 dark:text-gray-400">
+                  {projectData.methodology === 'prince2' && projectData.prince2Stakeholders && (
+                    <>
+                      <li>• <strong>Senior User:</strong> {projectData.prince2Stakeholders.seniorUser}</li>
+                      <li>• <strong>Senior Supplier:</strong> {projectData.prince2Stakeholders.seniorSupplier}</li>
+                      <li>• <strong>Executive:</strong> {projectData.prince2Stakeholders.executive}</li>
+                    </>
+                  )}
                   {projectData.stakeholders.filter(s => s).map((stakeholder, i) => (
                     <li key={i}>• {stakeholder}</li>
                   ))}

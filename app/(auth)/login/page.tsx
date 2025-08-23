@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { StarfieldBackground } from '@/components/starfield-background'
 import { Navigation } from '@/components/navigation'
+import { LinkedInModal } from '@/components/linkedin-modal'
 import { Loader2, Mail, Github, Linkedin } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 
@@ -22,6 +23,7 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showLinkedInModal, setShowLinkedInModal] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,6 +49,11 @@ function LoginForm() {
   }
 
   const handleOAuthLogin = async (provider: 'google' | 'linkedin_oidc') => {
+    if (provider === 'linkedin_oidc') {
+      setShowLinkedInModal(true)
+      return
+    }
+    
     setLoading(true)
     setError(null)
 
@@ -194,6 +201,15 @@ function LoginForm() {
         </CardFooter>
       </Card>
       </div>
+      
+      <LinkedInModal 
+        open={showLinkedInModal}
+        onClose={() => setShowLinkedInModal(false)}
+        onUseGoogle={() => {
+          setShowLinkedInModal(false)
+          handleOAuthLogin('google')
+        }}
+      />
     </div>
   )
 }
