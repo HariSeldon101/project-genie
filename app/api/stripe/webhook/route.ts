@@ -3,9 +3,17 @@ import { stripe } from '@/lib/stripe/client'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
 
 export async function POST(request: NextRequest) {
+  // Check if Stripe is configured
+  if (!stripe || !endpointSecret) {
+    return NextResponse.json(
+      { error: 'Webhook handler not configured' },
+      { status: 503 }
+    )
+  }
+
   const body = await request.text()
   const sig = request.headers.get('stripe-signature')!
 
@@ -29,7 +37,7 @@ export async function POST(request: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session
         
         // Get subscription details
-        const subscription = await stripe.subscriptions.retrieve(
+        const subscription = await stripe!.subscriptions.retrieve(
           session.subscription as string
         )
 

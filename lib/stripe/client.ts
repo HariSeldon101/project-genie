@@ -1,9 +1,13 @@
 import Stripe from 'stripe'
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-12-18.acacia',
-  typescript: true,
-})
+// Only initialize Stripe if we have a secret key
+// This prevents build errors when environment variables aren't available
+export const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2024-12-18.acacia',
+      typescript: true,
+    })
+  : null
 
 export const getStripePublishableKey = () => {
   return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
