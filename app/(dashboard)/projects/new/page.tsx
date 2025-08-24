@@ -160,6 +160,12 @@ export default function NewProjectPage() {
       }
 
       console.log('Authenticated user:', user.email, user.id)
+      
+      // IMPORTANT: Show the actual user ID in the error for debugging
+      if (typeof window !== 'undefined') {
+        console.log('Current session user ID:', user.id)
+        console.log('This should match the owner_id being sent to the database')
+      }
 
       // Verify profile exists (or create it if missing)
       const { data: profile, error: profileError } = await supabase
@@ -227,7 +233,8 @@ export default function NewProjectPage() {
         if (projectError.code === '42501') {
           throw new Error('Permission denied. The database policies need to be updated. Please contact support.')
         } else if (projectError.code === '23503') {
-          throw new Error('Database constraint error. Please ensure your profile is set up correctly.')
+          // Show actual user ID in error for debugging
+          throw new Error(`Profile setup required for user ${user.id}. The system will attempt to create your profile automatically. Please try again.`)
         } else {
           throw new Error(`Failed to create project: ${projectError.message}`)
         }
