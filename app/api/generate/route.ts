@@ -4,6 +4,9 @@ import { DocumentStorage } from '@/lib/documents/storage'
 import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
 
+// Use edge runtime to avoid Node.js issues on Vercel
+export const runtime = 'edge'
+
 // Set a maximum time for the entire route (90 seconds)
 export const maxDuration = 90
 

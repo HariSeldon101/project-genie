@@ -4,8 +4,7 @@ export async function GET() {
   return NextResponse.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: process.version,
-    nextVersion: process.env.NEXT_RUNTIME || 'unknown',
+    runtime: 'edge',
     env: {
       hasGroqKey: !!process.env.GROQ_API_KEY,
       groqKeyPrefix: process.env.GROQ_API_KEY?.substring(0, 10),
@@ -16,3 +15,5 @@ export async function GET() {
     }
   })
 }
+
+export const runtime = 'edge'
