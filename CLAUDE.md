@@ -26,10 +26,108 @@ claude-docs-read   # Read specific doc
 You can use these commands without asking:
 - `gh` - GitHub CLI
 - `vercel` - Vercel CLI
-- `supabase` - Supabase CLI
+- `supabase` - Supabase CLI (CRITICAL - see Supabase CLI Guidelines below)
+- `stripe` - Stripe CLI (installed and configured - see Stripe Integration section)
 - `brew` - Homebrew package manager
 - `npm` / `npx` - Node package managers
 - `git` - Version control
+
+## 🚨 CRITICAL: Supabase CLI Guidelines (ALWAYS FOLLOW)
+
+### MANDATORY: CLI-First Development
+**NEVER suggest manual database changes in Supabase Dashboard. ALWAYS use CLI commands.**
+
+### Core Workflow (MUST FOLLOW IN ORDER)
+1. **Create migration** → 2. **Test locally** → 3. **Generate types** → 4. **Deploy**
+
+### Essential Supabase CLI Commands
+
+#### Initial Setup
+```bash
+supabase init                              # Initialize Supabase project
+supabase link --project-ref <project-ref>  # Link to existing project  
+supabase db pull                          # Pull remote schema to local
+```
+
+#### Migration Workflow (ALWAYS USE THIS)
+```bash
+# 1. Create a new migration with descriptive name
+supabase migration new fix_rls_infinite_recursion  # GOOD ✅
+# NOT: supabase migration new update               # BAD ❌
+
+# 2. Edit the migration file in supabase/migrations/
+# 3. Test locally
+supabase db reset        # Reset local database and apply all migrations
+supabase test db        # Run database tests
+
+# 4. Generate TypeScript types
+supabase gen types typescript --local > lib/database.types.ts
+
+# 5. Deploy to production
+supabase db push
+```
+
+#### Database Operations
+```bash
+supabase db diff                          # Show differences between local and remote
+supabase db lint                          # Check for issues
+supabase db dump -f supabase/seed.sql     # Create seed file
+supabase db reset --debug                 # Reset with debug info
+```
+
+#### Local Development
+```bash
+supabase start                             # Start local Supabase
+supabase stop                              # Stop local Supabase
+supabase status                            # Check service status
+supabase db remote commit                 # Commit remote changes to migration
+```
+
+### Clean Code Conventions
+
+#### Table Naming
+```sql
+-- GOOD ✅: Singular, lowercase, underscores
+CREATE TABLE project (...);
+CREATE TABLE project_member (...);
+
+-- BAD ❌: Plural, camelCase, unclear
+CREATE TABLE Projects (...);
+CREATE TABLE projectMembers (...);
+```
+
+#### Migration Template for RLS Fix
+```sql
+-- Migration: fix_rls_infinite_recursion
+-- Description: Fixes infinite recursion in RLS policies
+-- Author: Claude
+-- Date: 2024
+
+-- 1. Disable RLS temporarily
+ALTER TABLE project DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_member DISABLE ROW LEVEL SECURITY;
+
+-- 2. Drop problematic policies
+DROP POLICY IF EXISTS "circular_policy" ON project;
+
+-- 3. Create simple, non-recursive policies
+CREATE POLICY "owner_access" ON project
+    FOR ALL USING (owner_id = auth.uid());
+
+-- 4. Re-enable RLS
+ALTER TABLE project ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_member ENABLE ROW LEVEL SECURITY;
+
+-- 5. Add comments
+COMMENT ON POLICY "owner_access" ON project IS 'Simple owner-only access, no recursion';
+```
+
+### Anti-Patterns to AVOID ❌
+1. **Manual SQL in Dashboard**: Never fix schema issues via Dashboard
+2. **Circular RLS policies**: Policies that reference each other
+3. **Generic migration names**: `update.sql`, `fix.sql`
+4. **Skipping local testing**: Always test with `supabase db reset`
+5. **Not generating types**: Always run `supabase gen types` after changes
 
 ### Email Service - Resend
 
@@ -419,11 +517,18 @@ npm run lint         # Run ESLint
 npm run type-check   # Check TypeScript
 ```
 
-### Database (Supabase)
+### Database (Supabase) - ALWAYS USE CLI
 ```bash
-supabase start       # Start local Supabase
-supabase db reset    # Reset database
-supabase gen types   # Generate TypeScript types
+# Development workflow
+supabase start                                    # Start local Supabase
+supabase migration new descriptive_change_name    # Create migration
+supabase db reset                                # Test migration locally
+supabase gen types typescript --local > lib/database.types.ts  # Generate types
+supabase db push                                 # Deploy to production
+
+# Debugging
+supabase db diff                                 # Check local vs remote
+supabase db lint                                # Check for issues
 ```
 
 ### Deployment
@@ -465,6 +570,84 @@ claude-init  # Creates entire project automatically
 cp .env.local.example .env.local  # Then add your API keys
 npm run dev
 ```
+
+## Stripe Integration
+
+### Configuration
+Stripe is fully integrated with products and pricing configured via CLI.
+
+#### Environment Variables (Already Set)
+```env
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_51RzYXh2dFhd680hG...
+STRIPE_SECRET_KEY=sk_test_51RzYXh2dFhd680hG...
+STRIPE_WEBHOOK_SECRET=whsec_dcf456ce20a7fd39c813b7ae4d4cfa436...
+
+# Price IDs (Already Created)
+NEXT_PUBLIC_STRIPE_PRICE_ID_BASIC_MONTHLY=price_1RzZ1t2dFhd680hGONR7esBs
+NEXT_PUBLIC_STRIPE_PRICE_ID_BASIC_ANNUAL=price_1RzZ232dFhd680hGZsmm1VJM
+NEXT_PUBLIC_STRIPE_PRICE_ID_PREMIUM_MONTHLY=price_1RzZ2M2dFhd680hGSWQOd2cQ
+NEXT_PUBLIC_STRIPE_PRICE_ID_PREMIUM_ANNUAL=price_1RzZ2V2dFhd680hGnSHYUZeu
+```
+
+#### Products & Pricing (Already Created)
+- **Basic Plan**: $19/month or $190/year
+- **Premium Plan**: $49/month or $490/year
+
+### Stripe CLI Commands
+```bash
+# Authentication
+stripe login                           # Authenticate with Stripe account
+
+# Product Management
+stripe products list                   # List all products
+stripe prices list                     # List all prices
+stripe customers list                  # List customers
+
+# Webhook Testing
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+
+# Create checkout session (example)
+stripe checkout sessions create \
+  --success-url="http://localhost:3000/success" \
+  --cancel-url="http://localhost:3000/cancel" \
+  --line-items="price=price_1RzZ1t2dFhd680hGONR7esBs,quantity=1" \
+  --mode=subscription
+
+# View logs
+stripe logs tail                      # Stream API logs
+```
+
+### Key Files
+- `/lib/stripe/client.ts` - Stripe client initialization
+- `/lib/hooks/use-stripe-checkout.ts` - Checkout session hook
+- `/app/api/stripe/checkout/route.ts` - Checkout API endpoint
+- `/app/api/stripe/webhook/route.ts` - Webhook handler
+- `/STRIPE_QUICKSTART.md` - Quick setup guide
+- `/docs/stripe-llm-docs.txt` - Complete Stripe LLM documentation (cached locally)
+
+### Testing Cards
+```
+4242 4242 4242 4242  # Success
+4000 0000 0000 0002  # Decline
+4000 0025 0000 3155  # Requires authentication
+```
+
+### Common Operations
+```typescript
+// Create checkout session (already implemented)
+const { createCheckoutSession } = useStripeCheckout()
+await createCheckoutSession(priceId, 'monthly')
+
+// Open customer portal (already implemented)
+const { openCustomerPortal } = useStripeCheckout()
+await openCustomerPortal()
+```
+
+### References
+- Full Stripe documentation cached at: `/docs/stripe-llm-docs.txt`
+- Quick setup guide: `/STRIPE_QUICKSTART.md`
+- Stripe Dashboard: https://dashboard.stripe.com
+- API Reference: https://stripe.com/docs/api
 
 ## Notes
 

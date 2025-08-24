@@ -216,12 +216,29 @@ export default function NewProjectPage() {
         }
       }
 
-      // Generate initial documents (this will be handled by the document generation engine)
-      // For now, we'll just redirect to the project page
-      router.push(`/projects/${project.id}`)
-    } catch (error) {
+      // Store project data in session for document generation
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`project_data_${project.id}`, JSON.stringify(projectData))
+      }
+      
+      // Redirect to document generation page
+      router.push(`/projects/${project.id}/generate`)
+    } catch (error: any) {
       console.error('Error creating project:', error)
       setLoading(false)
+      
+      // Handle specific RLS error
+      if (error?.code === '42P17' || error?.message?.includes('infinite recursion')) {
+        alert(
+          'Database configuration issue detected.\n\n' +
+          'Please run the following in your Supabase SQL Editor:\n\n' +
+          'ALTER TABLE projects DISABLE ROW LEVEL SECURITY;\n' +
+          'ALTER TABLE project_members DISABLE ROW LEVEL SECURITY;\n\n' +
+          'Then try creating the project again.'
+        )
+      } else {
+        alert(`Error creating project: ${error?.message || 'Unknown error'}`)
+      }
     }
   }
 

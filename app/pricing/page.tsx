@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StarfieldBackground } from '@/components/starfield-background'
 import { Navigation } from '@/components/navigation'
+import { useStripeCheckout } from '@/lib/hooks/use-stripe-checkout'
+import { STRIPE_PRICE_IDS } from '@/lib/stripe/config'
 import { 
   Sparkles, 
   Check,
@@ -24,11 +26,14 @@ import {
 
 export default function PricingPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
+  const { createCheckoutSession, loading } = useStripeCheckout()
 
   const plans = [
     {
       name: 'Free',
+      tier: 'free' as const,
       price: billingCycle === 'monthly' ? '0' : '0',
+      priceId: null as string | null,
       description: 'Perfect for trying out Project Genie',
       color: 'from-gray-500 to-gray-600',
       features: [
@@ -39,18 +44,22 @@ export default function PricingPage() {
         { name: 'Community Support', included: true },
         { name: '7-Day History', included: true },
         { name: 'Basic Templates', included: true },
+        { name: 'Project Genie Branding', included: true },
         { name: 'Conversational AI', included: false },
         { name: 'Advanced Analytics', included: false },
         { name: 'Custom Integrations', included: false },
         { name: 'Priority Support', included: false },
-        { name: 'Custom Branding', included: false }
+        { name: 'Custom Branding', included: false },
+        { name: 'White Label', included: false }
       ],
       cta: 'Start Free',
       popular: false
     },
     {
       name: 'Basic',
+      tier: 'basic' as const,
       price: billingCycle === 'monthly' ? '19' : '15',
+      priceId: billingCycle === 'monthly' ? STRIPE_PRICE_IDS.basic.monthly : STRIPE_PRICE_IDS.basic.annual,
       description: 'For small teams and growing projects',
       color: 'from-blue-500 to-indigo-600',
       features: [
@@ -61,18 +70,22 @@ export default function PricingPage() {
         { name: 'Email Support', included: true },
         { name: '90-Day History', included: true },
         { name: 'Premium Templates', included: true },
+        { name: 'Custom Branding', included: true },
+        { name: 'Remove Watermarks', included: true },
         { name: 'Conversational AI', included: true },
         { name: 'Basic Analytics', included: true },
         { name: 'API Access', included: true },
         { name: 'Priority Support', included: false },
-        { name: 'Custom Branding', included: false }
+        { name: 'White Label', included: false }
       ],
       cta: 'Start Basic',
       popular: true
     },
     {
       name: 'Premium',
+      tier: 'premium' as const,
       price: billingCycle === 'monthly' ? '49' : '39',
+      priceId: billingCycle === 'monthly' ? STRIPE_PRICE_IDS.premium.monthly : STRIPE_PRICE_IDS.premium.annual,
       description: 'For enterprises and large teams',
       color: 'from-purple-500 to-pink-600',
       features: [
@@ -83,11 +96,13 @@ export default function PricingPage() {
         { name: '24/7 Priority Support', included: true },
         { name: 'Unlimited History', included: true },
         { name: 'Custom Templates', included: true },
+        { name: 'White Label Branding', included: true },
+        { name: 'Custom Logos & Colors', included: true },
         { name: 'Advanced Conversational AI', included: true },
         { name: 'Predictive Analytics', included: true },
         { name: 'Custom Integrations', included: true },
         { name: 'Dedicated Account Manager', included: true },
-        { name: 'White Label Options', included: true }
+        { name: 'SLA Guarantee', included: true }
       ],
       cta: 'Go Premium',
       popular: false
@@ -104,7 +119,7 @@ export default function PricingPage() {
     { name: 'Data History', icon: Globe, free: '7 Days', basic: '90 Days', premium: 'Unlimited' },
     { name: 'Support', icon: Shield, free: 'Community', basic: 'Email', premium: '24/7 Priority' },
     { name: 'API Access', icon: Infinity, free: false, basic: true, premium: true },
-    { name: 'Custom Branding', icon: Sparkles, free: false, basic: false, premium: true }
+    { name: 'Document Branding', icon: Sparkles, free: 'Project Genie', basic: 'Custom', premium: 'White Label' }
   ]
 
   return (
@@ -187,18 +202,33 @@ export default function PricingPage() {
                 </CardHeader>
                 
                 <CardContent className="space-y-4">
-                  <Link href="/signup">
+                  {plan.tier === 'free' ? (
+                    <Link href="/signup">
+                      <Button 
+                        className={`w-full ${
+                          plan.popular 
+                            ? 'bg-blue-600 hover:bg-blue-700' 
+                            : 'bg-white/10 hover:bg-white/20'
+                        }`}
+                      >
+                        {plan.cta}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  ) : (
                     <Button 
+                      onClick={() => plan.priceId && createCheckoutSession(plan.priceId, billingCycle)}
+                      disabled={loading || !plan.priceId}
                       className={`w-full ${
                         plan.popular 
                           ? 'bg-blue-600 hover:bg-blue-700' 
                           : 'bg-white/10 hover:bg-white/20'
                       }`}
                     >
-                      {plan.cta}
+                      {loading ? 'Loading...' : plan.cta}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
-                  </Link>
+                  )}
                   
                   <div className="space-y-3 pt-4">
                     {plan.features.slice(0, 7).map((feature, index) => (

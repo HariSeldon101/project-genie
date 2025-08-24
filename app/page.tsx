@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,8 +17,33 @@ import {
   Clock,
   Brain
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
 
 export default function Home() {
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      setLoading(false)
+    }
+
+    checkUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
   return (
     <div className="min-h-screen relative">
       <StarfieldBackground />
@@ -38,17 +65,28 @@ export default function Home() {
               Let AI handle the paperwork while you focus on delivering exceptional projects.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Link href="/signup">
-                <Button size="lg" className="text-lg px-8 py-6 bg-blue-600 hover:bg-blue-700">
-                  Start Free Trial
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-              <Link href="/how-it-works">
-                <Button variant="outline" size="lg" className="text-lg px-8 py-6 border-white/20 bg-white/10 text-white hover:bg-white/20">
-                  See How It Works
-                </Button>
-              </Link>
+              {user ? (
+                <Link href="/dashboard">
+                  <Button size="lg" className="text-lg px-8 py-6 bg-blue-600 hover:bg-blue-700">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link href="/signup">
+                    <Button size="lg" className="text-lg px-8 py-6 bg-blue-600 hover:bg-blue-700">
+                      Start Free Trial
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                  <Link href="/how-it-works">
+                    <Button variant="outline" size="lg" className="text-lg px-8 py-6 border-white/20 bg-white/10 text-white hover:bg-white/20">
+                      See How It Works
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -186,22 +224,38 @@ export default function Home() {
             <p className="text-xl text-gray-200 mb-8">
               Join thousands of project managers who've already automated their documentation workflow.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/signup">
-                <Button size="lg" className="text-lg px-8 py-6 bg-blue-600 hover:bg-blue-700">
-                  Start Your Free Trial
-                  <Sparkles className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-              <Link href="/demo">
-                <Button variant="outline" size="lg" className="text-lg px-8 py-6 border-white/20 bg-white/10 text-white hover:bg-white/20">
-                  Book a Demo
-                </Button>
-              </Link>
-            </div>
-            <p className="mt-6 text-sm text-gray-400">
-              No credit card required • 14-day free trial • Cancel anytime
-            </p>
+            {user ? (
+              <div className="flex flex-col items-center">
+                <Link href="/dashboard">
+                  <Button size="lg" className="text-lg px-8 py-6 bg-blue-600 hover:bg-blue-700">
+                    Continue to Dashboard
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <p className="mt-6 text-sm text-gray-400">
+                  Welcome back! Continue managing your projects.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Link href="/signup">
+                    <Button size="lg" className="text-lg px-8 py-6 bg-blue-600 hover:bg-blue-700">
+                      Start Your Free Trial
+                      <Sparkles className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                  <Link href="/demo">
+                    <Button variant="outline" size="lg" className="text-lg px-8 py-6 border-white/20 bg-white/10 text-white hover:bg-white/20">
+                      Book a Demo
+                    </Button>
+                  </Link>
+                </div>
+                <p className="mt-6 text-sm text-gray-400">
+                  No credit card required • 14-day free trial • Cancel anytime
+                </p>
+              </>
+            )}
           </Card>
         </div>
       </section>
