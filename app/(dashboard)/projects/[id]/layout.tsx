@@ -19,4 +19,3 @@ export default async function ProjectLayout({
   )
 }
 
-export const runtime = 'edge'
