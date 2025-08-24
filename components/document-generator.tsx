@@ -141,29 +141,31 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       
       clearTimeout(timeoutId)
 
-      if (!response.ok) {
-        let errorMessage = 'Generation failed'
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.details || errorData.error || errorMessage
-        } catch (parseError) {
-          // If response is not JSON, try to get text
-          try {
-            errorMessage = await response.text()
-          } catch {
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`
-          }
+      // Parse response body once
+      let responseData
+      const contentType = response.headers.get('content-type')
+      
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await response.json()
+        } else {
+          // If not JSON, get as text
+          const text = await response.text()
+          console.error('Non-JSON response:', text)
+          throw new Error(`Server returned non-JSON response: ${text.substring(0, 200)}`)
         }
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError)
+        throw new Error(`Failed to parse server response: ${parseError.message}`)
+      }
+
+      // Check if request was successful
+      if (!response.ok) {
+        const errorMessage = responseData?.details || responseData?.error || 'Generation failed'
         throw new Error(errorMessage)
       }
 
-      let result
-      try {
-        result = await response.json()
-      } catch (parseError) {
-        console.error('Failed to parse response as JSON:', parseError)
-        throw new Error('Invalid response format from server')
-      }
+      const result = responseData
       
       // Step 6: Validate
       updateProgress(5, 'Checking document completeness...')

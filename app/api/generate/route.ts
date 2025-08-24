@@ -4,19 +4,18 @@ import { DocumentStorage } from '@/lib/documents/storage'
 import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
 
-// Use edge runtime to avoid Node.js issues on Vercel
-export const runtime = 'edge'
-
 // Set a maximum time for the entire route (90 seconds)
 export const maxDuration = 90
 
 export async function POST(request: NextRequest) {
-  console.log('[API] Generate endpoint called')
+  console.log('[API] Generate endpoint called at', new Date().toISOString())
   console.log('[API] Environment check:', {
     hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     hasGroqKey: !!process.env.GROQ_API_KEY,
-    groqKeyPrefix: process.env.GROQ_API_KEY?.substring(0, 10)
+    groqKeyPrefix: process.env.GROQ_API_KEY?.substring(0, 10),
+    nodeVersion: process.version,
+    runtime: process.env.VERCEL_REGION || 'local'
   })
   
   try {
@@ -124,10 +123,14 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Document generation error:', error)
+    console.error('[API] Document generation error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      type: error?.constructor?.name
+    })
     
     // Check if it's a PII error
-    const errorMessage = error instanceof Error ? error.message : ''
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     if (errorMessage.includes('PII detected')) {
       return NextResponse.json(
         { 
