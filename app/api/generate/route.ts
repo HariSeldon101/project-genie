@@ -8,6 +8,14 @@ import { createClient } from '@supabase/supabase-js'
 export const maxDuration = 90
 
 export async function POST(request: NextRequest) {
+  console.log('[API] Generate endpoint called')
+  console.log('[API] Environment check:', {
+    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasGroqKey: !!process.env.GROQ_API_KEY,
+    groqKeyPrefix: process.env.GROQ_API_KEY?.substring(0, 10)
+  })
+  
   try {
     // Get user session
     const supabase = createClient(

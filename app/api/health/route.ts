@@ -5,6 +5,14 @@ export async function GET() {
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: process.version,
-    nextVersion: process.env.NEXT_RUNTIME || 'unknown'
+    nextVersion: process.env.NEXT_RUNTIME || 'unknown',
+    env: {
+      hasGroqKey: !!process.env.GROQ_API_KEY,
+      groqKeyPrefix: process.env.GROQ_API_KEY?.substring(0, 10),
+      hasDeepSeekKey: !!process.env.DEEPSEEK_API_KEY,
+      hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+      nodeEnv: process.env.NODE_ENV,
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    }
   })
 }
