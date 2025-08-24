@@ -7,21 +7,30 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get('code')
   const next = requestUrl.searchParams.get('next') || '/dashboard'
   
-  // Debug logging
-  console.log('Auth callback initiated with code:', code?.substring(0, 8) + '...')
-  console.log('Redirect target:', next)
+  // First, test if this route is even being called
+  console.log('=== AUTH CALLBACK STARTED ===')
+  console.log('Code:', code?.substring(0, 8) + '...')
+  console.log('Next:', next)
+  console.log('Origin:', requestUrl.origin)
   
   if (!code) {
-    console.error('No code provided to auth callback')
+    console.log('No code provided, redirecting to login')
     return NextResponse.redirect(new URL('/login?error=no_code', requestUrl.origin))
   }
 
   try {
+    // Check if environment variables are set
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Missing Supabase environment variables')
+      return NextResponse.redirect(new URL('/login?error=config_error', requestUrl.origin))
+    }
+    
+    console.log('Creating Supabase client...')
     const cookieStore = await cookies()
     
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
           getAll() {
@@ -33,7 +42,7 @@ export async function GET(request: Request) {
                 cookieStore.set(name, value, options)
               })
             } catch (error) {
-              console.error('Cookie setting error:', error)
+              console.error('Cookie error:', error)
             }
           },
         },
@@ -44,62 +53,44 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (error) {
-      console.error('Session exchange error:', error)
-      return NextResponse.redirect(
-        new URL(`/login?error=${encodeURIComponent(error.message)}`, requestUrl.origin)
-      )
+      console.error('Exchange error:', error.message, error.status, error.name)
+      // Include more details in the error redirect
+      const errorUrl = new URL('/login', requestUrl.origin)
+      errorUrl.searchParams.set('error', error.message)
+      errorUrl.searchParams.set('error_code', error.status?.toString() || 'unknown')
+      return NextResponse.redirect(errorUrl)
     }
 
     console.log('Session established successfully')
     
-    // Get user to ensure session is valid
+    // Verify we can get the user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     
     if (userError || !user) {
-      console.error('User fetch error:', userError)
-      return NextResponse.redirect(
-        new URL('/login?error=session_invalid', requestUrl.origin)
-      )
+      console.error('User verification failed:', userError)
+      return NextResponse.redirect(new URL('/login?error=user_verification_failed', requestUrl.origin))
     }
 
-    console.log('User authenticated:', user.email)
+    console.log('User verified:', user.email)
     
-    // Check if user profile exists
-    try {
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', user.id)
-        .single()
-      
-      if (profileError && profileError.code === 'PGRST116') {
-        // Profile doesn't exist, create it
-        console.log('Creating user profile...')
-        const { error: insertError } = await supabase.from('users').insert({
-          id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
-          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || '',
-        })
-        
-        if (insertError) {
-          console.error('Profile creation error:', insertError)
-        } else {
-          console.log('Profile created successfully')
-        }
-      }
-    } catch (profileError) {
-      console.error('Profile check error:', profileError)
-    }
-    
-    // Successful authentication - redirect to next page
+    // Skip profile creation for now to simplify
     console.log('Redirecting to:', next)
-    return NextResponse.redirect(new URL(next, requestUrl.origin))
+    
+    // Create the redirect response
+    const redirectUrl = new URL(next, requestUrl.origin)
+    console.log('Full redirect URL:', redirectUrl.toString())
+    
+    return NextResponse.redirect(redirectUrl)
     
   } catch (error: any) {
-    console.error('Auth callback exception:', error)
-    return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(error.message || 'Unknown error')}`, requestUrl.origin)
-    )
+    console.error('=== CALLBACK ERROR ===')
+    console.error('Type:', error.constructor.name)
+    console.error('Message:', error.message)
+    console.error('Stack:', error.stack)
+    
+    const errorUrl = new URL('/login', requestUrl.origin)
+    errorUrl.searchParams.set('error', 'callback_exception')
+    errorUrl.searchParams.set('message', error.message || 'Unknown error')
+    return NextResponse.redirect(errorUrl)
   }
 }
