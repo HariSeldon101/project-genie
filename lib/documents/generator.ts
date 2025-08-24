@@ -235,7 +235,8 @@ export class DocumentGenerator {
       
       // Cache the generated documents for future use
       if (this.useCache && documents.length > 0) {
-        this.cache.set(sanitizedData, projectId, documents, this.provider.name)
+        const providerName = this.getProvider()
+        this.cache.set(sanitizedData, projectId, documents, providerName)
       }
       
       // Store mapping table for later use

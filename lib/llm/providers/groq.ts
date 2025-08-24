@@ -76,15 +76,20 @@ export class GroqProvider extends BaseProvider {
       // Groq-optimized prompt for JSON generation
       const jsonPrompt: LLMPrompt = {
         system: `You are a helpful assistant that generates structured JSON data for project management.
-Always respond with valid JSON matching the exact structure provided.
+You MUST respond with valid JSON that EXACTLY matches the structure provided.
 Use placeholder tokens like [STAKEHOLDER_1], [PRODUCT_OWNER], [TECH_LEAD] for names.
-Never use real names or email addresses.`,
+Never use real names or email addresses.
+CRITICAL: Your response must be a JSON object with the exact fields shown in the structure, not a generic document format.`,
         user: `${prompt.user}
 
-IMPORTANT: Generate a JSON response that EXACTLY matches this structure:
+You MUST generate a JSON response with EXACTLY these fields (no more, no less):
 ${JSON.stringify(exampleStructure, null, 2)}
 
-Respond with ONLY the JSON, no additional text or markdown.`,
+IMPORTANT: 
+- Do NOT wrap the response in any other structure
+- Do NOT add fields like "title", "content", "sections" unless they are in the structure above
+- Generate ONLY the JSON structure shown above with appropriate content
+- Return pure JSON, no markdown or extra text`,
         temperature: 0.2, // Lower temperature for more consistent JSON
         maxTokens: prompt.maxTokens || 6000
       }
