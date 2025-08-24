@@ -13,13 +13,13 @@ export interface LLMPrompt {
 }
 
 export interface LLMConfig {
-  provider: 'openai' | 'anthropic' | 'ollama' | 'mock' | 'deepseek'
+  provider: 'openai' | 'anthropic' | 'ollama' | 'mock' | 'deepseek' | 'groq'
   apiKey?: string
   baseUrl?: string
   model?: string
   maxTokens?: number
   temperature?: number
-  fallbackProviders?: Array<'openai' | 'deepseek' | 'anthropic' | 'mock'>
+  fallbackProviders?: Array<'openai' | 'deepseek' | 'groq' | 'anthropic' | 'mock'>
 }
 
 export interface SanitizedProjectData {

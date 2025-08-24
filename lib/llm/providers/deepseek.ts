@@ -113,11 +113,19 @@ Generate complete, professional JSON content now.`,
         } else {
           console.warn('[DeepSeek] JSON parse failed:', parseError.message)
         }
+        
+        // Check if content is empty or truncated
+        if (!content || content.trim().length < 10) {
+          console.warn('[DeepSeek] Response is empty or too short, using fallback')
+          const fallbackStructure = this.createFallbackStructure(schema)
+          return fallbackStructure as T
+        }
+        
         console.warn('[DeepSeek] Raw content preview:', content.substring(0, 200) + '...')
         
         // Try extracting JSON if response contains extra text
         let jsonStr = this.extractJSON(content)
-        if (jsonStr !== content) {
+        if (jsonStr && jsonStr !== content) {
           try {
             const parsed = JSON.parse(jsonStr)
             console.log('[DeepSeek] Successfully extracted and parsed JSON')
@@ -125,6 +133,19 @@ Generate complete, professional JSON content now.`,
           } catch (extractError: any) {
             console.warn('[DeepSeek] Extract attempt failed:', extractError.message)
           }
+        }
+        
+        // Try to fix common JSON issues
+        try {
+          // Attempt to fix incomplete JSON by adding closing brackets
+          const fixedJson = this.attemptJsonRepair(content)
+          if (fixedJson) {
+            const parsed = JSON.parse(fixedJson)
+            console.log('[DeepSeek] Successfully repaired and parsed JSON')
+            return schema.parse(parsed)
+          }
+        } catch (repairError: any) {
+          console.warn('[DeepSeek] JSON repair failed:', repairError.message)
         }
         
         // Fallback: Use a minimal valid structure
@@ -378,6 +399,73 @@ Generate complete, professional JSON content now.`,
   
   private getExampleFromSchema(schema: any): any {
     return this.getSimplifiedSchema(schema)
+  }
+  
+  private attemptJsonRepair(content: string): string | null {
+    try {
+      let json = content.trim()
+      
+      // Remove any text before the first { or [
+      const firstBrace = json.indexOf('{')
+      const firstBracket = json.indexOf('[')
+      const start = Math.min(
+        firstBrace >= 0 ? firstBrace : Infinity,
+        firstBracket >= 0 ? firstBracket : Infinity
+      )
+      
+      if (start === Infinity) return null
+      json = json.substring(start)
+      
+      // Count opening and closing brackets
+      let braceCount = 0
+      let bracketCount = 0
+      let inString = false
+      let escapeNext = false
+      
+      for (let i = 0; i < json.length; i++) {
+        const char = json[i]
+        
+        if (escapeNext) {
+          escapeNext = false
+          continue
+        }
+        
+        if (char === '\\') {
+          escapeNext = true
+          continue
+        }
+        
+        if (char === '"' && !escapeNext) {
+          inString = !inString
+          continue
+        }
+        
+        if (!inString) {
+          if (char === '{') braceCount++
+          else if (char === '}') braceCount--
+          else if (char === '[') bracketCount++
+          else if (char === ']') bracketCount--
+        }
+      }
+      
+      // Add missing closing brackets
+      while (braceCount > 0) {
+        json += '}'
+        braceCount--
+      }
+      
+      while (bracketCount > 0) {
+        json += ']'
+        bracketCount--
+      }
+      
+      // Validate it's parseable
+      JSON.parse(json)
+      return json
+      
+    } catch (e) {
+      return null
+    }
   }
   
   private createFallbackStructure(schema: any): any {

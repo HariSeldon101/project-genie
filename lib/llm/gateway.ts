@@ -1,6 +1,7 @@
 import { LLMProvider, LLMConfig, LLMPrompt, SanitizedProjectData } from './types'
 import { OpenAIProvider } from './providers/openai'
 import { DeepSeekProvider } from './providers/deepseek'
+import { GroqProvider } from './providers/groq'
 import { MockProvider } from './providers/mock'
 import { DataSanitizer } from './sanitizer'
 
@@ -13,11 +14,14 @@ export class LLMGateway {
     // Check if we should use mock mode
     const useMock = process.env.USE_MOCK_LLM === 'true' || process.env.NODE_ENV === 'test'
     
-    // Re-enable DeepSeek as primary provider
+    // Check for available providers and prioritize Groq for better performance
     let primaryProvider: LLMConfig['provider'] = 'mock'
     
     if (!useMock) {
-      if (process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_API_KEY !== 'your_deepseek_api_key') {
+      if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_groq_api_key') {
+        primaryProvider = 'groq'
+        console.log('⚡ Groq API enabled for fast inference')
+      } else if (process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_API_KEY !== 'your_deepseek_api_key') {
         primaryProvider = 'deepseek'
         console.log('🚀 DeepSeek API enabled with optimizations')
       } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key') {
@@ -33,8 +37,8 @@ export class LLMGateway {
       maxTokens: config?.maxTokens || parseInt(process.env.LLM_MAX_TOKENS || '4000'),
       temperature: config?.temperature || parseFloat(process.env.LLM_TEMPERATURE || '0.7'),
       baseUrl: config?.baseUrl || process.env.OLLAMA_BASE_URL,
-      // Define fallback chain: primary -> alternate -> mock
-      fallbackProviders: config?.fallbackProviders || ['deepseek', 'openai', 'mock']
+      // Define fallback chain: groq -> deepseek -> openai -> mock
+      fallbackProviders: config?.fallbackProviders || ['groq', 'deepseek', 'openai', 'mock']
     }
 
     // Initialize provider based on configuration
@@ -66,6 +70,14 @@ export class LLMGateway {
           return new MockProvider(this.config)
         }
         return new DeepSeekProvider({ ...this.config, apiKey: deepseekKey })
+        
+      case 'groq':
+        const groqKey = this.config.apiKey || process.env.GROQ_API_KEY
+        if (!groqKey || groqKey === 'your_groq_api_key') {
+          console.warn('⚠️ No valid Groq API key found')
+          return new MockProvider(this.config)
+        }
+        return new GroqProvider({ ...this.config, apiKey: groqKey })
         
       case 'mock':
         return new MockProvider(this.config)
