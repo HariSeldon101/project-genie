@@ -1,14 +1,20 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/auth/auth-helpers'
 
 export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname
+  
+  // Skip middleware for auth callback
+  if (path === '/auth/callback') {
+    return NextResponse.next()
+  }
+  
   const { supabaseResponse, user } = await updateSession(request)
 
   // Protected routes
-  const protectedPaths = ['/dashboard', '/projects', '/settings']
-  const authPaths = ['/login', '/signup', '/auth']
+  const protectedPaths = ['/dashboard', '/projects', '/settings', '/analytics', '/team', '/documents']
+  const authPaths = ['/login', '/signup']
   
-  const path = request.nextUrl.pathname
   const isProtectedPath = protectedPaths.some(p => path.startsWith(p))
   const isAuthPath = authPaths.some(p => path.startsWith(p))
 
