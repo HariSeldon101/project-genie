@@ -147,33 +147,63 @@ export default function NewProjectPage() {
     setLoading(true)
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      // Get current user with proper auth context
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) {
+        console.error('Auth error:', authError)
+        throw new Error('Authentication error. Please sign in again.')
+      }
+      
+      if (!user) {
+        throw new Error('Not authenticated. Please sign in again.')
+      }
 
-      // Verify profile exists
+      console.log('Authenticated user:', user.email, user.id)
+
+      // Verify profile exists (or create it if missing)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', user.id)
         .single()
 
-      if (profileError || !profile) {
-        console.error('Profile error:', profileError)
-        throw new Error('User profile not found. Please refresh and try again.')
+      if (profileError) {
+        console.warn('Profile not found, attempting to create...', profileError)
+        
+        // Try to create profile if it doesn't exist
+        const { data: newProfile, error: createProfileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email!,
+            full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
+          })
+          .select()
+          .single()
+        
+        if (createProfileError) {
+          console.error('Failed to create profile:', createProfileError)
+          throw new Error('Unable to create user profile. Please contact support.')
+        }
+        
+        console.log('Profile created successfully:', newProfile)
       }
 
-      // Create project with fields matching the actual table structure
+      // Create project with proper owner_id
       const projectPayload = {
         name: projectData.name,
-        description: projectData.description,
-        vision: projectData.vision,
+        description: projectData.description || '',
+        vision: projectData.vision || '',
         business_case: projectData.businessCase || null,
         methodology_type: projectData.methodology,
-        owner_id: profile.id,
-        rag_status: 'green', // Using RAG status instead of generic status
-        // Note: company_info and stakeholders might need to be stored differently
-        // depending on your table structure
+        owner_id: user.id, // Use the authenticated user's ID directly
+        rag_status: 'green',
+        status: 'planning',
+        company_info: {
+          website: projectData.companyWebsite,
+          sector: projectData.sector
+        }
       }
 
       console.log('Creating project with payload:', projectPayload)
@@ -185,8 +215,22 @@ export default function NewProjectPage() {
         .single()
 
       if (projectError) {
-        console.error('Project creation error:', projectError)
-        throw projectError
+        console.error('Project creation error details:', {
+          error: projectError,
+          code: projectError.code,
+          message: projectError.message,
+          details: projectError.details,
+          hint: projectError.hint
+        })
+        
+        // Provide more helpful error messages
+        if (projectError.code === '42501') {
+          throw new Error('Permission denied. The database policies need to be updated. Please contact support.')
+        } else if (projectError.code === '23503') {
+          throw new Error('Database constraint error. Please ensure your profile is set up correctly.')
+        } else {
+          throw new Error(`Failed to create project: ${projectError.message}`)
+        }
       }
 
       // Add stakeholders
