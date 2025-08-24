@@ -95,10 +95,12 @@ export class DocumentGenerator {
       // Use longer timeout for DeepSeek
       const timeoutMs = this.getProvider() === 'deepseek' ? 60000 : 30000
       
+      // Check if we're using DeepSeek provider for sequential generation
+      const isDeepSeek = this.getProvider() === 'deepseek'
+      
       switch (sanitizedData.methodology) {
         case 'agile':
           // Use sequential generation for DeepSeek to avoid timeouts
-          const isDeepSeek = this.getProvider() === 'deepseek'
           
           if (isDeepSeek) {
             console.log('🔄 Generating 3 Agile documents sequentially (DeepSeek mode)...')
