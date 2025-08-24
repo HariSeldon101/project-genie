@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/auth/callback/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/**/*.ts": {
+      "maxDuration": 10
+    }
+  },
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "framework": "nextjs"
+}
