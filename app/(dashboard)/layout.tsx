@@ -38,3 +38,4 @@ export default async function DashboardLayout({
   )
 }
 
+export const runtime = 'edge'
