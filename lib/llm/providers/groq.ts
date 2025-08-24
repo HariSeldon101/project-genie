@@ -34,7 +34,7 @@ export class GroqProvider extends BaseProvider {
   async generateText(prompt: LLMPrompt): Promise<string> {
     try {
       const response = await this.client.chat.completions.create({
-        model: this.config.model || 'llama3-groq-70b-8192-tool-use-preview', // Default to Llama 3 model
+        model: this.config.model || 'llama-3.3-70b-versatile', // Use the available free model
         messages: this.buildMessages(prompt),
         temperature: prompt.temperature ?? this.config.temperature ?? 0.7,
         max_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000,
@@ -89,11 +89,11 @@ Respond with ONLY the JSON, no additional text or markdown.`,
         maxTokens: prompt.maxTokens || 6000
       }
 
-      console.log('[Groq] Using model:', this.config.model || 'llama3-groq-70b-8192-tool-use-preview')
+      console.log('[Groq] Using model:', this.config.model || 'llama-3.3-70b-versatile')
       
       // Groq supports JSON mode for compatible models
       const response = await this.client.chat.completions.create({
-        model: this.config.model || 'llama3-groq-70b-8192-tool-use-preview',
+        model: this.config.model || 'llama-3.3-70b-versatile',
         messages: this.buildMessages(jsonPrompt),
         temperature: jsonPrompt.temperature,
         max_tokens: jsonPrompt.maxTokens,

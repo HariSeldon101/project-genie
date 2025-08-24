@@ -51,7 +51,8 @@ export class DocumentGenerator {
   }
   
   getProvider() {
-    return this.gateway.config?.provider || 'unknown'
+    // Access the provider directly from gateway's private config
+    return (this.gateway as any).config?.provider || 'unknown'
   }
 
   /**

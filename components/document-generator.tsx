@@ -142,11 +142,28 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.details || errorData.error || 'Generation failed')
+        let errorMessage = 'Generation failed'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.details || errorData.error || errorMessage
+        } catch (parseError) {
+          // If response is not JSON, try to get text
+          try {
+            errorMessage = await response.text()
+          } catch {
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`
+          }
+        }
+        throw new Error(errorMessage)
       }
 
-      const result = await response.json()
+      let result
+      try {
+        result = await response.json()
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError)
+        throw new Error('Invalid response format from server')
+      }
       
       // Step 6: Validate
       updateProgress(5, 'Checking document completeness...')
