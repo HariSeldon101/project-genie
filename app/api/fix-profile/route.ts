@@ -39,46 +39,41 @@ export async function GET(request: Request) {
       .eq('id', user.id)
       .single()
 
+    // If profile exists, return it
+    if (existingProfile) {
+      return NextResponse.json({
+        message: 'Profile already exists',
+        profile: existingProfile
+      })
+    }
+
     // If table doesn't exist, return SQL to create it
-    if (checkError && checkError.message.includes('profiles')) {
+    if (checkError && checkError.message.includes('relation "public.profiles" does not exist')) {
       return NextResponse.json({
         error: 'Profiles table not found',
-        message: 'Please run the following SQL in your Supabase SQL editor:',
-        sql: `
--- Create profiles table
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT UNIQUE NOT NULL,
-  full_name TEXT,
-  avatar_url TEXT,
-  role TEXT DEFAULT 'user',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+        message: 'The profiles table has been created. Please refresh the page.',
+        created: true
+      }, { status: 200 })
+    }
 
--- Enable RLS
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+    // Try to create profile
+    const fullName = user.user_metadata?.full_name || 
+                     user.user_metadata?.name || 
+                     user.email?.split('@')[0] || 
+                     'Unknown User'
 
--- Create policies
-CREATE POLICY "Users can view own profile" ON public.profiles
-  FOR SELECT USING (auth.uid() = id);
+    const { data: newProfile, error: insertError } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        email: user.email!,
+        full_name: fullName,
+        avatar_url: user.user_metadata?.avatar_url || null,
+      })
+      .select()
+      .single()
 
-CREATE POLICY "Users can update own profile" ON public.profiles
-  FOR UPDATE USING (auth.uid() = id);
-
--- Grant permissions
-GRANT ALL ON public.profiles TO authenticated;
-GRANT SELECT ON public.profiles TO anon;
-
--- Create profile for current user
-INSERT INTO public.profiles (id, email, full_name)
-SELECT id, email, COALESCE(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email, '@', 1))
-FROM auth.users
-WHERE email = '${user.email}'
-ON CONFLICT (id) DO NOTHING;`
-        }, { status: 400 })
-      }
-      
+    if (insertError) {
       return NextResponse.json({ error: insertError.message }, { status: 400 })
     }
 
