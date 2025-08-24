@@ -151,21 +151,43 @@ export default function NewProjectPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      // Create project
+      // Verify profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError || !profile) {
+        console.error('Profile error:', profileError)
+        throw new Error('User profile not found. Please refresh and try again.')
+      }
+
+      // Create project with fields matching the actual table structure
+      const projectPayload = {
+        name: projectData.name,
+        description: projectData.description,
+        vision: projectData.vision,
+        business_case: projectData.businessCase || null,
+        methodology_type: projectData.methodology,
+        owner_id: profile.id,
+        rag_status: 'green', // Using RAG status instead of generic status
+        // Note: company_info and stakeholders might need to be stored differently
+        // depending on your table structure
+      }
+
+      console.log('Creating project with payload:', projectPayload)
+
       const { data: project, error: projectError } = await supabase
         .from('projects')
-        .insert({
-          name: projectData.name,
-          description: projectData.description,
-          vision: projectData.vision,
-          business_case: projectData.businessCase,
-          methodology_type: projectData.methodology,
-          owner_id: user.id,
-        })
+        .insert(projectPayload)
         .select()
         .single()
 
-      if (projectError) throw projectError
+      if (projectError) {
+        console.error('Project creation error:', projectError)
+        throw projectError
+      }
 
       // Add stakeholders
       if (project) {

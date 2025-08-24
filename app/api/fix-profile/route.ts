@@ -32,62 +32,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    // First, check if profiles table exists and create it if not
-    const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS public.profiles (
-        id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-        email TEXT UNIQUE NOT NULL,
-        full_name TEXT,
-        avatar_url TEXT,
-        role TEXT DEFAULT 'user',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-    `
-
-    // Try to create the table (will fail if it exists, which is fine)
-    await supabase.rpc('exec_sql', { query: createTableQuery }).catch(() => {
-      // Ignore error if table already exists
-    })
-
     // Check if profile exists
-    const { data: existingProfile } = await supabase
+    const { data: existingProfile, error: checkError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single()
 
-    if (existingProfile) {
-      return NextResponse.json({ 
-        message: 'Profile already exists',
-        profile: existingProfile 
-      })
-    }
-
-    // Create profile
-    const fullName = user.user_metadata?.full_name || 
-                     user.user_metadata?.name || 
-                     user.email?.split('@')[0] || 
-                     'Unknown User'
-
-    const { data: newProfile, error: insertError } = await supabase
-      .from('profiles')
-      .insert({
-        id: user.id,
-        email: user.email!,
-        full_name: fullName,
-        avatar_url: user.user_metadata?.avatar_url || null,
-      })
-      .select()
-      .single()
-
-    if (insertError) {
-      // If profiles table doesn't exist, return instructions
-      if (insertError.message.includes('profiles')) {
-        return NextResponse.json({
-          error: 'Profiles table not found',
-          message: 'Please run the following SQL in your Supabase SQL editor:',
-          sql: `
+    // If table doesn't exist, return SQL to create it
+    if (checkError && checkError.message.includes('profiles')) {
+      return NextResponse.json({
+        error: 'Profiles table not found',
+        message: 'Please run the following SQL in your Supabase SQL editor:',
+        sql: `
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
