@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/auth/auth-helpers'
 
+export const runtime = 'edge'
+
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
   
@@ -15,7 +17,7 @@ export async function middleware(request: NextRequest) {
     console.log(`[Middleware] Path: ${path}, User: ${user ? 'authenticated' : 'anonymous'}`)
 
     // Protected routes
-    const protectedPaths = ['/dashboard', '/projects', '/settings', '/analytics', '/team', '/documents']
+    const protectedPaths = ['/dashboard', '/projects', '/settings', '/analytics', '/team', '/documents', '/admin']
     const authPaths = ['/login', '/signup']
     
     const isProtectedPath = protectedPaths.some(p => path.startsWith(p))
