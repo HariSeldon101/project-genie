@@ -16,6 +16,7 @@ import { ArrowLeft, ArrowRight, Loader2, Sparkles, FileText, Users, Globe, Build
 import { AnimatedBackgroundSubtle } from '@/components/animated-background-subtle'
 import { DemoSelector } from '@/components/demo-selector'
 import { demoProjects, DemoProjectKey } from '@/lib/demo-data'
+import { ensureUserProfile } from '@/lib/supabase/ensure-profile'
 
 type MethodologyType = 'agile' | 'prince2' | 'hybrid'
 
@@ -195,6 +196,13 @@ export default function NewProjectPage() {
     setLoading(true)
 
     try {
+      // First ensure the user has a profile
+      const profileResult = await ensureUserProfile()
+      if (!profileResult.success) {
+        console.error('Profile setup failed:', profileResult.error)
+        throw new Error('Error creating project: Profile setup required. Please try again or contact support.')
+      }
+      
       // Get current user with proper auth context
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
@@ -215,34 +223,8 @@ export default function NewProjectPage() {
         console.log('This should match the owner_id being sent to the database')
       }
 
-      // Verify profile exists (or create it if missing)
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single()
-
-      if (profileError) {
-        console.warn('Profile not found, attempting to create...', profileError)
-        
-        // Try to create profile if it doesn't exist
-        const { data: newProfile, error: createProfileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            email: user.email!,
-            full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
-          })
-          .select()
-          .single()
-        
-        if (createProfileError) {
-          console.error('Failed to create profile:', createProfileError)
-          throw new Error('Unable to create user profile. Please contact support.')
-        }
-        
-        console.log('Profile created successfully:', newProfile)
-      }
+      // Profile is now guaranteed to exist from ensureUserProfile() call above
+      console.log('Profile verified for user:', user.id)
 
       // Create project with proper owner_id
       const projectPayload = {
