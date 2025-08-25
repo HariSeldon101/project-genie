@@ -56,6 +56,10 @@ export interface DocumentMetadata {
   generatedAt: Date
   llmProvider: string
   model: string
+  prompt?: {
+    system: string
+    user: string
+  }
 }
 
 export interface GeneratedDocument {

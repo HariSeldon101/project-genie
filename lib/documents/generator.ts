@@ -54,6 +54,25 @@ export class DocumentGenerator {
     // Access the provider directly from gateway's private config
     return (this.gateway as any).config?.provider || 'unknown'
   }
+  
+  getProviderInfo() {
+    const config = (this.gateway as any).config
+    return {
+      provider: config?.provider || 'unknown',
+      model: config?.model || 'default',
+      temperature: config?.temperature || 0.7,
+      maxTokens: config?.maxTokens || 4000
+    }
+  }
+  
+  getDebugInfo() {
+    return {
+      cacheEnabled: this.useCache,
+      provider: this.getProvider(),
+      providerInfo: this.getProviderInfo(),
+      timestamp: new Date().toISOString()
+    }
+  }
 
   /**
    * Generate all documents for a project based on methodology
@@ -262,6 +281,15 @@ export class DocumentGenerator {
       data
     )
     
+    // Log generation details
+    const providerInfo = this.getProviderInfo()
+    console.log('[Generator] Generating Agile Charter:', {
+      provider: providerInfo.provider,
+      model: providerInfo.model,
+      promptLength: prompt.system.length + prompt.user.length,
+      temperature: providerInfo.temperature
+    })
+    
     const content = await this.gateway.generateJSON(
       prompt,
       AgileCharterSchema
@@ -273,8 +301,9 @@ export class DocumentGenerator {
       methodology: 'agile',
       version: 1,
       generatedAt: new Date(),
-      llmProvider: 'openai',
-      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview'
+      llmProvider: providerInfo.provider,
+      model: providerInfo.model,
+      prompt: { system: prompt.system, user: prompt.user }
     }
     
     return {

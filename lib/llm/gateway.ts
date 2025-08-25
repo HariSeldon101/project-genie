@@ -104,6 +104,13 @@ export class LLMGateway {
     this.sanitizer.validatePrompt(prompt.system)
     this.sanitizer.validatePrompt(prompt.user)
     
+    console.log('[LLMGateway] Generating text:', {
+      provider: this.config.provider,
+      model: this.config.model || 'default',
+      promptLength: prompt.system.length + prompt.user.length,
+      temperature: prompt.temperature || this.config.temperature
+    })
+    
     // Log for audit (without actual content in production)
     await this.sanitizer.logSecurityEvent('PROMPT_VALIDATED', {
       provider: this.config.provider,
@@ -142,6 +149,14 @@ export class LLMGateway {
       throw error
     }
     
+    console.log('[LLMGateway] Generating JSON:', {
+      provider: this.config.provider,
+      model: this.config.model || 'default',
+      promptLength: prompt.system.length + prompt.user.length,
+      temperature: prompt.temperature || this.config.temperature,
+      schemaType: schema._def?.typeName || 'unknown'
+    })
+    
     await this.sanitizer.logSecurityEvent('PROMPT_VALIDATED', {
       provider: this.config.provider,
       model: this.config.model,
@@ -157,7 +172,7 @@ export class LLMGateway {
     // Try primary provider first
     try {
       response = await this.provider.generateJSON<T>(prompt, schema)
-      console.log(`✅ Generated with ${this.config.provider}`)
+      console.log(`✅ Generated JSON with ${this.config.provider}/${this.config.model || 'default'}`)
     } catch (error: any) {
       lastError = error
       triedProviders.push(this.config.provider)

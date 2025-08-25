@@ -64,6 +64,10 @@ export async function POST(request: NextRequest) {
     // Generate documents with timeout
     const generator = new DocumentGenerator(forceProvider ? { provider: forceProvider } : undefined)
     
+    // Log provider info
+    const providerInfo = generator.getProviderInfo()
+    console.log('[API] Using LLM Provider:', providerInfo)
+    
     // Create a timeout promise
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Document generation timed out after 80 seconds')), 80000)
@@ -108,17 +112,21 @@ export async function POST(request: NextRequest) {
         .eq('id', projectId)
     }
 
-    // Return success response
+    // Return success response with debug info
+    const debugInfo = generator.getDebugInfo()
     return NextResponse.json({
       success: true,
       message: 'Documents generated successfully',
       artifactIds,
-      provider: generator.getProvider?.() || 'unknown',
+      provider: providerInfo.provider,
+      model: providerInfo.model,
+      debugInfo,
       documents: documents.map(doc => ({
         type: doc.metadata.type,
         title: getDocumentTitle(doc.metadata.type),
         version: doc.metadata.version,
-        insights: doc.aiInsights
+        insights: doc.aiInsights,
+        prompt: doc.metadata.prompt // Include prompt for debugging
       }))
     })
 

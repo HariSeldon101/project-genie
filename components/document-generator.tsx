@@ -21,6 +21,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface DocumentGeneratorProps {
   projectId: string
@@ -34,20 +41,28 @@ interface DocumentProgress {
   error?: string
 }
 
+interface DocumentInfo {
+  title: string
+  version: string
+  insights?: boolean
+  prompt?: {
+    system: string
+    user: string
+  }
+}
+
 export function DocumentGenerator({ projectId, projectData, onComplete }: DocumentGeneratorProps) {
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [subMessage, setSubMessage] = useState('')
-  const [documents, setDocuments] = useState<Array<{
-    title: string
-    version: string
-    insights?: boolean
-  }>>([])
+  const [documents, setDocuments] = useState<DocumentInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [documentProgress, setDocumentProgress] = useState<DocumentProgress[]>([])
+  const [providerInfo, setProviderInfo] = useState<{ provider: string; model: string } | null>(null)
+  const [viewPrompt, setViewPrompt] = useState<{ doc: string; prompt: { system: string; user: string } } | null>(null)
   
   const generationSteps = [
     { name: 'Initializing', message: 'Setting up document generation...' },
@@ -109,6 +124,11 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       
       // Step 5: Generate with AI
       updateProgress(4, 'AI is creating your documents... This may take 30-60 seconds')
+      console.log('[DocumentGenerator] Starting document generation:', {
+        projectId,
+        methodology: projectData.methodology,
+        timestamp: new Date().toISOString()
+      })
       
       // Mark all documents as generating
       setDocumentProgress(prev => prev.map(doc => ({ ...doc, status: 'generating' })))
@@ -162,10 +182,22 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       // Check if request was successful
       if (!response.ok) {
         const errorMessage = responseData?.details || responseData?.error || 'Generation failed'
+        console.error('[DocumentGenerator] API Error:', errorMessage, responseData)
         throw new Error(errorMessage)
       }
 
       const result = responseData
+      console.log('[DocumentGenerator] Generation successful:', {
+        provider: result.provider,
+        model: result.model,
+        documentsCount: result.documents?.length,
+        debugInfo: result.debugInfo
+      })
+      
+      // Set provider info
+      if (result.provider && result.model) {
+        setProviderInfo({ provider: result.provider, model: result.model })
+      }
       
       // Step 6: Validate
       updateProgress(5, 'Checking document completeness...')
@@ -175,11 +207,16 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       updateProgress(6, 'Documents ready!')
       await new Promise(resolve => setTimeout(resolve, 300))
 
-      setDocuments(result.documents)
+      setDocuments(result.documents.map(doc => ({
+        title: doc.title,
+        version: doc.version,
+        insights: doc.insights,
+        prompt: doc.prompt
+      })))
       setProgress(100)
       setStatus('success')
       setMessage('Success!')
-      setSubMessage(`Generated ${result.documents.length} project documents`)
+      setSubMessage(`Generated ${result.documents.length} project documents using ${result.provider}/${result.model}`)
       
       // Mark all documents as completed
       setDocumentProgress(prev => prev.map(doc => ({ ...doc, status: 'completed' })))
@@ -189,7 +226,10 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       }
 
     } catch (err) {
-      console.error('Generation error:', err)
+      console.error('[DocumentGenerator] Generation failed:', {
+        error: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
+      })
       setStatus('error')
       setError(err instanceof Error ? err.message : 'Failed to generate documents')
       setMessage('')
@@ -363,13 +403,21 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
             </div>
             
             {currentStep === 4 && (
-              <Alert className="bg-blue-500/10 border-blue-500/20 animate-pulse">
-                <Sparkles className="h-4 w-4 text-blue-400" />
-                <AlertDescription className="text-sm">
-                  <strong>AI Working:</strong> Creating customized documents based on your project details. 
-                  This typically takes 30-60 seconds.
-                </AlertDescription>
-              </Alert>
+              <>
+                <Alert className="bg-blue-500/10 border-blue-500/20 animate-pulse">
+                  <Sparkles className="h-4 w-4 text-blue-400" />
+                  <AlertDescription className="text-sm">
+                    <strong>AI Working:</strong> Creating customized documents based on your project details. 
+                    This typically takes 30-60 seconds.
+                  </AlertDescription>
+                </Alert>
+                {providerInfo && (
+                  <div className="mt-2 p-3 bg-gray-800/50 rounded-lg text-xs font-mono">
+                    <div>Provider: <span className="text-blue-400">{providerInfo.provider}</span></div>
+                    <div>Model: <span className="text-green-400">{providerInfo.model}</span></div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -384,6 +432,11 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
 
             <div className="space-y-2">
               <h4 className="font-medium">Generated Documents:</h4>
+              {providerInfo && (
+                <div className="mb-2 p-2 bg-gray-800/30 rounded text-xs">
+                  Generated using: <span className="font-mono text-blue-400">{providerInfo.provider}/{providerInfo.model}</span>
+                </div>
+              )}
               {documents.map((doc, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                   <div className="flex items-center gap-2">
@@ -391,9 +444,21 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
                     <span className="text-sm">{doc.title}</span>
                     <span className="text-xs text-gray-500">v{doc.version}</span>
                   </div>
-                  {doc.insights && (
-                    <span className="text-xs text-green-400">AI Enhanced</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {doc.insights && (
+                      <span className="text-xs text-green-400">AI Enhanced</span>
+                    )}
+                    {doc.prompt && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-6 px-2"
+                        onClick={() => setViewPrompt({ doc: doc.title, prompt: doc.prompt! })}
+                      >
+                        View Prompt
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -471,6 +536,34 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
           </Button>
         )}
       </CardFooter>
+      
+      {/* Prompt Viewer Dialog */}
+      {viewPrompt && (
+        <Dialog open={!!viewPrompt} onOpenChange={() => setViewPrompt(null)}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Prompt for {viewPrompt.doc}</DialogTitle>
+              <DialogDescription>
+                The prompts used to generate this document
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold mb-2">System Prompt:</h4>
+                <pre className="bg-gray-800 p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap">
+                  {viewPrompt.prompt.system}
+                </pre>
+              </div>
+              <div>
+                <h4 className="font-semibold mb-2">User Prompt:</h4>
+                <pre className="bg-gray-800 p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap">
+                  {viewPrompt.prompt.user}
+                </pre>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   )
 }
