@@ -17,7 +17,8 @@ import {
   MoreHorizontal,
   ArrowRight,
   Filter,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
@@ -26,6 +27,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { canCreateProject, getTierLimits, getProjectLimitMessage, type SubscriptionTier } from '@/lib/subscription/tier-limits'
 
 interface Project {
   id: string
@@ -52,6 +55,8 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [userTier, setUserTier] = useState<SubscriptionTier>('free')
+  const [canCreateMore, setCanCreateMore] = useState(true)
 
   useEffect(() => {
     loadProjects()
@@ -69,6 +74,16 @@ export default function ProjectsPage() {
         router.push('/login')
         return
       }
+
+      // Get user profile to check subscription tier
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_tier')
+        .eq('id', user.user.id)
+        .single()
+
+      const tier = (profile?.subscription_tier || 'free') as SubscriptionTier
+      setUserTier(tier)
 
       // Load projects with counts
       const { data: projectsData, error } = await supabase
@@ -97,6 +112,10 @@ export default function ProjectsPage() {
       }))
 
       setProjects(transformedProjects || [])
+      
+      // Check if user can create more projects
+      const projectCount = transformedProjects?.length || 0
+      setCanCreateMore(canCreateProject(projectCount, tier))
     } catch (error) {
       console.error('Error loading projects:', error)
     } finally {
@@ -158,11 +177,37 @@ export default function ProjectsPage() {
             Manage and track all your projects in one place
           </p>
         </div>
-        <Button onClick={() => router.push('/projects/new')}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Project
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-muted-foreground">
+            {projects.length} / {getProjectLimitMessage(userTier)}
+          </div>
+          <Button 
+            onClick={() => router.push('/projects/new')}
+            disabled={!canCreateMore}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Project
+          </Button>
+        </div>
       </div>
+      
+      {/* Project limit alert */}
+      {!canCreateMore && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You've reached the project limit for your {userTier} tier. 
+            <Button 
+              variant="link" 
+              className="px-1"
+              onClick={() => router.push('/pricing')}
+            >
+              Upgrade your plan
+            </Button>
+            to create more projects.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Filters and Search */}
       <div className="flex gap-4">
