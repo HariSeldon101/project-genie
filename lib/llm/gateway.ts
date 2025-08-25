@@ -14,18 +14,19 @@ export class LLMGateway {
     // Check if we should use mock mode
     const useMock = process.env.USE_MOCK_LLM === 'true' || process.env.NODE_ENV === 'test'
     
-    // Check for available providers and prioritize Groq for better performance
+    // Check for available providers and prioritize OpenAI for reliability
     let primaryProvider: LLMConfig['provider'] = 'mock'
     
     if (!useMock) {
-      if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_groq_api_key') {
+      if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key') {
+        primaryProvider = 'openai'
+        console.log('🤖 OpenAI GPT-5 nano enabled for cost-efficient generation')
+      } else if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_groq_api_key') {
         primaryProvider = 'groq'
-        console.log('⚡ Groq API enabled for fast inference')
+        console.log('⚡ Groq API enabled as fallback')
       } else if (process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_API_KEY !== 'your_deepseek_api_key') {
         primaryProvider = 'deepseek'
-        console.log('🚀 DeepSeek API enabled with optimizations')
-      } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key') {
-        primaryProvider = 'openai'
+        console.log('🚀 DeepSeek API enabled as fallback')
       }
     }
     
@@ -37,8 +38,8 @@ export class LLMGateway {
       maxTokens: config?.maxTokens || parseInt(process.env.LLM_MAX_TOKENS || '4000'),
       temperature: config?.temperature || parseFloat(process.env.LLM_TEMPERATURE || '0.7'),
       baseUrl: config?.baseUrl || process.env.OLLAMA_BASE_URL,
-      // Define fallback chain: groq -> deepseek -> openai -> mock
-      fallbackProviders: config?.fallbackProviders || ['groq', 'deepseek', 'openai', 'mock']
+      // Define fallback chain: openai -> groq -> deepseek -> mock
+      fallbackProviders: config?.fallbackProviders || ['openai', 'groq', 'deepseek', 'mock']
     }
 
     // Initialize provider based on configuration
