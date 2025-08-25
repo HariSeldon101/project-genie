@@ -5,6 +5,8 @@ import { UserMenu } from '@/components/dashboard/user-menu'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+export const dynamic = 'force-dynamic'
+
 async function ensureProfileExists(userId: string, email: string) {
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -16,39 +18,49 @@ async function ensureProfileExists(userId: string, email: string) {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options)
+            })
+          } catch (error) {
+            // Cookie setting might fail in some contexts
+            console.error('[Dashboard Layout] Error setting cookies:', error)
+          }
         },
       },
     }
   )
 
-  // Check if profile exists
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', userId)
-    .single()
-
-  if (!profile) {
-    console.log('[Dashboard Layout] Creating missing profile for user:', userId)
-    
-    // Create profile if it doesn't exist
-    const { error } = await supabase
+  try {
+    // Check if profile exists
+    const { data: profile } = await supabase
       .from('profiles')
-      .insert({
-        id: userId,
-        email: email,
-        full_name: email.split('@')[0] || 'User',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        subscription_tier: 'free'
-      })
-    
-    if (error && error.code !== '23505') { // Ignore unique constraint errors
-      console.error('[Dashboard Layout] Error creating profile:', error)
+      .select('id')
+      .eq('id', userId)
+      .single()
+
+    if (!profile) {
+      console.log('[Dashboard Layout] Creating missing profile for user:', userId)
+      
+      // Create profile if it doesn't exist
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: email,
+          full_name: email.split('@')[0] || 'User',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          subscription_tier: 'free'
+        })
+      
+      if (error && error.code !== '23505') { // Ignore unique constraint errors
+        console.error('[Dashboard Layout] Error creating profile:', error)
+      }
     }
+  } catch (error) {
+    console.error('[Dashboard Layout] Error in ensureProfileExists:', error)
+    // Don't throw - allow the user to continue even if profile creation fails
   }
 }
 
@@ -57,16 +69,19 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const user = await getUser()
+  try {
+    const user = await getUser()
 
-  if (!user) {
-    redirect('/login')
-  }
+    if (!user) {
+      redirect('/login')
+    }
 
-  // Ensure profile exists for the authenticated user
-  await ensureProfileExists(user.id, user.email!)
+    // Ensure profile exists for the authenticated user
+    if (user.email) {
+      await ensureProfileExists(user.id, user.email)
+    }
 
-  return (
+    return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="flex h-screen">
         <DashboardNav />
@@ -88,4 +103,9 @@ export default async function DashboardLayout({
       </div>
     </div>
   )
+  } catch (error) {
+    console.error('[Dashboard Layout] Error in layout:', error)
+    // If there's an error, redirect to login
+    redirect('/login')
+  }
 }
