@@ -59,6 +59,39 @@ export async function GET(request: Request) {
 
     if (data.session) {
       console.log('[Auth Callback] Session established for user:', data.session.user.email)
+      
+      // Ensure profile exists (especially important for OAuth logins)
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', data.session.user.id)
+          .single()
+        
+        if (!profile) {
+          console.log('[Auth Callback] Creating profile for new user:', data.session.user.id)
+          
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.session.user.id,
+              email: data.session.user.email!,
+              full_name: data.session.user.user_metadata?.full_name || 
+                         data.session.user.user_metadata?.name ||
+                         data.session.user.email?.split('@')[0] || 
+                         'User',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              subscription_tier: 'free'
+            })
+          
+          if (profileError && profileError.code !== '23505') { // Ignore unique constraint errors
+            console.error('[Auth Callback] Error creating profile:', profileError)
+          }
+        }
+      } catch (error) {
+        console.error('[Auth Callback] Error checking/creating profile:', error)
+      }
     }
 
     return response
