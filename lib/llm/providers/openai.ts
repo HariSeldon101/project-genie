@@ -22,11 +22,18 @@ export class OpenAIProvider extends BaseProvider {
 
   async generateText(prompt: LLMPrompt): Promise<string> {
     try {
+      const model = this.config.model || 'gpt-5-nano'
+      const isGPT5 = model.startsWith('gpt-5')
+      
       const response = await this.client.chat.completions.create({
-        model: this.config.model || 'gpt-5-nano',  // Use GPT-5 nano for cost efficiency
+        model,  // Use GPT-5 nano for cost efficiency
         messages: this.buildMessages(prompt),
-        temperature: prompt.temperature ?? this.config.temperature ?? 0.7,
-        max_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000,
+        // GPT-5 models only support temperature=1
+        temperature: isGPT5 ? 1 : (prompt.temperature ?? this.config.temperature ?? 0.7),
+        // GPT-5 models use max_completion_tokens instead of max_tokens
+        ...(isGPT5 
+          ? { max_completion_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000 }
+          : { max_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000 }),
       })
 
       return response.choices[0]?.message?.content || ''
@@ -43,11 +50,18 @@ export class OpenAIProvider extends BaseProvider {
         user: `${prompt.user}\n\nIMPORTANT: Return your response as valid JSON only, with no additional text or markdown formatting.`
       }
 
+      const model = this.config.model || 'gpt-5-nano'
+      const isGPT5 = model.startsWith('gpt-5')
+      
       const response = await this.client.chat.completions.create({
-        model: this.config.model || 'gpt-5-nano',  // Use GPT-5 nano for cost efficiency
+        model,  // Use GPT-5 nano for cost efficiency
         messages: this.buildMessages(jsonPrompt),
-        temperature: prompt.temperature ?? this.config.temperature ?? 0.7,
-        max_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000,
+        // GPT-5 models only support temperature=1
+        temperature: isGPT5 ? 1 : (prompt.temperature ?? this.config.temperature ?? 0.7),
+        // GPT-5 models use max_completion_tokens instead of max_tokens
+        ...(isGPT5 
+          ? { max_completion_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000 }
+          : { max_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000 }),
         response_format: { type: 'json_object' }
       })
 

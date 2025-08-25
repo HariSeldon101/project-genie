@@ -6,7 +6,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, FolderOpen, Users, AlertCircle, TrendingUp, Clock, Target } from 'lucide-react'
+import { Plus, FolderOpen, Users, AlertCircle, TrendingUp, Clock, Target, Shield } from 'lucide-react'
 import Link from 'next/link'
 
 interface Project {
@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     loadDashboardData()
@@ -46,6 +47,15 @@ export default function DashboardPage() {
       }
 
       setUser(currentUser)
+      
+      // Check if user is admin
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', currentUser.id)
+        .single()
+      
+      setIsAdmin(profile?.is_admin || false)
 
       // Load projects (simplified query like projects page)
       const { data: projectsData, error } = await supabase
@@ -277,6 +287,14 @@ export default function DashboardPage() {
                 New Project
               </Button>
             </Link>
+            {isAdmin && (
+              <Link href="/admin">
+                <Button variant="outline" className="w-full justify-start text-purple-600 border-purple-200 hover:bg-purple-50">
+                  <Shield className="mr-2 h-4 w-4" />
+                  Admin Panel
+                </Button>
+              </Link>
+            )}
             <Link href="/documents">
               <Button variant="outline" className="w-full justify-start">
                 <FolderOpen className="mr-2 h-4 w-4" />

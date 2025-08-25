@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider'
 import { ArrowLeft, ArrowRight, Loader2, Sparkles, FileText, Users, Globe, Building2 } from 'lucide-react'
 import { AnimatedBackgroundSubtle } from '@/components/animated-background-subtle'
+import { DemoSelector } from '@/components/demo-selector'
+import { demoProjects, DemoProjectKey } from '@/lib/demo-data'
 
 type MethodologyType = 'agile' | 'prince2' | 'hybrid'
 
@@ -108,6 +110,52 @@ export default function NewProjectPage() {
   const isHybrid = projectData.methodology === 'hybrid'
   const activeSteps = isHybrid ? STEPS : STEPS.filter(s => s.id !== 'agilometer')
   const progressPercentage = ((currentStep + 1) / activeSteps.length) * 100
+
+  // Handle demo data selection
+  const handleDemoSelect = (projectKey: DemoProjectKey) => {
+    const demo = demoProjects[projectKey]
+    
+    // Map demo data to project data structure
+    const demoStakeholders = demo.stakeholders.map(s => ({
+      name: s.name,
+      email: s.email,
+      title: s.role
+    }))
+
+    setProjectData({
+      name: demo.projectName,
+      description: demo.description,
+      vision: demo.vision,
+      businessCase: demo.businessCase,
+      methodology: demo.methodology,
+      companyWebsite: demo.companyWebsite,
+      sector: demo.sector,
+      stakeholders: demoStakeholders.slice(0, 3), // Take first 3 for general stakeholders
+      prince2Stakeholders: demo.prince2Stakeholders ? {
+        seniorUser: {
+          name: demo.prince2Stakeholders.seniorUser.name,
+          email: `${demo.prince2Stakeholders.seniorUser.name.toLowerCase().replace(' ', '.')}@example.com`,
+          title: demo.prince2Stakeholders.seniorUser.role
+        },
+        seniorSupplier: {
+          name: demo.prince2Stakeholders.seniorSupplier.name,
+          email: `${demo.prince2Stakeholders.seniorSupplier.name.toLowerCase().replace(' ', '.')}@example.com`,
+          title: demo.prince2Stakeholders.seniorSupplier.role
+        },
+        executive: {
+          name: demo.prince2Stakeholders.executive.name,
+          email: `${demo.prince2Stakeholders.executive.name.toLowerCase().replace(' ', '.')}@example.com`,
+          title: demo.prince2Stakeholders.executive.role
+        }
+      } : projectData.prince2Stakeholders,
+      agilometer: demo.agilometer || projectData.agilometer
+    })
+
+    // Auto-advance to basics step after selecting demo
+    if (currentStep === 0) {
+      setCurrentStep(1)
+    }
+  }
 
   const canProceed = () => {
     switch (activeSteps[currentStep].id) {
@@ -853,6 +901,11 @@ export default function NewProjectPage() {
             Let's set up your project in just a few steps
           </p>
         </div>
+
+        {/* Demo Selector - Only shown in development */}
+        {process.env.NODE_ENV === 'development' && currentStep === 0 && (
+          <DemoSelector onSelectDemo={handleDemoSelect} />
+        )}
 
         <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 border-white/20">
           <CardHeader>

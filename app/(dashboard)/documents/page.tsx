@@ -20,7 +20,8 @@ import {
   Folder,
   FileSpreadsheet,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
@@ -29,6 +30,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { DocumentViewer } from '@/components/document-viewer'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface Document {
   id: string
@@ -349,44 +357,36 @@ export default function AllDocumentsPage() {
       )}
 
       {/* Document Viewer Modal */}
-      {selectedDoc && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-4xl max-h-[90vh] overflow-auto">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>{selectedDoc.title}</CardTitle>
-                <CardDescription>
-                  {selectedDoc.project?.name} • Version {selectedDoc.version}
-                </CardDescription>
-              </div>
-              <Button variant="ghost" onClick={() => setSelectedDoc(null)}>✕</Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => exportDocument(selectedDoc)}>
-                    <Download className="h-4 w-4 mr-1" />
-                    Export JSON
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => router.push(`/projects/${selectedDoc.project_id}/documents`)}
-                  >
-                    <Folder className="h-4 w-4 mr-1" />
-                    View in Project
-                  </Button>
-                </div>
-                <div className="bg-muted rounded-lg p-4">
-                  <pre className="text-sm overflow-x-auto">
-                    {JSON.stringify(selectedDoc.content, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <Dialog open={!!selectedDoc} onOpenChange={(open) => !open && setSelectedDoc(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Document Viewer</DialogTitle>
+          </DialogHeader>
+          {selectedDoc && (
+            <DocumentViewer
+              document={{
+                id: selectedDoc.id,
+                type: selectedDoc.type,
+                content: selectedDoc.content,
+                title: selectedDoc.title,
+                status: 'generated',
+                metadata: {
+                  created_at: selectedDoc.created_at,
+                  updated_at: selectedDoc.updated_at,
+                  version: selectedDoc.version.toString(),
+                  author: selectedDoc.creator?.full_name || 'AI Generated',
+                  projectName: selectedDoc.project?.name,
+                  companyName: 'Your Company', // You might want to fetch this from project data
+                }
+              }}
+              onRefresh={() => {
+                // Optionally implement document regeneration
+                console.log('Regenerate document:', selectedDoc.id)
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

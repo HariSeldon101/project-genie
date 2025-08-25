@@ -90,7 +90,7 @@ Format as structured JSON.`,
   businessCase: {
     system: `You are a Prince2 Business Analyst creating detailed Business Cases.
 You understand financial analysis, benefit realization, and investment appraisal.
-Generate data-driven, compelling business justifications.`,
+Generate data-driven, compelling business justifications with proper JSON structure.`,
     
     user: `Create a detailed Prince2 Business Case for:
 
@@ -99,41 +99,82 @@ Business Case Summary: {{businessCase}}
 Industry: {{sector}}
 Company: {{companyWebsite}}
 
-Include:
-1. Executive Summary
-2. Strategic Context
-   - Strategic drivers
-   - Business objectives alignment
-3. Economic Analysis
-   - Cost-Benefit Analysis
-   - ROI calculation
-   - Payback period
-   - Net Present Value (NPV)
-4. Options Appraisal
-   - Do nothing option
-   - Do minimum option
-   - Recommended option
-5. Expected Benefits
-   - Quantifiable benefits
-   - Non-quantifiable benefits
-   - Benefit realization timeline
-6. Expected Dis-benefits
-7. Timescale
-8. Costs
-   - Development costs
-   - Operational costs
-   - Maintenance costs
-9. Investment Appraisal
-10. Major Risks
-11. Recommendation
+Generate a JSON object with this exact structure:
+{
+  "projectName": "string",
+  "executiveSummary": "detailed paragraph",
+  "strategicContext": {
+    "drivers": ["driver1", "driver2", ...],
+    "objectives": ["objective1", "objective2", ...],
+    "alignment": "explanation of alignment"
+  },
+  "economicAnalysis": {
+    "totalInvestment": number,
+    "netBenefit": number,
+    "roi": number,
+    "paybackPeriod": "X months",
+    "npv": number,
+    "irr": number
+  },
+  "options": [
+    {
+      "name": "Do Nothing",
+      "description": "description",
+      "costs": number,
+      "benefits": number,
+      "risks": "summary",
+      "recommendation": "Not Recommended"
+    },
+    {
+      "name": "Do Minimum",
+      "description": "description",
+      "costs": number,
+      "benefits": number,
+      "risks": "summary",
+      "recommendation": "Partially Recommended"
+    },
+    {
+      "name": "Recommended Option",
+      "description": "description",
+      "costs": number,
+      "benefits": number,
+      "risks": "summary",
+      "recommendation": "Strongly Recommended"
+    }
+  ],
+  "benefits": {
+    "quantifiable": [
+      { "description": "benefit", "value": number, "timeline": "when" }
+    ],
+    "nonQuantifiable": ["benefit1", "benefit2"]
+  },
+  "disbenefits": ["disbenefit1", "disbenefit2"],
+  "costs": {
+    "development": number,
+    "operational": number,
+    "maintenance": number,
+    "total": number
+  },
+  "timeline": {
+    "start": "Q1 2024",
+    "end": "Q4 2025",
+    "milestones": [
+      { "name": "milestone", "date": "date", "deliverables": ["item1"] }
+    ]
+  },
+  "risks": [
+    { "risk": "description", "impact": "High/Medium/Low", "mitigation": "strategy" }
+  ],
+  "recommendation": "detailed recommendation paragraph"
+}
 
-Use industry-specific benchmarks and realistic financial projections.
-Format as structured JSON.`,
+Use industry-specific benchmarks and realistic financial projections.`,
   },
 
   riskRegister: {
     system: `You are a Prince2 Risk Manager creating comprehensive risk assessments.
-You understand risk identification, analysis, and response planning.`,
+You understand risk identification, analysis, and response planning.
+Generate realistic, industry-specific risks with proper JSON structure.`,
     
     user: `Create a Prince2 Risk Register for:
 
@@ -141,21 +182,39 @@ Project Name: {{projectName}}
 Industry: {{sector}}
 Project Description: {{description}}
 
-Generate 15-20 realistic risks including:
-1. Risk ID
-2. Risk Category (Strategic, Commercial, Financial, Operational, Technical, Compliance)
-3. Description
-4. Probability (Very Low, Low, Medium, High, Very High)
-5. Impact (Very Low, Low, Medium, High, Very High)
-6. Proximity (Imminent, Within stage, Within project, Beyond project)
-7. Risk Response (Avoid, Reduce, Transfer, Accept, Share)
-8. Response Actions
-9. Risk Owner (use role placeholders)
-10. Status (Active, Closed, Occurred)
+Generate a JSON object with this exact structure:
+{
+  "projectName": "string",
+  "risks": [
+    {
+      "id": "R001",
+      "category": "Strategic|Operational|Financial|Technical|Compliance|External",
+      "description": "detailed risk description",
+      "probability": "Very Low|Low|Medium|High|Very High",
+      "impact": "Very Low|Low|Medium|High|Very High",
+      "owner": "role or title",
+      "mitigation": "detailed mitigation strategy",
+      "contingency": "contingency plan if risk occurs",
+      "status": "Open|Monitoring|Closed|Occurred",
+      "dateIdentified": "2024-01-15",
+      "lastReviewed": "2024-02-01",
+      "residualProbability": "Low|Medium|High",
+      "residualImpact": "Low|Medium|High"
+    }
+  ]
+}
 
-Include industry-specific risks and compliance considerations.
-Calculate risk scores (Probability × Impact).
-Format as structured JSON.`,
+Generate 15-20 realistic risks covering:
+- Strategic risks (market, competition, reputation)
+- Operational risks (resources, processes, dependencies)
+- Financial risks (budget, funding, ROI)
+- Technical risks (technology, integration, performance)
+- Compliance risks (regulatory, legal, standards)
+- External risks (suppliers, environment, politics)
+
+Include industry-specific risks and realistic mitigation strategies.
+Use role titles for owners (e.g., "Project Manager", "Technical Lead", "Risk Manager").
+Set most risks to "Open" status, with a few "Monitoring" and "Closed" for realism.`,
   },
 
   projectPlan: {

@@ -2,6 +2,8 @@ import { LLMProvider, LLMConfig, LLMPrompt, SanitizedProjectData } from './types
 import { OpenAIProvider } from './providers/openai'
 import { DeepSeekProvider } from './providers/deepseek'
 import { GroqProvider } from './providers/groq'
+import { VercelAIProvider } from './providers/vercel-ai'
+import { OllamaProvider } from './providers/ollama'
 import { MockProvider } from './providers/mock'
 import { DataSanitizer } from './sanitizer'
 
@@ -14,13 +16,14 @@ export class LLMGateway {
     // Check if we should use mock mode
     const useMock = process.env.USE_MOCK_LLM === 'true' || process.env.NODE_ENV === 'test'
     
-    // Check for available providers and prioritize OpenAI for reliability
+    // Check for available providers
     let primaryProvider: LLMConfig['provider'] = 'mock'
     
     if (!useMock) {
-      if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key') {
-        primaryProvider = 'openai'
-        console.log('🤖 OpenAI GPT-5 nano enabled for cost-efficient generation')
+      // Prefer Vercel AI Gateway for GPT-5 models (works both locally and on Vercel)
+      if (process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY) {
+        primaryProvider = 'vercel-ai'
+        console.log('🚀 Vercel AI Gateway enabled for GPT-5 nano (works locally and on Vercel)')
       } else if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_groq_api_key') {
         primaryProvider = 'groq'
         console.log('⚡ Groq API enabled as fallback')
@@ -38,8 +41,8 @@ export class LLMGateway {
       maxTokens: config?.maxTokens || parseInt(process.env.LLM_MAX_TOKENS || '4000'),
       temperature: config?.temperature || parseFloat(process.env.LLM_TEMPERATURE || '0.7'),
       baseUrl: config?.baseUrl || process.env.OLLAMA_BASE_URL,
-      // Define fallback chain: openai -> groq -> deepseek -> mock
-      fallbackProviders: config?.fallbackProviders || ['openai', 'groq', 'deepseek', 'mock']
+      // Define fallback chain: vercel-ai -> openai -> groq -> deepseek -> mock
+      fallbackProviders: config?.fallbackProviders || ['vercel-ai', 'openai', 'groq', 'deepseek', 'mock']
     }
 
     // Initialize provider based on configuration
@@ -79,6 +82,26 @@ export class LLMGateway {
           return new MockProvider(this.config)
         }
         return new GroqProvider({ ...this.config, apiKey: groqKey })
+        
+      case 'vercel-ai':
+        // For local development, only use OpenAI API key
+        // For Vercel deployment, prefer AI Gateway key
+        const vercelKey = process.env.VERCEL 
+          ? (this.config.apiKey || process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY)
+          : (this.config.apiKey || process.env.OPENAI_API_KEY)
+        
+        if (!vercelKey) {
+          console.warn('⚠️ No valid API key found for Vercel AI Gateway')
+          return new MockProvider(this.config)
+        }
+        return new VercelAIProvider({ ...this.config, apiKey: vercelKey })
+        
+      case 'ollama':
+        // Ollama doesn't need an API key
+        return new OllamaProvider({
+          ...this.config,
+          baseUrl: this.config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434'
+        })
         
       case 'mock':
         return new MockProvider(this.config)

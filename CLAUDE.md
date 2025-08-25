@@ -21,6 +21,7 @@ claude-docs-read   # Read specific doc
 - **Animation**: Framer Motion
 - **Database/Auth**: Supabase
 - **Language**: TypeScript (strict mode)
+- **AI/LLM**: OpenAI via Vercel AI Gateway (for GPT-5 models)
 
 ### Available CLIs (Pre-installed)
 You can use these commands without asking:
@@ -128,6 +129,28 @@ COMMENT ON POLICY "owner_access" ON project IS 'Simple owner-only access, no rec
 3. **Generic migration names**: `update.sql`, `fix.sql`
 4. **Skipping local testing**: Always test with `supabase db reset`
 5. **Not generating types**: Always run `supabase gen types` after changes
+
+## Vercel AI Gateway & GPT-5 Models
+
+### Important: GPT-5 Models via Vercel AI Gateway
+GPT-5 models (gpt-5, gpt-5-mini, gpt-5-nano) are available **exclusively through Vercel AI Gateway**, not directly via OpenAI API.
+
+#### Key Points:
+- **DO NOT change models without permission** - Always ask before switching models
+- GPT-5 nano is the most cost-efficient option ($0.025 input, $0.20 output per 1M tokens)
+- GPT-5 models work locally with OpenAI SDK but require Vercel AI Gateway for Vercel deployments
+- Reference: https://vercel.com/changelog/gpt-5-gpt-5-mini-and-gpt-5-nano-are-now-available-in-vercel-ai-gateway
+
+#### Using GPT-5 Models with Vercel AI SDK (Required for Vercel deployments):
+```javascript
+// Via Vercel AI SDK v5
+import { streamText } from 'ai'
+
+const result = streamText({
+  model: "openai/gpt-5-nano", // or openai/gpt-5-mini, openai/gpt-5
+  prompt: "Your prompt here"
+})
+```
 
 ### Email Service - Resend
 
@@ -418,9 +441,52 @@ project/
 │   ├── integration/       # Integration tests
 │   └── e2e/               # End-to-end tests
 ├── public/                # Static assets
-└── styles/
-    └── globals.css        # Global styles with Tailwind
+├── styles/
+│   └── globals.css        # Global styles with Tailwind
+└── development-progress-implementation-log.md  # Implementation tracking
 ```
+
+## Development Progress Tracking
+
+### IMPORTANT: Implementation Log
+**ALL projects MUST maintain a `development-progress-implementation-log.md` file in the project root.**
+
+This file tracks all significant implementations with:
+- Version numbers (v1.0, v2.0, etc.)
+- Date and timestamp
+- Features implemented
+- Files created/modified
+- Key improvements and metrics
+
+#### Format Example:
+```markdown
+### v1.0 - Initial Setup
+**Date: 2025-01-25**
+**Timestamp: 10:00 GMT**
+
+#### Features Implemented:
+- Project initialization
+- Core functionality
+- Database schema
+
+### v2.0 - Feature Enhancement
+**Date: 2025-01-25**
+**Timestamp: 15:30 GMT**
+
+#### Features Implemented:
+- New feature description
+- Files modified
+- Performance improvements
+```
+
+**When to Update:**
+- After completing any significant feature
+- When creating new architectural components
+- After major refactoring
+- When implementing integrations
+- At the end of each development session
+
+**Auto-create this file** when starting work on any project that doesn't have one.
 
 ## Coding Standards
 
