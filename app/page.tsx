@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { StarfieldBackground } from '@/components/starfield-background'
 import { Navigation } from '@/components/navigation'
+import { FAQSection } from '@/components/ui/faq'
 import { 
   Sparkles, 
   FileText, 
@@ -15,7 +16,15 @@ import {
   BarChart3,
   Shield,
   Clock,
-  Brain
+  Brain,
+  GitBranch,
+  Lock,
+  RefreshCw,
+  Download,
+  UserCheck,
+  BookOpen,
+  AlertTriangle,
+  Layers
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
@@ -23,6 +32,49 @@ import { createBrowserClient } from '@supabase/ssr'
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+
+  const faqItems = [
+    {
+      question: "Is my project data secure?",
+      answer: "Absolutely. We use bank-level encryption, SOC 2 compliance, and your data is never used to train AI models. For sensitive projects, we offer on-premise deployment options. Your intellectual property remains 100% yours."
+    },
+    {
+      question: "Can I try it before subscribing?",
+      answer: "Yes! Start with our free tier - no credit card required. You get full access to all methodologies, 1 project slot, and can generate unlimited documents. Upgrade only when you need more projects or advanced features."
+    },
+    {
+      question: "What if I'm not familiar with PRINCE2 or Agile?",
+      answer: "No problem! Project Genie guides you through each methodology with built-in best practices and templates. Our AI assistant explains concepts in plain language and ensures your documents follow the correct framework automatically."
+    },
+    {
+      question: "Can I export documents to use outside the platform?",
+      answer: "Yes, everything you create can be exported. Download as Word docs for editing, PDFs for sharing, or Excel files with full formatting. Your documents work seamlessly with your existing tools and workflows."
+    },
+    {
+      question: "How accurate is the AI-generated content?",
+      answer: "Our AI is specifically trained on thousands of real project documents and methodology frameworks. Every output goes through validation checks for compliance and accuracy. Plus, you can edit anything before finalizing."
+    },
+    {
+      question: "What happens if I cancel my subscription?",
+      answer: "Your data remains yours. Export all your documents before canceling, and we'll keep your account data for 30 days in case you change your mind. No lock-in, no penalties, cancel anytime."
+    },
+    {
+      question: "Can my whole team use one account?",
+      answer: "Each plan includes team member seats. Free includes 2 members, Basic includes 5, and Premium offers unlimited team access. Everyone gets their own login with role-based permissions."
+    },
+    {
+      question: "Do you offer training or support?",
+      answer: "Yes! Free tier includes community support and documentation. Paid plans include email support (Basic) or 24/7 priority support (Premium). We also offer onboarding sessions for teams."
+    },
+    {
+      question: "Can I customize the generated documents?",
+      answer: "Absolutely. Edit any generated content directly in our editor, apply your company branding, add custom sections, and save templates for future use. Premium plans include white-label options."
+    },
+    {
+      question: "How is this different from other PM tools like Jira or Monday?",
+      answer: "Traditional PM tools focus on task tracking. Project Genie focuses on documentation and compliance. We generate the reports, plans, and documents that PM tools don't create automatically. Use us alongside your favorite PM tool."
+    }
+  ]
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -211,6 +263,152 @@ export default function Home() {
               </CardContent>
             </Card>
           </div>
+        </div>
+      </section>
+
+      {/* Why Not ChatGPT Section */}
+      <section className="relative z-10 py-24 px-6 lg:px-8 bg-gradient-to-b from-transparent via-blue-950/10 to-transparent">
+        <div className="mx-auto max-w-7xl">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-white mb-6">
+              "Why Can't I Just Use ChatGPT?"
+            </h2>
+            <p className="text-xl text-gray-200 max-w-4xl mx-auto leading-relaxed">
+              Great question! While ChatGPT is brilliant for many things, managing complex projects requires more than just AI conversations. 
+              Here's what makes Project Genie your unfair advantage:
+            </p>
+          </div>
+
+          {/* The Story */}
+          <div className="mb-16 max-w-4xl mx-auto">
+            <Card className="backdrop-blur-md bg-white/5 border-white/10 p-8">
+              <div className="prose prose-lg prose-invert mx-auto">
+                <p className="text-gray-200 leading-relaxed mb-6">
+                  <span className="text-2xl font-semibold text-blue-400">Imagine this:</span> You're managing a critical project. 
+                  You could copy-paste requirements into ChatGPT and get... something. But what happens next week when you need to update that document? 
+                  Where's version 1? What did your team change? Is it even compliant with PRINCE2 standards?
+                </p>
+                <p className="text-gray-200 leading-relaxed">
+                  <span className="font-semibold text-purple-400">Project Genie remembers everything.</span> Every decision, every update, every version. 
+                  Your project lives and breathes in one secure place, with your whole team on the same page. 
+                  No more "which version is this?" or "who changed what?" or "does this follow our methodology?"
+                </p>
+              </div>
+            </Card>
+          </div>
+
+          {/* Comparison Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+            <Card className="backdrop-blur-md bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 hover:border-blue-400/40 transition-all group">
+              <CardContent className="p-6">
+                <GitBranch className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Version Control Built-In</h3>
+                <p className="text-gray-300 text-sm">
+                  Every change tracked automatically. Roll back mistakes instantly. See who changed what, when, and why.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="backdrop-blur-md bg-gradient-to-br from-purple-500/10 to-purple-600/10 border-purple-500/20 hover:border-purple-400/40 transition-all group">
+              <CardContent className="p-6">
+                <BookOpen className="h-10 w-10 text-purple-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Methodology Intelligence</h3>
+                <p className="text-gray-300 text-sm">
+                  Built-in PRINCE2, Agile, and Hybrid frameworks. Not just text generation - real compliance and structure.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="backdrop-blur-md bg-gradient-to-br from-green-500/10 to-green-600/10 border-green-500/20 hover:border-green-400/40 transition-all group">
+              <CardContent className="p-6">
+                <Users className="h-10 w-10 text-green-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Team Collaboration</h3>
+                <p className="text-gray-300 text-sm">
+                  Real-time updates, role-based access, comment threads. Your team works together, not in email chains.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="backdrop-blur-md bg-gradient-to-br from-orange-500/10 to-orange-600/10 border-orange-500/20 hover:border-orange-400/40 transition-all group">
+              <CardContent className="p-6">
+                <Download className="h-10 w-10 text-orange-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">One-Click Exports</h3>
+                <p className="text-gray-300 text-sm">
+                  Professional Word, PDF, and Excel exports. Formatted, branded, and ready for stakeholders.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="backdrop-blur-md bg-gradient-to-br from-pink-500/10 to-pink-600/10 border-pink-500/20 hover:border-pink-400/40 transition-all group">
+              <CardContent className="p-6">
+                <Lock className="h-10 w-10 text-pink-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Enterprise Security</h3>
+                <p className="text-gray-300 text-sm">
+                  Your data never trains AI models. SOC 2 compliant. Optional on-premise deployment for maximum control.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="backdrop-blur-md bg-gradient-to-br from-cyan-500/10 to-cyan-600/10 border-cyan-500/20 hover:border-cyan-400/40 transition-all group">
+              <CardContent className="p-6">
+                <RefreshCw className="h-10 w-10 text-cyan-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Living Documents</h3>
+                <p className="text-gray-300 text-sm">
+                  Documents that evolve with your project. Update once, reflected everywhere. No manual syncing.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="backdrop-blur-md bg-gradient-to-br from-indigo-500/10 to-indigo-600/10 border-indigo-500/20 hover:border-indigo-400/40 transition-all group">
+              <CardContent className="p-6">
+                <AlertTriangle className="h-10 w-10 text-indigo-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Quality Validation</h3>
+                <p className="text-gray-300 text-sm">
+                  Built-in compliance checks prevent errors. No hallucinations, no missing sections, no methodology mistakes.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="backdrop-blur-md bg-gradient-to-br from-yellow-500/10 to-yellow-600/10 border-yellow-500/20 hover:border-yellow-400/40 transition-all group">
+              <CardContent className="p-6">
+                <Layers className="h-10 w-10 text-yellow-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Context Memory</h3>
+                <p className="text-gray-300 text-sm">
+                  AI remembers your project details, stakeholders, and decisions. No re-explaining every time.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Bottom line */}
+          <div className="text-center">
+            <Card className="backdrop-blur-md bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-white/20 p-8 max-w-3xl mx-auto">
+              <h3 className="text-2xl font-bold text-white mb-4">The Bottom Line</h3>
+              <p className="text-lg text-gray-200 leading-relaxed">
+                ChatGPT gives you text. Project Genie gives you a complete project management system with AI superpowers. 
+                It's the difference between having a calculator and having a complete accounting system.
+              </p>
+              <div className="mt-6">
+                <Link href="/signup">
+                  <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+                    See the Difference for Free
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="relative z-10 py-24 px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl">
+          <FAQSection
+            title="Frequently Asked Questions"
+            subtitle="Everything you need to know about Project Genie. Can't find what you're looking for? Contact our support team."
+            items={faqItems}
+          />
         </div>
       </section>
 
