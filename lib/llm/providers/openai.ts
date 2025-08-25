@@ -23,7 +23,7 @@ export class OpenAIProvider extends BaseProvider {
   async generateText(prompt: LLMPrompt): Promise<string> {
     try {
       const response = await this.client.chat.completions.create({
-        model: this.config.model || 'gpt-4o-mini',  // Use GPT-4o mini for cost efficiency (similar to GPT-5 nano)
+        model: this.config.model || 'gpt-5-nano',  // Use GPT-5 nano for cost efficiency
         messages: this.buildMessages(prompt),
         temperature: prompt.temperature ?? this.config.temperature ?? 0.7,
         max_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000,
@@ -44,7 +44,7 @@ export class OpenAIProvider extends BaseProvider {
       }
 
       const response = await this.client.chat.completions.create({
-        model: this.config.model || 'gpt-4o-mini',  // Use GPT-4o mini for cost efficiency (similar to GPT-5 nano)
+        model: this.config.model || 'gpt-5-nano',  // Use GPT-5 nano for cost efficiency
         messages: this.buildMessages(jsonPrompt),
         temperature: prompt.temperature ?? this.config.temperature ?? 0.7,
         max_tokens: prompt.maxTokens ?? this.config.maxTokens ?? 4000,

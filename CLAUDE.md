@@ -658,3 +658,4 @@ await openCustomerPortal()
 - Document complex logic with comments
 - Keep bundle size optimized
 - Monitor Core Web Vitals
+- #DO NOT switch LLM models without approval.
