@@ -16,4 +16,9 @@ export async function GET() {
   })
 }
 
+// Also support POST for testing
+export async function POST() {
+  return GET()
+}
+
 export const runtime = 'edge'
