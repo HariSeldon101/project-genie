@@ -4,7 +4,7 @@ export async function GET() {
   return NextResponse.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    runtime: 'edge',
+    runtime: 'nodejs',
     env: {
       hasGroqKey: !!process.env.GROQ_API_KEY,
       groqKeyPrefix: process.env.GROQ_API_KEY?.substring(0, 10),
@@ -20,5 +20,3 @@ export async function GET() {
 export async function POST() {
   return GET()
 }
-
-export const runtime = 'edge'
