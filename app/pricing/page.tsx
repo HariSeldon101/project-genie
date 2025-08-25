@@ -90,10 +90,10 @@ export default function PricingPage() {
       color: 'from-purple-500 to-pink-600',
       features: [
         { name: '20 Projects', included: true },
-        { name: 'Unlimited Team Members', included: true },
+        { name: 'Up to 25 Team Members', included: true },
         { name: 'Advanced AI Generation', included: true },
         { name: 'All Methodologies + Custom', included: true },
-        { name: '24/7 Priority Support', included: true },
+        { name: 'Priority Email Support', included: true },
         { name: 'Unlimited History', included: true },
         { name: 'Custom Templates', included: true },
         { name: 'White Label Branding', included: true },
@@ -111,13 +111,13 @@ export default function PricingPage() {
 
   const allFeatures = [
     { name: 'Projects', icon: FileText, free: '1', basic: '3', premium: '20' },
-    { name: 'Team Members', icon: Users, free: '2', basic: '5', premium: 'Unlimited' },
+    { name: 'Team Members', icon: Users, free: '2', basic: '5', premium: 'Up to 25' },
     { name: 'AI Document Generation', icon: Brain, free: 'Basic', basic: 'Full', premium: 'Advanced' },
     { name: 'Methodologies', icon: Zap, free: 'All Standard', basic: 'All Standard', premium: 'All + Custom' },
     { name: 'Conversational AI', icon: MessageSquare, free: false, basic: true, premium: true },
-    { name: 'Analytics & Reporting', icon: BarChart3, free: false, basic: 'Basic', premium: 'Predictive' },
+    { name: 'Analytics & Reporting', icon: BarChart3, free: false, basic: 'Basic', premium: 'Advanced' },
     { name: 'Data History', icon: Globe, free: '7 Days', basic: '90 Days', premium: 'Unlimited' },
-    { name: 'Support', icon: Shield, free: 'Community', basic: 'Email', premium: '24/7 Priority' },
+    { name: 'Support', icon: Shield, free: 'Documentation', basic: 'Email', premium: 'Priority Email' },
     { name: 'API Access', icon: Infinity, free: false, basic: true, premium: true },
     { name: 'Document Branding', icon: Sparkles, free: 'Project Genie', basic: 'Custom', premium: 'White Label' }
   ]

@@ -36,15 +36,15 @@ export default function Home() {
   const faqItems = [
     {
       question: "Is my project data secure?",
-      answer: "Absolutely. We use bank-level encryption, SOC 2 compliance, and your data is never used to train AI models. For sensitive projects, we offer on-premise deployment options. Your intellectual property remains 100% yours."
+      answer: "Yes. We use encryption to protect your data and your intellectual property remains 100% yours. Your project information is kept private and secure in your workspace."
     },
     {
       question: "Can I try it before subscribing?",
-      answer: "Yes! Start with our free tier - no credit card required. You get full access to all methodologies, 1 project slot, and can generate unlimited documents. Upgrade only when you need more projects or advanced features."
+      answer: "Yes! Start with our free tier - no credit card required. You get full access to all methodologies and 1 project slot. Upgrade only when you need more projects or advanced features."
     },
     {
       question: "What if I'm not familiar with PRINCE2 or Agile?",
-      answer: "No problem! Project Genie guides you through each methodology with built-in best practices and templates. Our AI assistant explains concepts in plain language and ensures your documents follow the correct framework automatically."
+      answer: "No problem! Project Genie includes built-in templates and best practices for each methodology. The system guides you through creating compliant documents step by step."
     },
     {
       question: "Can I export documents to use outside the platform?",
@@ -52,19 +52,19 @@ export default function Home() {
     },
     {
       question: "How accurate is the AI-generated content?",
-      answer: "Our AI is specifically trained on thousands of real project documents and methodology frameworks. Every output goes through validation checks for compliance and accuracy. Plus, you can edit anything before finalizing."
+      answer: "Our AI is specifically trained on project management methodologies and frameworks. Every output follows the structure and requirements of your chosen methodology. Plus, you can edit anything before finalizing."
     },
     {
       question: "What happens if I cancel my subscription?",
       answer: "Your data remains yours. Export all your documents before canceling, and we'll keep your account data for 30 days in case you change your mind. No lock-in, no penalties, cancel anytime."
     },
     {
-      question: "Can my whole team use one account?",
-      answer: "Each plan includes team member seats. Free includes 2 members, Basic includes 5, and Premium offers unlimited team access. Everyone gets their own login with role-based permissions."
+      question: "Can my team collaborate on projects?",
+      answer: "Yes! Free tier includes 2 team members who can view projects. Basic tier (5 members) allows viewing of dashboards and documents. Premium tier (up to 25 members) includes full collaboration features."
     },
     {
-      question: "Do you offer training or support?",
-      answer: "Yes! Free tier includes community support and documentation. Paid plans include email support (Basic) or 24/7 priority support (Premium). We also offer onboarding sessions for teams."
+      question: "Do you offer support?",
+      answer: "Yes! Free tier includes access to our documentation and community. Basic tier includes email support. Premium tier includes priority email support for faster responses."
     },
     {
       question: "Can I customize the generated documents?",
@@ -284,12 +284,12 @@ export default function Home() {
             <Card className="backdrop-blur-md bg-white/5 border-white/10 p-8">
               <div className="prose prose-lg prose-invert mx-auto">
                 <p className="text-gray-200 leading-relaxed mb-6">
-                  <span className="text-2xl font-semibold text-blue-400">Imagine this:</span> You're managing a critical project. 
+                  <span className="text-xl font-semibold text-blue-400">Imagine this:</span> You're managing a critical project. 
                   You could copy-paste requirements into ChatGPT and get... something. But what happens next week when you need to update that document? 
                   Where's version 1? What did your team change? Is it even compliant with PRINCE2 standards?
                 </p>
                 <p className="text-gray-200 leading-relaxed">
-                  <span className="font-semibold text-purple-400">Project Genie remembers everything.</span> Every decision, every update, every version. 
+                  <span className="text-xl font-semibold text-blue-400">Project Genie remembers everything.</span> Every decision, every update, every version. 
                   Your project lives and breathes in one secure place, with your whole team on the same page. 
                   No more "which version is this?" or "who changed what?" or "does this follow our methodology?"
                 </p>
@@ -304,14 +304,14 @@ export default function Home() {
                 <GitBranch className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
                 <h3 className="text-lg font-semibold text-white mb-2">Version Control Built-In</h3>
                 <p className="text-gray-300 text-sm">
-                  Every change tracked automatically. Roll back mistakes instantly. See who changed what, when, and why.
+                  Every change tracked automatically. Roll back mistakes instantly. See who changed what and when.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="backdrop-blur-md bg-gradient-to-br from-purple-500/10 to-purple-600/10 border-purple-500/20 hover:border-purple-400/40 transition-all group">
+            <Card className="backdrop-blur-md bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 hover:border-blue-400/40 transition-all group">
               <CardContent className="p-6">
-                <BookOpen className="h-10 w-10 text-purple-400 mb-4 group-hover:scale-110 transition-transform" />
+                <BookOpen className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
                 <h3 className="text-lg font-semibold text-white mb-2">Methodology Intelligence</h3>
                 <p className="text-gray-300 text-sm">
                   Built-in PRINCE2, Agile, and Hybrid frameworks. Not just text generation - real compliance and structure.
@@ -319,19 +319,19 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card className="backdrop-blur-md bg-gradient-to-br from-green-500/10 to-green-600/10 border-green-500/20 hover:border-green-400/40 transition-all group">
+            <Card className="backdrop-blur-md bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 hover:border-blue-400/40 transition-all group">
               <CardContent className="p-6">
-                <Users className="h-10 w-10 text-green-400 mb-4 group-hover:scale-110 transition-transform" />
+                <Users className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
                 <h3 className="text-lg font-semibold text-white mb-2">Team Collaboration</h3>
                 <p className="text-gray-300 text-sm">
-                  Real-time updates, role-based access, comment threads. Your team works together, not in email chains.
+                  Share projects with your team. Premium plans allow full team access and collaboration features.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="backdrop-blur-md bg-gradient-to-br from-orange-500/10 to-orange-600/10 border-orange-500/20 hover:border-orange-400/40 transition-all group">
+            <Card className="backdrop-blur-md bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 hover:border-blue-400/40 transition-all group">
               <CardContent className="p-6">
-                <Download className="h-10 w-10 text-orange-400 mb-4 group-hover:scale-110 transition-transform" />
+                <Download className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
                 <h3 className="text-lg font-semibold text-white mb-2">One-Click Exports</h3>
                 <p className="text-gray-300 text-sm">
                   Professional Word, PDF, and Excel exports. Formatted, branded, and ready for stakeholders.
@@ -339,19 +339,19 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card className="backdrop-blur-md bg-gradient-to-br from-pink-500/10 to-pink-600/10 border-pink-500/20 hover:border-pink-400/40 transition-all group">
+            <Card className="backdrop-blur-md bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 hover:border-blue-400/40 transition-all group">
               <CardContent className="p-6">
-                <Lock className="h-10 w-10 text-pink-400 mb-4 group-hover:scale-110 transition-transform" />
-                <h3 className="text-lg font-semibold text-white mb-2">Enterprise Security</h3>
+                <Lock className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Secure Platform</h3>
                 <p className="text-gray-300 text-sm">
-                  Your data never trains AI models. SOC 2 compliant. Optional on-premise deployment for maximum control.
+                  Your project data is encrypted and secure. Private workspaces keep your information confidential.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="backdrop-blur-md bg-gradient-to-br from-cyan-500/10 to-cyan-600/10 border-cyan-500/20 hover:border-cyan-400/40 transition-all group">
+            <Card className="backdrop-blur-md bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 hover:border-blue-400/40 transition-all group">
               <CardContent className="p-6">
-                <RefreshCw className="h-10 w-10 text-cyan-400 mb-4 group-hover:scale-110 transition-transform" />
+                <RefreshCw className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
                 <h3 className="text-lg font-semibold text-white mb-2">Living Documents</h3>
                 <p className="text-gray-300 text-sm">
                   Documents that evolve with your project. Update once, reflected everywhere. No manual syncing.
@@ -359,22 +359,22 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card className="backdrop-blur-md bg-gradient-to-br from-indigo-500/10 to-indigo-600/10 border-indigo-500/20 hover:border-indigo-400/40 transition-all group">
+            <Card className="backdrop-blur-md bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 hover:border-blue-400/40 transition-all group">
               <CardContent className="p-6">
-                <AlertTriangle className="h-10 w-10 text-indigo-400 mb-4 group-hover:scale-110 transition-transform" />
+                <AlertTriangle className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
                 <h3 className="text-lg font-semibold text-white mb-2">Quality Validation</h3>
                 <p className="text-gray-300 text-sm">
-                  Built-in compliance checks prevent errors. No hallucinations, no missing sections, no methodology mistakes.
+                  Built-in compliance checks prevent errors. No missing sections, no methodology mistakes.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="backdrop-blur-md bg-gradient-to-br from-yellow-500/10 to-yellow-600/10 border-yellow-500/20 hover:border-yellow-400/40 transition-all group">
+            <Card className="backdrop-blur-md bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20 hover:border-blue-400/40 transition-all group">
               <CardContent className="p-6">
-                <Layers className="h-10 w-10 text-yellow-400 mb-4 group-hover:scale-110 transition-transform" />
-                <h3 className="text-lg font-semibold text-white mb-2">Context Memory</h3>
+                <Sparkles className="h-10 w-10 text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
+                <h3 className="text-lg font-semibold text-white mb-2">Smart Templates</h3>
                 <p className="text-gray-300 text-sm">
-                  AI remembers your project details, stakeholders, and decisions. No re-explaining every time.
+                  Pre-built templates for all document types. Customize and save your own for future projects.
                 </p>
               </CardContent>
             </Card>
