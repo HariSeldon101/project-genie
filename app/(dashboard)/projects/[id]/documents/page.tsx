@@ -71,13 +71,10 @@ export default function DocumentsPage() {
       
       setProject(projectData)
 
-      // Load documents
+      // Load documents (simplified query without join)
       const { data: docs, error } = await supabase
         .from('artifacts')
-        .select(`
-          *,
-          creator:users!artifacts_created_by_fkey(full_name, email)
-        `)
+        .select('*')
         .eq('project_id', projectId)
         .order('created_at', { ascending: false })
 
@@ -277,7 +274,7 @@ export default function DocumentsPage() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <User className="h-4 w-4" />
-                          <span>{doc.creator?.full_name || 'AI Generated'}</span>
+                          <span>AI Generated</span>
                         </div>
                         
                         {/* Quick preview of content */}

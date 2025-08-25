@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/auth/auth-helpers'
 
-export const runtime = 'edge'
+// Middleware runs in edge runtime by default, no explicit export needed
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
