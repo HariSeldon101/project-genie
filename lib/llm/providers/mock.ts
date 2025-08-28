@@ -248,14 +248,19 @@ export class MockProvider extends BaseProvider {
         }
       }
     } else {
-      // Default mock structure
-      mockData = {
-        title: 'Mock Document',
-        content: 'This is a mock generated document for testing purposes.',
-        metadata: {
-          generated: new Date().toISOString(),
-          provider: 'mock',
-          placeholders: ['[STAKEHOLDER_1]', '[STAKEHOLDER_2]', '[EXECUTIVE]']
+      // Try to generate data based on the schema structure
+      try {
+        mockData = this.generateFromSchema(schema)
+      } catch (schemaError) {
+        // Default mock structure as fallback
+        mockData = {
+          title: 'Mock Document',
+          content: 'This is a mock generated document for testing purposes.',
+          metadata: {
+            generated: new Date().toISOString(),
+            provider: 'mock',
+            placeholders: ['[STAKEHOLDER_1]', '[STAKEHOLDER_2]', '[EXECUTIVE]']
+          }
         }
       }
     }
@@ -264,15 +269,90 @@ export class MockProvider extends BaseProvider {
     try {
       return schema.parse(mockData)
     } catch (error) {
-      console.log('Mock data validation failed, returning minimal valid structure')
-      // Return minimal valid structure
-      return mockData as T
+      console.log('Mock data validation failed, attempting to generate valid structure from schema')
+      // Try to generate valid structure from schema
+      try {
+        const validData = this.generateFromSchema(schema)
+        return schema.parse(validData)
+      } catch (schemaGenError) {
+        console.error('Could not generate valid mock data for schema:', schemaGenError)
+        // Return the mock data anyway
+        return mockData as T
+      }
     }
   }
 
   countTokens(text: string): number {
     // Rough approximation: 1 token ≈ 4 characters
     return Math.ceil(text.length / 4)
+  }
+
+  /**
+   * Generate mock data based on a Zod schema
+   */
+  private generateFromSchema(schema: any): any {
+    if (!schema || !schema._def) {
+      throw new Error('Invalid schema provided')
+    }
+
+    const typeName = schema._def.typeName
+
+    // Handle ZodObject
+    if (typeName === 'ZodObject') {
+      const result: any = {}
+      const shape = schema.shape || schema._def.shape()
+      
+      for (const key in shape) {
+        result[key] = this.generateFromSchema(shape[key])
+      }
+      
+      return result
+    }
+
+    // Handle ZodString
+    if (typeName === 'ZodString') {
+      // Return contextual strings based on field name
+      return 'Mock generated text content'
+    }
+
+    // Handle ZodArray
+    if (typeName === 'ZodArray') {
+      const elementSchema = schema._def.type
+      // Generate 2-3 items for arrays
+      const count = Math.floor(Math.random() * 2) + 2
+      const result = []
+      for (let i = 0; i < count; i++) {
+        result.push(this.generateFromSchema(elementSchema))
+      }
+      return result
+    }
+
+    // Handle ZodBoolean
+    if (typeName === 'ZodBoolean') {
+      return Math.random() > 0.5
+    }
+
+    // Handle ZodNumber
+    if (typeName === 'ZodNumber') {
+      return Math.floor(Math.random() * 100)
+    }
+
+    // Handle ZodOptional
+    if (typeName === 'ZodOptional') {
+      // 70% chance of providing optional values
+      if (Math.random() > 0.3) {
+        return this.generateFromSchema(schema._def.innerType)
+      }
+      return undefined
+    }
+
+    // Handle ZodAny
+    if (typeName === 'ZodAny') {
+      return 'Mock any value'
+    }
+
+    // Default fallback
+    return 'Mock value'
   }
 
   private generateMockPID(): string {

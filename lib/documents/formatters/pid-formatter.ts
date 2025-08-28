@@ -191,7 +191,7 @@ ${businessCase.reasons}
 
 The following options have been considered:
 
-${businessCase.businessOptions.map((option, i) => `
+${(businessCase.businessOptions || businessCase.options || []).map((option, i) => `
 #### Option ${i + 1}: ${option.option}
 
 **Description:** ${option.description}
@@ -214,7 +214,7 @@ ${businessCase.expectedBenefits.map(b =>
 ### 2.4 Expected Dis-benefits
 
 The following dis-benefits have been identified:
-${businessCase.expectedDisBenefits.map(db => `- ⚠️ ${db}`).join('\n')}
+${(businessCase.expectedDisBenefits || businessCase.expectedDisbenefits || []).map(db => `- ⚠️ ${typeof db === 'string' ? db : db.disbenefit || db.description || JSON.stringify(db)}`).join('\n')}
 
 ### 2.5 Timescale
 
@@ -240,7 +240,7 @@ ${businessCase.timescale}
 ### 2.8 Major Risks
 
 The following major risks could impact the business case:
-${businessCase.majorRisks.map((risk, i) => `${i + 1}. ${risk}`).join('\n')}
+${(businessCase.majorRisks || []).map((risk, i) => `${i + 1}. ${risk}`).join('\n')}
 
 <div style="page-break-after: always;"></div>
 `.trim()
@@ -284,9 +284,14 @@ ${organizationStructure.projectSupport ? `
 
 | Role | Responsibilities |
 |------|-----------------|
-${organizationStructure.projectAssurance.map(pa => 
-  `| **${pa.role}** | ${pa.responsibilities.join('<br>')} |`
-).join('\n')}
+${Array.isArray(organizationStructure.projectAssurance) 
+  ? organizationStructure.projectAssurance.map(pa => 
+      `| **${pa.role}** | ${Array.isArray(pa.responsibilities) ? pa.responsibilities.join('<br>') : pa.responsibilities} |`
+    ).join('\n')
+  : Object.entries(organizationStructure.projectAssurance || {}).map(([key, value]) =>
+      `| **${key.charAt(0).toUpperCase() + key.slice(1)} Assurance** | ${value} |`
+    ).join('\n')
+}
 
 ### Organization Chart
 
@@ -338,9 +343,14 @@ ${qualityManagementApproach.qualityMethod}
 
 | Role | Quality Responsibilities |
 |------|-------------------------|
-${qualityManagementApproach.qualityResponsibilities.map(qr => 
-  `| **${qr.role}** | ${qr.responsibilities.join('<br>')} |`
-).join('\n')}
+${typeof qualityManagementApproach.qualityResponsibilities === 'string' 
+  ? `| **Project Team** | ${qualityManagementApproach.qualityResponsibilities} |`
+  : Array.isArray(qualityManagementApproach.qualityResponsibilities)
+    ? qualityManagementApproach.qualityResponsibilities.map(qr => 
+        `| **${qr.role}** | ${Array.isArray(qr.responsibilities) ? qr.responsibilities.join('<br>') : qr.responsibilities} |`
+      ).join('\n')
+    : '| **Team** | To be defined |'
+}
 
 <div style="page-break-after: always;"></div>
 `.trim()
@@ -414,6 +424,15 @@ ${riskManagementApproach.rolesAndResponsibilities.map(rr =>
   private generateCommunicationManagement(): string {
     const { communicationManagementApproach } = this.data
     
+    // Ensure we have the required data structure
+    if (!communicationManagementApproach) {
+      return `
+## 7. Communication Management Approach
+
+*Communication management approach to be defined*
+`
+    }
+    
     return `
 ## 7. Communication Management Approach
 
@@ -421,17 +440,21 @@ ${riskManagementApproach.rolesAndResponsibilities.map(rr =>
 
 | Method | Frequency | Audience | Purpose |
 |--------|-----------|----------|---------|
-${communicationManagementApproach.methods.map(m => 
-  `| ${m.method} | ${m.frequency} | ${m.audience.join(', ')} | ${m.purpose} |`
-).join('\n')}
+${communicationManagementApproach.methods && Array.isArray(communicationManagementApproach.methods) 
+  ? communicationManagementApproach.methods.map(m => 
+      `| ${m.method || 'N/A'} | ${m.frequency || 'N/A'} | ${Array.isArray(m.audience) ? m.audience.join(', ') : 'N/A'} | ${m.purpose || 'N/A'} |`
+    ).join('\n')
+  : '| No methods defined | - | - | - |'}
 
 ### 7.2 Stakeholder Analysis
 
 | Stakeholder | Interest | Influence | Communication Needs |
 |------------|----------|-----------|-------------------|
-${communicationManagementApproach.stakeholderAnalysis.map(s => 
-  `| ${s.stakeholder} | ${this.getStakeholderIcon(s.interest)} ${s.interest} | ${this.getStakeholderIcon(s.influence)} ${s.influence} | ${s.communicationNeeds} |`
-).join('\n')}
+${communicationManagementApproach.stakeholderAnalysis && Array.isArray(communicationManagementApproach.stakeholderAnalysis)
+  ? communicationManagementApproach.stakeholderAnalysis.map(s => 
+      `| ${s.stakeholder || 'Unknown'} | ${this.getStakeholderIcon(s.interest)} ${s.interest || 'N/A'} | ${this.getStakeholderIcon(s.influence)} ${s.influence || 'N/A'} | ${s.communicationNeeds || 'To be defined'} |`
+    ).join('\n')
+  : '| No stakeholders defined | - | - | - |'}
 
 ### Stakeholder Matrix
 
@@ -461,8 +484,22 @@ ${this.generateStakeholderPoints()}
   }
 
   private generateStakeholderPoints(): string {
-    // This would generate points for the quadrant chart based on stakeholder analysis
-    return ''
+    // Generate points for the quadrant chart based on stakeholder analysis
+    try {
+      const { stakeholderAnalysis } = this.data.communicationManagementApproach
+      if (!stakeholderAnalysis || !Array.isArray(stakeholderAnalysis)) {
+        return ''
+      }
+      
+      return stakeholderAnalysis.map(s => {
+        const interestScore = s.interest === 'high' ? 0.8 : s.interest === 'medium' ? 0.5 : 0.2
+        const influenceScore = s.influence === 'high' ? 0.8 : s.influence === 'medium' ? 0.5 : 0.2
+        return `    "${s.stakeholder}": [${interestScore}, ${influenceScore}]`
+      }).join('\n')
+    } catch (error) {
+      console.warn('Error generating stakeholder points:', error)
+      return ''
+    }
   }
 
   private generateProjectPlan(): string {
