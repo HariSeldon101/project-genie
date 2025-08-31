@@ -1,7 +1,14 @@
 import { Resend } from 'resend'
 
-// Initialize Resend with API key
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Initialize Resend with API key - lazy initialization to avoid build-time errors
+let resend: Resend | null = null
+
+const getResendClient = () => {
+  if (!resend && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY)
+  }
+  return resend
+}
 
 // Admin email address to receive notifications
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'stusandboxacc@gmail.com'
@@ -21,7 +28,13 @@ export interface UserEventData {
  */
 export async function sendSignupNotification(userData: UserEventData) {
   try {
-    const { data, error } = await resend.emails.send({
+    const client = getResendClient()
+    if (!client) {
+      console.log('Resend client not initialized - skipping email notification')
+      return { success: false, error: 'Email service not configured' }
+    }
+    
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: ADMIN_EMAIL,
       subject: `🎉 New User Signup: ${userData.email}`,
@@ -85,7 +98,13 @@ This is an automated notification from Project Genie.
  */
 export async function sendLoginNotification(userData: UserEventData) {
   try {
-    const { data, error } = await resend.emails.send({
+    const client = getResendClient()
+    if (!client) {
+      console.log('Resend client not initialized - skipping email notification')
+      return { success: false, error: 'Email service not configured' }
+    }
+    
+    const { data, error } = await client.emails.send({
       from: FROM_EMAIL,
       to: ADMIN_EMAIL,
       subject: `🔑 User Login: ${userData.email}`,
