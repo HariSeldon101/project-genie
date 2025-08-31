@@ -316,24 +316,55 @@ gantt
   }
 
   private generateExpectedDisBenefits(): string {
+    // Handle both string array and object array formats
+    const disbenefits = this.data.expectedDisBenefits || []
+    
+    // Check if it's an array of objects or strings
+    const isObjectArray = disbenefits.length > 0 && typeof disbenefits[0] === 'object'
+    
     return `
 ## 6. Expected Dis-benefits
 
 The following dis-benefits have been identified and will be managed:
 
-${this.data.expectedDisBenefits.map(db => `
+${disbenefits.map(db => {
+  if (isObjectArray && typeof db === 'object' && db !== null) {
+    // Handle object format from structured schema
+    const disbenefit = (db as any).disbenefit || db
+    const impact = (db as any).impact || 'Medium'
+    const mitigation = (db as any).mitigation || 'Appropriate change management and communication plans will be implemented to minimize impact.'
+    
+    return `
+### ⚠️ ${disbenefit}
+
+**Impact:** ${impact}
+
+**Mitigation Strategy:** ${mitigation}
+`
+  } else {
+    // Handle string format
+    return `
 ### ⚠️ ${db}
 
 **Mitigation Strategy:** Appropriate change management and communication plans will be implemented to minimize impact.
-`).join('\n')}
+`
+  }
+}).join('\n')}
 
 ### Dis-benefits Management
 
 | Dis-benefit | Impact | Affected Parties | Mitigation |
 |-------------|--------|------------------|------------|
-${this.data.expectedDisBenefits.map(db => 
-  `| ${db} | Medium | Stakeholders | Change management plan |`
-).join('\n')}
+${disbenefits.map(db => {
+  if (isObjectArray && typeof db === 'object' && db !== null) {
+    const disbenefit = (db as any).disbenefit || db
+    const impact = (db as any).impact || 'Medium'
+    const mitigation = (db as any).mitigation || 'Change management plan'
+    return `| ${disbenefit} | ${impact} | Stakeholders | ${mitigation} |`
+  } else {
+    return `| ${db} | Medium | Stakeholders | Change management plan |`
+  }
+}).join('\n')}
 
 <div style="page-break-after: always;"></div>
 `.trim()
@@ -414,8 +445,18 @@ pie title Cost Distribution
   }
 
   private calculatePercentage(part: string, total: string): number {
-    // Simple calculation - in production would parse actual values
-    return 33
+    try {
+      // Parse monetary values, removing currency symbols and commas
+      const partValue = parseFloat(part.replace(/[^0-9.-]/g, '') || '0')
+      const totalValue = parseFloat(total.replace(/[^0-9.-]/g, '') || '0')
+      
+      if (totalValue === 0) return 0
+      
+      return Math.round((partValue / totalValue) * 100)
+    } catch (error) {
+      console.warn('Error calculating percentage:', error)
+      return 0
+    }
   }
 
   private generateInvestmentAppraisal(): string {
@@ -454,11 +495,51 @@ graph LR
   }
 
   private adjustROI(roi: string, factor: number): string {
-    // Simple adjustment - in production would parse and calculate
-    return roi
+    try {
+      // Extract percentage from ROI string (e.g., "150%" -> 150)
+      const roiMatch = roi.match(/([\d.]+)%?/)
+      if (!roiMatch) return roi
+      
+      const roiValue = parseFloat(roiMatch[1])
+      const adjustedROI = Math.round(roiValue * factor)
+      
+      return `${adjustedROI}%`
+    } catch (error) {
+      console.warn('Error adjusting ROI:', error)
+      return roi
+    }
   }
 
   private generateMajorRisks(): string {
+    // Handle both string array and object array formats
+    const risksArray = this.data.majorRisks || []
+    const isObjectArray = risksArray.length > 0 && typeof risksArray[0] === 'object'
+    
+    // Convert to consistent format for display
+    const risks = risksArray.map((risk: any) => {
+      if (typeof risk === 'string') {
+        return {
+          risk: risk,
+          probability: 'medium',
+          impact: 'high',
+          mitigation: 'Risk management plan in place'
+        }
+      } else if (typeof risk === 'object' && risk !== null) {
+        return {
+          risk: risk.risk || '[Risk Description]',
+          probability: risk.probability || 'medium',
+          impact: risk.impact || 'high',
+          mitigation: risk.mitigation || 'Risk management plan in place'
+        }
+      }
+      return {
+        risk: '[Unknown Risk]',
+        probability: 'medium',
+        impact: 'high',
+        mitigation: 'Risk management plan in place'
+      }
+    })
+    
     return `
 ## 10. Major Risks
 
@@ -466,21 +547,26 @@ graph LR
 
 The following major risks could impact the business case:
 
-${this.data.majorRisks.map((risk, i) => `
-#### Risk ${i + 1}: ${risk}
+${risks.map((risk, i) => `
+#### Risk ${i + 1}: ${risk.risk}
 
-- **Probability**: Medium
-- **Impact**: High
-- **Mitigation**: Risk management plan in place
+- **Probability**: ${risk.probability.charAt(0).toUpperCase() + risk.probability.slice(1)}
+- **Impact**: ${risk.impact.charAt(0).toUpperCase() + risk.impact.slice(1)}
+- **Mitigation**: ${risk.mitigation}
 `).join('\n')}
 
 ### 10.2 Risk Matrix
 
 | Risk | Probability | Impact | Score | Response |
 |------|------------|--------|-------|----------|
-${this.data.majorRisks.map(risk => 
-  `| ${risk} | Medium | High | 12 | Mitigate |`
-).join('\n')}
+${risks.map(risk => {
+  // Calculate risk score based on probability and impact
+  const probScore = risk.probability === 'high' ? 5 : risk.probability === 'medium' ? 3 : 1
+  const impactScore = risk.impact === 'high' ? 5 : risk.impact === 'medium' ? 3 : 1
+  const totalScore = probScore * impactScore
+  
+  return `| ${risk.risk} | ${risk.probability.charAt(0).toUpperCase() + risk.probability.slice(1)} | ${risk.impact.charAt(0).toUpperCase() + risk.impact.slice(1)} | ${totalScore} | Mitigate |`
+}).join('\n')}
 
 ### 10.3 Risk Impact on Business Case
 

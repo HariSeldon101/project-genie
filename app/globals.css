@@ -216,6 +216,18 @@
   }
 }
 
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-2px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(2px);
+  }
+}
+
 .animate-blob {
   animation: blob 10s infinite;
 }
@@ -226,4 +238,86 @@
 
 .animate-pulse-slow {
   animation: pulse-slow 8s infinite;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Document HTML Content Styles */
+.document-html-content {
+  @apply text-foreground;
+}
+
+.document-html-content h1 {
+  @apply text-3xl font-bold mt-6 mb-4;
+}
+
+.document-html-content h2 {
+  @apply text-2xl font-semibold mt-5 mb-3 border-b pb-2;
+}
+
+.document-html-content h3 {
+  @apply text-xl font-semibold mt-4 mb-2;
+}
+
+.document-html-content h4 {
+  @apply text-lg font-medium mt-3 mb-2;
+}
+
+.document-html-content p {
+  @apply my-3 leading-relaxed;
+}
+
+.document-html-content ul {
+  @apply list-disc pl-6 my-3 space-y-1;
+}
+
+.document-html-content ol {
+  @apply list-decimal pl-6 my-3 space-y-1;
+}
+
+.document-html-content table {
+  @apply w-full border-collapse my-4;
+}
+
+.document-html-content th {
+  @apply bg-muted p-3 text-left border font-semibold;
+}
+
+.document-html-content td {
+  @apply p-3 border;
+}
+
+.document-html-content tr:nth-child(even) {
+  @apply bg-muted/30;
+}
+
+.document-html-content .table-of-contents {
+  @apply bg-muted/50 p-4 rounded-lg my-4;
+}
+
+.document-html-content .pid-section,
+.document-html-content .document-section {
+  @apply my-6;
+}
+
+.document-html-content .mermaid {
+  @apply my-4 flex justify-center;
+}
+
+.document-html-content .highlight-box {
+  @apply border-l-4 p-4 my-4 bg-accent/10;
+}
+
+.document-html-content .key-metrics th {
+  @apply bg-primary/10;
+}
+
+.document-html-content pre {
+  @apply bg-muted p-4 rounded-lg overflow-x-auto my-4;
+}
+
+.document-html-content code {
+  @apply bg-muted px-1 py-0.5 rounded text-sm;
 }

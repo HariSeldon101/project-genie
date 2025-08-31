@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DocumentGenerator } from '@/lib/documents/generator'
-import { DocumentStorage } from '@/lib/documents/storage'
+import { DocumentStorage, GenerationMetrics } from '@/lib/documents/storage'
 import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/utils/permanent-logger'
 
-// Set a maximum time for the entire route (90 seconds)
-export const maxDuration = 90
+// Set a maximum time for the entire route (600 seconds / 10 minutes for parallel generation)
+// PRINCE2 documents can take 4-5 minutes per document with retries
+export const maxDuration = 600
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+  
+  logger.info('API_GENERATE', 'Generate endpoint called', {
+    timestamp: new Date().toISOString(),
+    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasGroqKey: !!process.env.GROQ_API_KEY,
+    runtime: process.env.VERCEL_REGION || 'local'
+  })
+  
   console.log('[API] Generate endpoint called at', new Date().toISOString())
   console.log('[API] Environment check:', {
     hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,20 +39,42 @@ export async function POST(request: NextRequest) {
     
     const authHeader = request.headers.get('authorization')
     let user = null
+    let authError = null
     
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '')
-      const { data: authData, error: authError } = await supabase.auth.getUser(token)
-      user = authData?.user
+      
+      // Add retry logic for auth verification
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: authData, error } = await supabase.auth.getUser(token)
+        if (!error && authData?.user) {
+          user = authData.user
+          break
+        }
+        authError = error
+        
+        // Wait before retrying (exponential backoff)
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt)))
+        }
+      }
     }
     
     // Parse request body
-    const { projectId, projectData, forceProvider } = await request.json()
+    const { projectId, projectData, selectedDocuments, forceProvider } = await request.json()
     
     // For testing purposes, allow unauthenticated requests with forceProvider
     if (!user && !forceProvider) {
+      logger.warn('AUTH_FAILED', 'Authentication failed for generate endpoint', {
+        error: authError?.message,
+        hasAuthHeader: !!authHeader
+      })
+      console.error('[API] Authentication failed:', authError)
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { 
+          error: 'Authentication required', 
+          details: authError?.message || 'Please log in and try again'
+        },
         { status: 401 }
       )
     }
@@ -67,26 +101,40 @@ export async function POST(request: NextRequest) {
     // Log provider info
     const providerInfo = generator.getProviderInfo()
     console.log('[API] Using LLM Provider:', providerInfo)
+    console.log('[API] Selected documents:', selectedDocuments)
     
-    // Create a timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Document generation timed out after 80 seconds')), 80000)
-    })
-    
-    // Race between generation and timeout
-    const documents = await Promise.race([
-      generator.generateProjectDocuments(projectData, projectId),
-      timeoutPromise
-    ]) as any
+    // Generate documents without artificial timeout - let Vercel's maxDuration handle it
+    const generationStartTime = Date.now()
+    const documents = await generator.generateProjectDocuments(projectData, projectId, selectedDocuments)
+    const generationTimeMs = Date.now() - generationStartTime
 
-    // Store documents in Supabase (skip for test mode)
+    // Get aggregated metrics from generator
+    const metrics = generator.getAggregatedMetrics()
+    
+    // Create metrics object for storage with all metadata
+    const storageMetrics: GenerationMetrics = {
+      provider: metrics.provider,
+      model: metrics.model,
+      inputTokens: metrics.totalInputTokens,
+      outputTokens: metrics.totalOutputTokens,
+      reasoningTokens: metrics.totalReasoningTokens,
+      totalTokens: metrics.totalTokens,
+      costUsd: metrics.totalCostUsd,
+      generationTimeMs: generationTimeMs,
+      success: true,
+      // Add prompt parameters from actual provider config
+      reasoningEffort: metrics.provider === 'openai' ? 'high' : undefined,
+      temperature: providerInfo.temperature || 0.7,
+      maxTokens: providerInfo.maxTokens || 4096
+    }
+
+    // Store documents in Supabase (only if we have a real user)
     let artifactIds: string[] = []
     
-    if (!forceProvider || user) {
+    if (user?.id) {
+      // Only store if we have a real authenticated user
       const storage = new DocumentStorage()
-      // Use a valid UUID for test user
-      const userId = user?.id || '00000000-0000-0000-0000-000000000000'
-      artifactIds = await storage.storeDocuments(documents, userId)
+      artifactIds = await storage.storeDocuments(documents, user.id, storageMetrics)
     } else {
       // For testing without DB storage
       artifactIds = documents.map(() => `test-artifact-${Date.now()}-${Math.random()}`)
@@ -112,7 +160,15 @@ export async function POST(request: NextRequest) {
         .eq('id', projectId)
     }
 
-    // Return success response with debug info
+    // Calculate cost estimate
+    const estimatedCost = calculateGenerationCost(
+      metrics.model,
+      metrics.totalInputTokens,
+      metrics.totalOutputTokens,
+      metrics.totalReasoningTokens
+    )
+    
+    // Return success response with debug info and metrics
     const debugInfo = generator.getDebugInfo()
     return NextResponse.json({
       success: true,
@@ -120,25 +176,43 @@ export async function POST(request: NextRequest) {
       artifactIds,
       provider: providerInfo.provider,
       model: providerInfo.model,
+      metrics: {
+        ...metrics,
+        estimatedCostUsd: estimatedCost,
+        generationTimeMs,
+        documentsGenerated: documents.length
+      },
       debugInfo,
       documents: documents.map(doc => ({
         type: doc.metadata.type,
         title: getDocumentTitle(doc.metadata.type),
         version: doc.metadata.version,
+        content: doc.content, // Include actual content
         insights: doc.aiInsights,
+        usage: doc.metadata.usage, // Include individual doc usage
+        generationTimeMs: doc.metadata.generationTimeMs,
         prompt: doc.metadata.prompt // Include prompt for debugging
       }))
     })
 
   } catch (error) {
+    // Extract error details once
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    
+    logger.error('API_ERROR', 'Document generation failed', {
+      error: errorMessage,
+      type: error?.constructor?.name,
+      projectId: request.body ? JSON.parse(await request.text()).projectId : 'unknown'
+    }, errorStack)
+    
     console.error('[API] Document generation error:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
+      error: errorMessage,
+      stack: errorStack,
       type: error?.constructor?.name
     })
     
-    // Check if it's a PII error
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    // Check if it's a PII error (errorMessage already declared above)
     if (errorMessage.includes('PII detected')) {
       return NextResponse.json(
         { 
@@ -217,7 +291,41 @@ function getDocumentTitle(type: string): string {
     backlog: 'Product Backlog',
     risk_register: 'Risk Register',
     business_case: 'Business Case',
-    project_plan: 'Project Plan'
+    project_plan: 'Project Plan',
+    technical_landscape: 'Technical Landscape Analysis',
+    comparable_projects: 'Comparable Projects Analysis'
   }
   return titles[type] || 'Project Document'
+}
+
+function calculateGenerationCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  reasoningTokens: number = 0
+): number {
+  // GPT-5 pricing (per 1M tokens)
+  if (model?.includes('gpt-5')) {
+    if (model === 'gpt-5-mini' || model === 'gpt-5-nano') {
+      // GPT-5-mini/nano: $0.025 input, $0.20 output
+      return (inputTokens * 0.000025) + (outputTokens * 0.0002) + (reasoningTokens * 0.0002)
+    } else {
+      // GPT-5 standard: $0.05 input, $0.40 output (estimated)
+      return (inputTokens * 0.00005) + (outputTokens * 0.0004) + (reasoningTokens * 0.0004)
+    }
+  } else if (model?.includes('gpt-4')) {
+    if (model.includes('turbo')) {
+      // GPT-4-turbo: $0.01 input, $0.03 output
+      return (inputTokens * 0.00001) + (outputTokens * 0.00003)
+    } else {
+      // GPT-4: $0.03 input, $0.06 output
+      return (inputTokens * 0.00003) + (outputTokens * 0.00006)
+    }
+  } else if (model?.includes('llama') || model?.includes('mixtral')) {
+    // Groq models: ~$0.001 per 1K tokens
+    return (inputTokens + outputTokens) * 0.000001
+  } else {
+    // Default/unknown model
+    return (inputTokens + outputTokens) * 0.000002
+  }
 }

@@ -18,7 +18,8 @@ import {
   ArrowRight,
   Filter,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { canCreateProject, getTierLimits, getProjectLimitMessage, type SubscriptionTier } from '@/lib/subscription/tier-limits'
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 
 interface Project {
   id: string
@@ -57,6 +59,9 @@ export default function ProjectsPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [userTier, setUserTier] = useState<SubscriptionTier>('free')
   const [canCreateMore, setCanCreateMore] = useState(true)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     loadProjects()
@@ -85,41 +90,107 @@ export default function ProjectsPage() {
       const tier = (profile?.subscription_tier || 'free') as SubscriptionTier
       setUserTier(tier)
 
-      // Load projects with counts
-      const { data: projectsData, error } = await supabase
+      // Load projects first (without complex joins)
+      const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select(`
-          *,
-          artifacts(count),
-          risks(count),
-          project_members(count)
-        `)
+        .select('*')
         .eq('owner_id', user.user.id)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (projectsError) {
+        console.error('Error loading projects:', {
+          message: projectsError.message,
+          code: projectsError.code,
+          details: projectsError.details
+        })
+        setProjects([])
+        setCanCreateMore(canCreateProject(0, tier))
+        return
+      }
 
       console.log(`Projects page: Loaded ${projectsData?.length || 0} projects for user ${user.user.id}`)
 
-      // Transform the data to include counts
-      const transformedProjects = projectsData?.map(project => ({
-        ...project,
-        _count: {
-          artifacts: project.artifacts?.[0]?.count || 0,
-          risks: project.risks?.[0]?.count || 0,
-          project_members: project.project_members?.[0]?.count || 0
-        }
-      }))
+      // Get counts for each project separately
+      const projectsWithCounts = []
+      
+      for (const project of (projectsData || [])) {
+        // Get counts for each project
+        const [artifactsResult, membersResult] = await Promise.all([
+          supabase
+            .from('artifacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('project_id', project.id),
+          supabase
+            .from('project_members')
+            .select('id', { count: 'exact', head: true })
+            .eq('project_id', project.id)
+        ])
+        
+        projectsWithCounts.push({
+          ...project,
+          _count: {
+            artifacts: artifactsResult.count || 0,
+            risks: 0, // Risks table doesn't exist
+            project_members: membersResult.count || 0
+          }
+        })
+      }
 
-      setProjects(transformedProjects || [])
+      setProjects(projectsWithCounts)
       
       // Check if user can create more projects
-      const projectCount = transformedProjects?.length || 0
+      const projectCount = projectsWithCounts?.length || 0
       setCanCreateMore(canCreateProject(projectCount, tier))
     } catch (error) {
       console.error('Error loading projects:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return
+    
+    setIsDeleting(true)
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      // Delete all documents (artifacts) first
+      const { error: artifactsError } = await supabase
+        .from('artifacts')
+        .delete()
+        .eq('project_id', projectToDelete.id)
+
+      if (artifactsError) {
+        console.error('Error deleting project documents:', artifactsError)
+        throw artifactsError
+      }
+
+      // Delete the project
+      const { error: projectError } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectToDelete.id)
+
+      if (projectError) {
+        console.error('Error deleting project:', projectError)
+        throw projectError
+      }
+
+      // Remove from local state
+      setProjects(projects.filter(p => p.id !== projectToDelete.id))
+      
+      // Close dialog
+      setDeleteDialogOpen(false)
+      setProjectToDelete(null)
+    } catch (error) {
+      console.error('Failed to delete project:', error)
+      alert('Failed to delete project. Please try again.')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -296,6 +367,17 @@ export default function ProjectsPage() {
                       }}>
                         Settings
                       </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setProjectToDelete(project)
+                          setDeleteDialogOpen(true)
+                        }}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Project
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -396,6 +478,19 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Project"
+        description={`Are you sure you want to delete "${projectToDelete?.name}"? This will permanently delete the project and ALL of its documents. This action cannot be undone.`}
+        destructive={true}
+        confirmText="Delete Project"
+        cancelText="Cancel"
+        onConfirm={handleDeleteProject}
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

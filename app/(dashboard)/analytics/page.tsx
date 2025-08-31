@@ -13,13 +13,11 @@ import {
   AlertTriangle,
   Clock,
   Activity,
-  PieChart,
-  Calendar,
   Target,
   Zap,
   CheckCircle
 } from 'lucide-react'
-import { format, subDays, startOfWeek, startOfMonth } from 'date-fns'
+import { format, subDays } from 'date-fns'
 
 interface AnalyticsData {
   totalProjects: number
@@ -88,20 +86,39 @@ export default function AnalyticsPage() {
           break
       }
 
-      // Fetch all data
-      const [
-        { data: projects },
-        { data: documents },
-        { data: risks },
-        { data: tasks },
-        { data: members }
-      ] = await Promise.all([
-        supabase.from('projects').select('*').eq('owner_id', user.user.id),
-        supabase.from('artifacts').select('*, project:projects!inner(owner_id)').eq('project.owner_id', user.user.id),
-        supabase.from('risks').select('*, project:projects!inner(owner_id)').eq('project.owner_id', user.user.id),
-        supabase.from('tasks').select('*, project:projects!inner(owner_id)').eq('project.owner_id', user.user.id),
-        supabase.from('project_members').select('*, project:projects!inner(owner_id)').eq('project.owner_id', user.user.id)
-      ])
+      // First fetch user's projects
+      const { data: projects } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('owner_id', user.user.id)
+
+      // Initialize variables
+      let documents = null
+      let members = null
+      
+      // If user has projects, fetch related data
+      if (projects && projects.length > 0) {
+        const projectIds = projects.map(p => p.id)
+        
+        // Fetch artifacts and project members for user's projects
+        const [documentsResult, membersResult] = await Promise.all([
+          supabase
+            .from('artifacts')
+            .select('*')
+            .in('project_id', projectIds),
+          supabase
+            .from('project_members')
+            .select('*')
+            .in('project_id', projectIds)
+        ])
+        
+        documents = documentsResult.data
+        members = membersResult.data
+      }
+      
+      // Note: risks and tasks tables don't exist, using empty arrays
+      const risks: any[] = []
+      const tasks: any[] = []
 
       // Calculate metrics
       const activeProjects = projects?.filter(p => p.status !== 'completed').length || 0
@@ -110,7 +127,7 @@ export default function AnalyticsPage() {
       const completedTasks = tasks?.filter(t => t.status === 'done').length || 0
 
       // Methodology breakdown
-      const methodologyBreakdown = projects?.reduce((acc: any[], project) => {
+      const methodologyBreakdown = projects?.reduce((acc: { name: string; count: number }[], project) => {
         const existing = acc.find(m => m.name === project.methodology_type)
         if (existing) {
           existing.count++

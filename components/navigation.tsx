@@ -48,6 +48,9 @@ export function Navigation() {
         <Link href="/pricing" className="text-white/80 hover:text-white transition-colors">
           Pricing
         </Link>
+        <Link href="/contact" className="text-white/80 hover:text-white transition-colors">
+          Contact
+        </Link>
         <div className="flex gap-4">
           {loading ? (
             <div className="w-24 h-10 bg-white/10 rounded animate-pulse" />

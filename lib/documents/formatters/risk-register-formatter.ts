@@ -1,3 +1,10 @@
+// Helper function to escape pipe characters in markdown table cells
+function escapeTableCell(text: string | undefined): string {
+  if (!text) return ''
+  // Replace pipe characters with HTML entity to prevent breaking table structure
+  return text.replace(/\|/g, '\\|')
+}
+
 interface Risk {
   id: string
   category: 'Strategic' | 'Operational' | 'Financial' | 'Technical' | 'Compliance' | 'External'
@@ -253,7 +260,7 @@ ${data.risks
   .sort((a, b) => b.score - a.score)
   .map(risk => {
     const { rating, emoji } = getRiskRating(risk.score)
-    return `#### ${emoji} Risk ${risk.id}: ${risk.description}
+    return `#### ${emoji} Risk ${risk.id}: ${escapeTableCell(risk.description)}
 
 | Attribute | Value |
 |-----------|-------|
@@ -261,16 +268,16 @@ ${data.risks
 | **Probability** | ${risk.probability} |
 | **Impact** | ${risk.impact} |
 | **Risk Score** | ${risk.score} (${rating}) |
-| **Owner** | ${risk.owner} |
+| **Owner** | ${escapeTableCell(risk.owner)} |
 | **Status** | ${risk.status} |
 | **Date Identified** | ${risk.dateIdentified} |
 ${risk.lastReviewed ? `| **Last Reviewed** | ${risk.lastReviewed} |` : ''}
 
 **Mitigation Strategy:**  
-${risk.mitigation}
+${escapeTableCell(risk.mitigation)}
 
 ${risk.contingency ? `**Contingency Plan:**  
-${risk.contingency}` : ''}
+${escapeTableCell(risk.contingency)}` : ''}
 
 ${risk.residualProbability ? `**Residual Risk Assessment:**
 - Probability: ${risk.residualProbability}
@@ -287,16 +294,16 @@ ${data.risks
   .map(risk => {
     const score = calculateRiskScore(risk.probability, risk.impact)
     const { rating, emoji } = getRiskRating(score)
-    return `#### ${emoji} Risk ${risk.id}: ${risk.description}
+    return `#### ${emoji} Risk ${risk.id}: ${escapeTableCell(risk.description)}
 
 | Attribute | Value |
 |-----------|-------|
 | **Category** | ${formatRiskCategory(risk.category)} |
 | **Risk Score** | ${score} (${rating}) |
-| **Owner** | ${risk.owner} |
+| **Owner** | ${escapeTableCell(risk.owner)} |
 | **Last Reviewed** | ${risk.lastReviewed || risk.dateIdentified} |
 
-**Current Mitigation:** ${risk.mitigation}
+**Current Mitigation:** ${escapeTableCell(risk.mitigation)}
 
 ---`
   }).join('\n\n') || '*No risks currently under monitoring*'}
@@ -305,7 +312,7 @@ ${data.risks
 
 ${data.risks
   .filter(r => r.status === 'Closed')
-  .map(risk => `- **${risk.id}:** ${risk.description} (Closed: ${risk.lastReviewed || 'N/A'})`)
+  .map(risk => `- **${risk.id}:** ${escapeTableCell(risk.description)} (Closed: ${risk.lastReviewed || 'N/A'})`)
   .join('\n') || '*No closed risks*'}
 
 ---`)
@@ -354,9 +361,9 @@ ${Object.entries(
 ${data.risks
   .filter(r => r.status === 'Open' && calculateRiskScore(r.probability, r.impact) >= 10)
   .slice(0, 5)
-  .map((r, i) => `${i + 1}. **${r.description}**
-   - Owner: ${r.owner}
-   - Action: ${r.mitigation.substring(0, 150)}${r.mitigation.length > 150 ? '...' : ''}`)
+  .map((r, i) => `${i + 1}. **${escapeTableCell(r.description)}**
+   - Owner: ${escapeTableCell(r.owner)}
+   - Action: ${escapeTableCell(r.mitigation.substring(0, 150))}${r.mitigation.length > 150 ? '...' : ''}`)
   .join('\n\n')}
 
 ---`)
@@ -368,8 +375,8 @@ ${data.risks
 
 | Role | Name | Signature | Date |
 |------|------|-----------|------|
-| Project Manager | ${data.projectManager || '_________________'} | _________________ | _________________ |
-| Risk Owner | ${data.documentOwner || '_________________'} | _________________ | _________________ |
+| Project Manager | ${escapeTableCell(data.projectManager) || '_________________'} | _________________ | _________________ |
+| Risk Owner | ${escapeTableCell(data.documentOwner) || '_________________'} | _________________ | _________________ |
 | Project Sponsor | _________________ | _________________ | _________________ |
 | Quality Assurance | _________________ | _________________ | _________________ |
 
@@ -383,7 +390,7 @@ ${data.risks
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| ${data.version || '1.0'} | ${data.lastUpdated} | ${data.documentOwner || 'Project Manager'} | ${data.approvalStatus === 'Draft' ? 'Initial draft' : 'Current version'} |
+| ${data.version || '1.0'} | ${data.lastUpdated} | ${escapeTableCell(data.documentOwner) || 'Project Manager'} | ${data.approvalStatus === 'Draft' ? 'Initial draft' : 'Current version'} |
 
 ---
 

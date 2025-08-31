@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -102,9 +102,9 @@ export function MarkdownRenderer({
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight, rehypeRaw]}
         components={{
-          // Custom table rendering
+          // Custom table rendering with better formatting
           table: ({ children }) => (
-            <div className="overflow-x-auto my-6">
+            <div className="overflow-x-auto my-6 border border-gray-200 dark:border-gray-700 rounded-lg">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 {children}
               </table>
@@ -124,55 +124,81 @@ export function MarkdownRenderer({
             </tr>
           ),
           th: ({ children }) => (
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r last:border-r-0 border-gray-200 dark:border-gray-700">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-              {children}
+            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border-r last:border-r-0 border-gray-200 dark:border-gray-700">
+              <div className="whitespace-pre-wrap break-words max-w-xs lg:max-w-md">
+                {children}
+              </div>
             </td>
           ),
           // Custom heading rendering with anchor links
-          h1: ({ children, ...props }) => (
-            <h1 className="text-4xl font-bold mt-8 mb-4 text-gray-900 dark:text-white" {...props}>
-              {children}
-            </h1>
-          ),
-          h2: ({ children, ...props }) => (
-            <h2 className="text-3xl font-semibold mt-6 mb-3 text-gray-800 dark:text-gray-100 border-b pb-2" {...props}>
-              {children}
-            </h2>
-          ),
-          h3: ({ children, ...props }) => (
-            <h3 className="text-2xl font-semibold mt-4 mb-2 text-gray-800 dark:text-gray-100" {...props}>
-              {children}
-            </h3>
-          ),
-          h4: ({ children, ...props }) => (
-            <h4 className="text-xl font-semibold mt-3 mb-2 text-gray-700 dark:text-gray-200" {...props}>
-              {children}
-            </h4>
-          ),
+          h1: ({ children, ...props }) => {
+            const text = React.Children.toArray(children).map(child => 
+              typeof child === 'string' ? child : ''
+            ).join('')
+            const id = text.toLowerCase().replace(/[^a-z0-9\s]+/g, '').replace(/\s+/g, '-').replace(/(^-|-$)/g, '')
+            return (
+              <h1 id={id} className="text-4xl font-bold mt-8 mb-4 text-gray-900 dark:text-white scroll-mt-20" {...props}>
+                {children}
+              </h1>
+            )
+          },
+          h2: ({ children, ...props }) => {
+            const text = React.Children.toArray(children).map(child => 
+              typeof child === 'string' ? child : ''
+            ).join('')
+            const id = text.toLowerCase().replace(/[^a-z0-9\s]+/g, '').replace(/\s+/g, '-').replace(/(^-|-$)/g, '')
+            return (
+              <h2 id={id} className="text-3xl font-semibold mt-6 mb-3 text-gray-800 dark:text-gray-100 border-b pb-2 scroll-mt-20" {...props}>
+                {children}
+              </h2>
+            )
+          },
+          h3: ({ children, ...props }) => {
+            const text = React.Children.toArray(children).map(child => 
+              typeof child === 'string' ? child : ''
+            ).join('')
+            const id = text.toLowerCase().replace(/[^a-z0-9\s]+/g, '').replace(/\s+/g, '-').replace(/(^-|-$)/g, '')
+            return (
+              <h3 id={id} className="text-2xl font-semibold mt-4 mb-2 text-gray-800 dark:text-gray-100 scroll-mt-20" {...props}>
+                {children}
+              </h3>
+            )
+          },
+          h4: ({ children, ...props }) => {
+            const text = React.Children.toArray(children).map(child => 
+              typeof child === 'string' ? child : ''
+            ).join('')
+            const id = text.toLowerCase().replace(/[^a-z0-9\s]+/g, '').replace(/\s+/g, '-').replace(/(^-|-$)/g, '')
+            return (
+              <h4 id={id} className="text-xl font-semibold mt-3 mb-2 text-gray-700 dark:text-gray-200 scroll-mt-20" {...props}>
+                {children}
+              </h4>
+            )
+          },
           // Custom paragraph rendering
           p: ({ children }) => (
             <p className="my-4 text-gray-700 dark:text-gray-300 leading-relaxed">
               {children}
             </p>
           ),
-          // Custom list rendering
+          // Custom list rendering with better spacing
           ul: ({ children }) => (
-            <ul className="list-disc list-inside my-4 space-y-2 text-gray-700 dark:text-gray-300">
+            <ul className="list-disc pl-6 my-4 space-y-1 text-gray-700 dark:text-gray-300">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal list-inside my-4 space-y-2 text-gray-700 dark:text-gray-300">
+            <ol className="list-decimal pl-6 my-4 space-y-1 text-gray-700 dark:text-gray-300">
               {children}
             </ol>
           ),
           li: ({ children }) => (
-            <li className="ml-4">{children}</li>
+            <li className="mb-1">{children}</li>
           ),
           // Custom blockquote rendering
           blockquote: ({ children }) => (
@@ -204,17 +230,29 @@ export function MarkdownRenderer({
           hr: () => (
             <hr className="my-8 border-gray-200 dark:border-gray-700" />
           ),
-          // Custom link rendering
-          a: ({ href, children }) => (
-            <a 
-              href={href} 
-              className="text-indigo-600 dark:text-indigo-400 hover:underline"
-              target={href?.startsWith('http') ? '_blank' : undefined}
-              rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
-            >
-              {children}
-            </a>
-          ),
+          // Custom link rendering with scroll behavior for anchors
+          a: ({ href, children }) => {
+            const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+              if (href?.startsWith('#')) {
+                e.preventDefault()
+                const element = document.getElementById(href.slice(1))
+                if (element) {
+                  element.scrollIntoView({ behavior: 'smooth' })
+                }
+              }
+            }
+            return (
+              <a 
+                href={href} 
+                onClick={handleClick}
+                className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                target={href?.startsWith('http') ? '_blank' : undefined}
+                rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
+              >
+                {children}
+              </a>
+            )
+          },
           // Custom strong/bold rendering
           strong: ({ children }) => (
             <strong className="font-semibold text-gray-900 dark:text-white">
@@ -239,6 +277,25 @@ export function MarkdownRenderer({
           word-wrap: break-word;
         }
         
+        /* Better table formatting */
+        .markdown-body table {
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        
+        .markdown-body td,
+        .markdown-body th {
+          word-break: normal;
+          overflow-wrap: break-word;
+          hyphens: auto;
+        }
+        
+        /* Handle pipe characters in tables */
+        .markdown-body td:contains("|"),
+        .markdown-body th:contains("|") {
+          white-space: pre-wrap;
+        }
+        
         .mermaid-container {
           display: flex;
           justify-content: center;
@@ -256,6 +313,26 @@ export function MarkdownRenderer({
         .mermaid-container svg {
           max-width: 100%;
           height: auto;
+        }
+        
+        /* Mermaid graph styling */
+        .mermaid-container .node rect,
+        .mermaid-container .node circle,
+        .mermaid-container .node ellipse,
+        .mermaid-container .node polygon {
+          fill: #f3f4f6;
+          stroke: #6b7280;
+          stroke-width: 2px;
+        }
+        
+        .mermaid-container .node text {
+          fill: #1f2937;
+        }
+        
+        .mermaid-container .edgeLabel {
+          background: white;
+          padding: 2px 4px;
+          border-radius: 2px;
         }
         
         .mermaid-error {

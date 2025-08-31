@@ -40,28 +40,63 @@ export class SectionedDocumentGenerator {
     
     const sections: PIDSection = {}
     
-    // Section 1: Project Definition and Business Case
+    // Section 1A: Project Definition
     try {
-      console.log('  📄 Section 1: Project Definition & Business Case...')
-      const section1 = await this.generatePIDSection(data, {
-        sections: ['projectDefinition', 'businessCase'],
-        systemPrompt: `You are a PRINCE2 Project Manager creating a Project Initiation Document.
-Focus ONLY on the Project Definition and Business Case sections.
-Return a JSON object with these exact keys:
-- projectDefinition: Contains background, objectives, desiredOutcomes, scope (with included/excluded arrays), constraints, assumptions, deliverables (array with name, description, qualityCriteria), interfaces
-- businessCase: Contains reasons, options (array), expectedBenefits (array), expectedDisbenefits (array), timescale, costs (object with development, operational, total), investmentAppraisal, majorRisks (array)`,
-        maxTokens: 4000
+      console.log('  📄 Section 1A: Project Definition...')
+      const section1a = await this.generatePIDSection(data, {
+        sections: ['projectDefinition'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Project Definition section.
+Return ONLY valid JSON with the projectDefinition key containing:
+- background: Brief string (max 150 words)
+- objectives: Array of 3-5 objectives (each max 20 words)
+- desiredOutcomes: Array of 3-5 outcomes (each max 20 words)
+- scope: Object with included (3-5 items) and excluded (2-3 items) arrays
+- constraints: Array of 3-5 constraints (each max 15 words)
+- assumptions: Array of 3-5 assumptions (each max 15 words)
+- deliverables: Array of 3-5 objects with name, description, qualityCriteria
+- interfaces: Array of 2-3 external interfaces
+
+BE CONCISE. Keep responses short and focused.`,
+        maxTokens: 1000
       })
-      Object.assign(sections, section1)
+      Object.assign(sections, section1a)
     } catch (error) {
-      console.error('  ⚠️ Section 1 failed, using defaults')
-      console.error('  📍 PID Section 1 Error Details:', {
+      console.error('  ⚠️ Section 1A failed, using defaults')
+      console.error('  📍 PID Section 1A Error Details:', {
         errorMessage: (error as any)?.message || 'Unknown error',
         errorName: (error as any)?.name || 'Unknown',
-        errorStack: (error as any)?.stack?.split('\n').slice(0, 3).join('\n'),
-        errorFull: error
+        errorStack: (error as any)?.stack?.split('\n').slice(0, 3).join('\n')
       })
       sections.projectDefinition = this.getDefaultProjectDefinition(data)
+    }
+    
+    // Section 1B: Business Case
+    try {
+      console.log('  📄 Section 1B: Business Case...')
+      const section1b = await this.generatePIDSection(data, {
+        sections: ['businessCase'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Business Case section.
+Return ONLY valid JSON with the businessCase key containing:
+- reasons: Brief string (max 100 words)
+- options: Array of 2-3 business options (each max 50 words)
+- expectedBenefits: Array of 3-5 benefits (each max 30 words)
+- expectedDisbenefits: Array of 1-2 disbenefits (each max 20 words)
+- timescale: Brief string (max 30 words)
+- costs: Object with development, operational, total (use numbers)
+- investmentAppraisal: Brief string (max 50 words)
+- majorRisks: Array of 2-3 risks (each max 20 words)
+
+BE CONCISE. Use short, focused responses.`,
+        maxTokens: 1000
+      })
+      Object.assign(sections, section1b)
+    } catch (error) {
+      console.error('  ⚠️ Section 1B failed, using defaults')
+      console.error('  📍 PID Section 1B Error Details:', {
+        errorMessage: (error as any)?.message || 'Unknown error',
+        errorName: (error as any)?.name || 'Unknown',
+        errorStack: (error as any)?.stack?.split('\n').slice(0, 3).join('\n')
+      })
       sections.businessCase = this.getDefaultBusinessCase(data)
     }
     
@@ -90,55 +125,140 @@ Return a JSON object with the organizationStructure key containing:
       sections.organizationStructure = this.getDefaultOrganizationStructure()
     }
     
-    // Section 3: Management Approaches
+    // Section 3A: Quality Management Approach
     try {
-      console.log('  📄 Section 3: Management Approaches...')
-      const section3 = await this.generatePIDSection(data, {
-        sections: ['qualityManagementApproach', 'configurationManagementApproach', 'riskManagementApproach', 'communicationManagementApproach'],
-        systemPrompt: `You are a PRINCE2 Project Manager creating the Management Approaches sections.
-Return a JSON object with these keys:
-- qualityManagementApproach: Object with qualityStandards (array), qualityCriteria (array), qualityMethod, qualityResponsibilities
-- configurationManagementApproach: Object with purpose, procedure, issueAndChangeControl, toolsAndTechniques (array)
-- riskManagementApproach: Object with procedure, riskTolerance, riskRegisterFormat, rolesAndResponsibilities
-- communicationManagementApproach: Object with methods (array), frequency, stakeholderAnalysis`,
-        maxTokens: 3000
+      console.log('  📄 Section 3A: Quality Management Approach...')
+      const section3a = await this.generatePIDSection(data, {
+        sections: ['qualityManagementApproach'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Quality Management Approach.
+Return a JSON object with qualityManagementApproach containing:
+- qualityStandards: Array of standards
+- qualityCriteria: Array of criteria
+- qualityMethod: String describing method
+- qualityResponsibilities: String describing responsibilities`,
+        maxTokens: 800
       })
-      Object.assign(sections, section3)
+      Object.assign(sections, section3a)
     } catch (error) {
-      console.error('  ⚠️ Section 3 failed, using defaults')
-      console.error('  📍 PID Section 3 Error Details:', {
-        errorMessage: (error as any)?.message || 'Unknown error',
-        errorName: (error as any)?.name || 'Unknown',
-        errorStack: (error as any)?.stack?.split('\n').slice(0, 3).join('\n')
-      })
+      console.error('  ⚠️ Section 3A failed, using defaults')
       sections.qualityManagementApproach = this.getDefaultQualityApproach()
+    }
+    
+    // Section 3B: Configuration Management Approach
+    try {
+      console.log('  📄 Section 3B: Configuration Management Approach...')
+      const section3b = await this.generatePIDSection(data, {
+        sections: ['configurationManagementApproach'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Configuration Management Approach.
+Return a JSON object with configurationManagementApproach containing:
+- purpose: String
+- procedure: String
+- issueAndChangeControl: String
+- toolsAndTechniques: Array of tools`,
+        maxTokens: 800
+      })
+      Object.assign(sections, section3b)
+    } catch (error) {
+      console.error('  ⚠️ Section 3B failed, using defaults')
       sections.configurationManagementApproach = this.getDefaultConfigApproach()
+    }
+    
+    // Section 3C: Risk Management Approach
+    try {
+      console.log('  📄 Section 3C: Risk Management Approach...')
+      const section3c = await this.generatePIDSection(data, {
+        sections: ['riskManagementApproach'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Risk Management Approach.
+Return a JSON object with riskManagementApproach containing:
+- procedure: String
+- riskTolerance: Object with time, cost, quality, scope, benefits, risk properties
+- riskRegisterFormat: String
+- rolesAndResponsibilities: Array of objects with role and responsibilities
+- riskCategories: Array of categories
+- toolsAndTechniques: Array of tools
+- reporting: String
+- timingOfRiskManagementActivities: String`,
+        maxTokens: 800
+      })
+      Object.assign(sections, section3c)
+    } catch (error) {
+      console.error('  ⚠️ Section 3C failed, using defaults')
       sections.riskManagementApproach = this.getDefaultRiskApproach()
+    }
+    
+    // Section 3D: Communication Management Approach
+    try {
+      console.log('  📄 Section 3D: Communication Management Approach...')
+      const section3d = await this.generatePIDSection(data, {
+        sections: ['communicationManagementApproach'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Communication Management Approach.
+Return a JSON object with communicationManagementApproach containing:
+- methods: Array of communication methods
+- frequency: String describing frequency
+- stakeholderAnalysis: Array of objects with stakeholder, interest, influence, communicationMethod, frequency
+- procedure: String
+- toolsAndTechniques: Array of tools
+- reporting: String
+- rolesAndResponsibilities: String`,
+        maxTokens: 800
+      })
+      Object.assign(sections, section3d)
+    } catch (error) {
+      console.error('  ⚠️ Section 3D failed, using defaults')
       sections.communicationManagementApproach = this.getDefaultCommApproach()
     }
     
-    // Section 4: Project Plan and Controls
+    // Section 4A: Project Plan
     try {
-      console.log('  📄 Section 4: Project Plan & Controls...')
-      const section4 = await this.generatePIDSection(data, {
-        sections: ['projectPlan', 'projectControls', 'tailoring'],
-        systemPrompt: `You are a PRINCE2 Project Manager creating the Project Plan and Controls sections.
-Return a JSON object with these keys:
-- projectPlan: Object with stages (array), milestones (array), dependencies (array), schedule
-- projectControls: Object with tolerances (object with time, cost, scope, quality, risk, benefits), reportingFrequency, escalationProcess
-- tailoring: Object with approach, justification`,
-        maxTokens: 2500
+      console.log('  📄 Section 4A: Project Plan...')
+      const section4a = await this.generatePIDSection(data, {
+        sections: ['projectPlan'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Project Plan.
+Return a JSON object with projectPlan containing:
+- stages: Array of objects with name, startDate, endDate, objectives, deliverables
+- milestones: Array of objects with name, date, criteria
+- dependencies: Array of objects with type, description, impact
+- schedule: String describing overall schedule`,
+        maxTokens: 1000
       })
-      Object.assign(sections, section4)
+      Object.assign(sections, section4a)
     } catch (error) {
-      console.error('  ⚠️ Section 4 failed, using defaults')
-      console.error('  📍 PID Section 4 Error Details:', {
-        errorMessage: (error as any)?.message || 'Unknown error',
-        errorName: (error as any)?.name || 'Unknown',
-        errorStack: (error as any)?.stack?.split('\n').slice(0, 3).join('\n')
-      })
+      console.error('  ⚠️ Section 4A failed, using defaults')
       sections.projectPlan = this.getDefaultProjectPlan(data)
+    }
+    
+    // Section 4B: Project Controls
+    try {
+      console.log('  📄 Section 4B: Project Controls...')
+      const section4b = await this.generatePIDSection(data, {
+        sections: ['projectControls'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Project Controls.
+Return a JSON object with projectControls containing:
+- tolerances: Object with time, cost, scope, quality properties
+- reportingArrangements: String
+- stages: Array of stage names`,
+        maxTokens: 800
+      })
+      Object.assign(sections, section4b)
+    } catch (error) {
+      console.error('  ⚠️ Section 4B failed, using defaults')
       sections.projectControls = this.getDefaultProjectControls()
+    }
+    
+    // Section 4C: Tailoring
+    try {
+      console.log('  📄 Section 4C: Tailoring...')
+      const section4c = await this.generatePIDSection(data, {
+        sections: ['tailoring'],
+        systemPrompt: `You are a PRINCE2 Project Manager creating the Tailoring section.
+Return a JSON object with tailoring containing:
+- justification: String describing why tailoring is needed
+- appliedTailoring: Array of objects with aspect, tailoring, justification`,
+        maxTokens: 800
+      })
+      Object.assign(sections, section4c)
+    } catch (error) {
+      console.error('  ⚠️ Section 4C failed, using defaults')
       sections.tailoring = this.getDefaultTailoring()
     }
     
@@ -299,9 +419,15 @@ Return a JSON object with:
         expectedDisbenefits: z.array(z.any()),
         timescale: z.string(),
         costs: z.object({
-          development: z.string(),
-          operational: z.string(),
-          total: z.string()
+          development: z.union([z.string(), z.number()]).transform(val => 
+            typeof val === 'number' ? `$${val.toLocaleString()}` : val
+          ),
+          operational: z.union([z.string(), z.number()]).transform(val => 
+            typeof val === 'number' ? `$${val.toLocaleString()}` : val
+          ),
+          total: z.union([z.string(), z.number()]).transform(val => 
+            typeof val === 'number' ? `$${val.toLocaleString()}` : val
+          )
         }),
         investmentAppraisal: z.any(),
         majorRisks: z.array(z.any())
@@ -311,18 +437,36 @@ Return a JSON object with:
     if (config.sections.includes('organizationStructure')) {
       schemaObject.organizationStructure = z.object({
         projectBoard: z.object({
-          executive: z.string(),
-          seniorUser: z.string(),
-          seniorSupplier: z.string()
+          executive: z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+            typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+          ),
+          seniorUser: z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+            typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+          ),
+          seniorSupplier: z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+            typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+          )
         }),
-        projectManager: z.string(),
-        teamManagers: z.array(z.string()),
+        projectManager: z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+          typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+        ),
+        teamManagers: z.array(z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+          typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+        )),
         projectAssurance: z.object({
-          business: z.string(),
-          user: z.string(),
-          specialist: z.string()
+          business: z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+            typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+          ),
+          user: z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+            typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+          ),
+          specialist: z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+            typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+          )
         }),
-        projectSupport: z.string()
+        projectSupport: z.union([z.string(), z.object({ name: z.string(), role: z.string().optional() })]).transform(val => 
+          typeof val === 'object' ? (val as any).name || JSON.stringify(val) : val
+        )
       })
     }
     
@@ -350,7 +494,20 @@ Return a JSON object with:
         toolsAndTechniques: z.array(z.string()),
         reporting: z.string(),
         timingOfRiskManagementActivities: z.string(),
-        rolesAndResponsibilities: z.string()
+        rolesAndResponsibilities: z.array(z.object({
+          role: z.string(),
+          responsibilities: z.array(z.string())
+        })),
+        riskTolerance: z.object({
+          time: z.string(),
+          cost: z.string(),
+          quality: z.string(),
+          scope: z.string(),
+          benefits: z.string(),
+          risk: z.string()
+        }),
+        riskCategories: z.array(z.string()),
+        riskRegisterFormat: z.string()
       })
     }
     
@@ -359,7 +516,16 @@ Return a JSON object with:
         procedure: z.string(),
         toolsAndTechniques: z.array(z.string()),
         reporting: z.string(),
-        rolesAndResponsibilities: z.string()
+        rolesAndResponsibilities: z.string(),
+        methods: z.array(z.string()),
+        frequency: z.string(),
+        stakeholderAnalysis: z.array(z.object({
+          stakeholder: z.string(),
+          interest: z.string(),
+          influence: z.string(),
+          communicationMethod: z.string(),
+          frequency: z.string()
+        }))
       })
     }
     
@@ -436,22 +602,76 @@ Generate ONLY valid JSON with the requested sections. Be comprehensive and detai
       schemaKeys: Object.keys(schemaObject)
     })
     
-    // Use generateJSONWithMetrics instead of generateTextWithMetrics
-    const response = await this.gateway.generateJSONWithMetrics(prompt, schema)
+    // Change to generateTextWithMetrics to avoid truncation issues
+    // Add instruction for JSON output to the prompt
+    const jsonPrompt = {
+      ...prompt,
+      user: prompt.user + `\n\nIMPORTANT: Return ONLY valid JSON matching the schema. No markdown formatting, no explanations, just the JSON object.
+
+CRITICAL DATA TYPE REQUIREMENTS:
+- Arrays must be JSON arrays like ["item1", "item2"], NOT strings
+- Cost fields can be numbers or strings with dollar amounts
+- qualityCriteria must be an array of strings
+- All list fields must be arrays, not single strings`
+    }
+    
+    const response = await this.gateway.generateTextWithMetrics(jsonPrompt)
     
     console.log('    📥 Response received:', {
       hasContent: !!response.content,
-      contentType: typeof response.content,
+      contentLength: response.content?.length,
       hasUsage: !!response.usage,
       provider: response.provider,
-      model: response.model,
-      keys: response.content ? Object.keys(response.content) : []
+      model: response.model
     })
     
-    // Content is already parsed JSON when using generateJSONWithMetrics
-    console.log('    ✅ JSON generation successful, keys:', Object.keys(response.content))
-    
-    return response.content
+    // Parse the text response as JSON
+    let parsedContent: any
+    try {
+      // Clean up any markdown formatting if present
+      let cleanContent = response.content.trim()
+      if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+      }
+      
+      parsedContent = JSON.parse(cleanContent)
+      
+      // Validate against schema
+      const validated = schema.parse(parsedContent)
+      console.log('    ✅ JSON parsed and validated successfully, keys:', Object.keys(validated))
+      return validated
+      
+    } catch (error) {
+      console.error('    ❌ JSON parsing/validation failed:', error)
+      console.log('    📝 Raw response preview:', response.content?.substring(0, 500))
+      
+      // Return defaults for the requested sections
+      const defaultContent: any = {}
+      for (const section of config.sections) {
+        if (section === 'projectDefinition') {
+          defaultContent[section] = this.getDefaultProjectDefinition(data)
+        } else if (section === 'businessCase') {
+          defaultContent[section] = this.getDefaultBusinessCase(data)
+        } else if (section === 'organizationStructure') {
+          defaultContent[section] = this.getDefaultOrganizationStructure()
+        } else if (section === 'qualityManagementApproach') {
+          defaultContent[section] = this.getDefaultQualityApproach()
+        } else if (section === 'configurationManagementApproach') {
+          defaultContent[section] = this.getDefaultConfigApproach()
+        } else if (section === 'riskManagementApproach') {
+          defaultContent[section] = this.getDefaultRiskApproach()
+        } else if (section === 'communicationManagementApproach') {
+          defaultContent[section] = this.getDefaultCommApproach()
+        } else if (section === 'projectPlan') {
+          defaultContent[section] = this.getDefaultProjectPlan(data)
+        } else if (section === 'projectControls') {
+          defaultContent[section] = this.getDefaultProjectControls()
+        } else if (section === 'tailoring') {
+          defaultContent[section] = this.getDefaultTailoring()
+        }
+      }
+      return defaultContent
+    }
   }
 
   /**
@@ -508,10 +728,18 @@ Generate ONLY valid JSON with the requested sections. Be comprehensive and detai
     
     if (config.sections.includes('costs')) {
       schemaObject.costs = z.object({
-        development: z.string(),
-        operational: z.string(),
-        maintenance: z.string().optional(),
-        total: z.string()
+        development: z.union([z.string(), z.number()]).transform(val => 
+          typeof val === 'number' ? `$${val.toLocaleString()}` : val
+        ),
+        operational: z.union([z.string(), z.number()]).transform(val => 
+          typeof val === 'number' ? `$${val.toLocaleString()}` : val
+        ),
+        maintenance: z.union([z.string(), z.number()]).optional().transform(val => 
+          val === undefined ? undefined : (typeof val === 'number' ? `$${val.toLocaleString()}` : val)
+        ),
+        total: z.union([z.string(), z.number()]).transform(val => 
+          typeof val === 'number' ? `$${val.toLocaleString()}` : val
+        )
       })
     }
     
@@ -553,22 +781,76 @@ Generate ONLY valid JSON with the requested sections. Be comprehensive and detai
       schemaKeys: Object.keys(schemaObject)
     })
     
-    // Use generateJSONWithMetrics instead of generateTextWithMetrics
-    const response = await this.gateway.generateJSONWithMetrics(prompt, schema)
+    // Change to generateTextWithMetrics to avoid truncation issues
+    // Add instruction for JSON output to the prompt
+    const jsonPrompt = {
+      ...prompt,
+      user: prompt.user + `\n\nIMPORTANT: Return ONLY valid JSON matching the schema. No markdown formatting, no explanations, just the JSON object.
+
+CRITICAL DATA TYPE REQUIREMENTS:
+- Arrays must be JSON arrays like ["item1", "item2"], NOT strings
+- Cost fields can be numbers or strings with dollar amounts
+- qualityCriteria must be an array of strings
+- All list fields must be arrays, not single strings`
+    }
+    
+    const response = await this.gateway.generateTextWithMetrics(jsonPrompt)
     
     console.log('    📥 Response received:', {
       hasContent: !!response.content,
-      contentType: typeof response.content,
+      contentLength: response.content?.length,
       hasUsage: !!response.usage,
       provider: response.provider,
-      model: response.model,
-      keys: response.content ? Object.keys(response.content) : []
+      model: response.model
     })
     
-    // Content is already parsed JSON when using generateJSONWithMetrics
-    console.log('    ✅ JSON generation successful, keys:', Object.keys(response.content))
-    
-    return response.content
+    // Parse the text response as JSON
+    let parsedContent: any
+    try {
+      // Clean up any markdown formatting if present
+      let cleanContent = response.content.trim()
+      if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+      }
+      
+      parsedContent = JSON.parse(cleanContent)
+      
+      // Validate against schema
+      const validated = schema.parse(parsedContent)
+      console.log('    ✅ JSON parsed and validated successfully, keys:', Object.keys(validated))
+      return validated
+      
+    } catch (error) {
+      console.error('    ❌ JSON parsing/validation failed:', error)
+      console.log('    📝 Raw response preview:', response.content?.substring(0, 500))
+      
+      // Return defaults for the requested sections
+      const defaultContent: any = {}
+      for (const section of config.sections) {
+        if (section === 'projectDefinition') {
+          defaultContent[section] = this.getDefaultProjectDefinition(data)
+        } else if (section === 'businessCase') {
+          defaultContent[section] = this.getDefaultBusinessCase(data)
+        } else if (section === 'organizationStructure') {
+          defaultContent[section] = this.getDefaultOrganizationStructure()
+        } else if (section === 'qualityManagementApproach') {
+          defaultContent[section] = this.getDefaultQualityApproach()
+        } else if (section === 'configurationManagementApproach') {
+          defaultContent[section] = this.getDefaultConfigApproach()
+        } else if (section === 'riskManagementApproach') {
+          defaultContent[section] = this.getDefaultRiskApproach()
+        } else if (section === 'communicationManagementApproach') {
+          defaultContent[section] = this.getDefaultCommApproach()
+        } else if (section === 'projectPlan') {
+          defaultContent[section] = this.getDefaultProjectPlan(data)
+        } else if (section === 'projectControls') {
+          defaultContent[section] = this.getDefaultProjectControls()
+        } else if (section === 'tailoring') {
+          defaultContent[section] = this.getDefaultTailoring()
+        }
+      }
+      return defaultContent
+    }
   }
 
   // Default fallback methods

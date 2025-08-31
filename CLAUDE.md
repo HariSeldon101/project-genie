@@ -22,6 +22,10 @@ claude-docs-read   # Read specific doc
 - **Database/Auth**: Supabase
 - **Language**: TypeScript (strict mode)
 - **AI/LLM**: OpenAI via Vercel AI Gateway (for GPT-5 models)
+- **PDF Generation**: @react-pdf/renderer (see PDF Architecture documentation)
+
+### Project Documentation
+- **PDF Architecture**: See `docs/pdf-architecture-and-styling.md` for comprehensive PDF generation guidelines
 
 ### Available CLIs (Pre-installed)
 You can use these commands without asking:
@@ -37,6 +41,22 @@ You can use these commands without asking:
 
 ### MANDATORY: CLI-First Development
 **NEVER suggest manual database changes in Supabase Dashboard. ALWAYS use CLI commands.**
+
+### Supabase MCP Server Usage
+**IMPORTANT: Use the following approach for Supabase operations:**
+1. **First Choice**: Use the Supabase MCP server with the `apply_migration` function
+2. **If that fails**: Use the Management API directly with PAT token
+3. **PAT Token**: `sbp_10122b563ee9bd601c0b31dc799378486acf13d2`
+4. **Project Reference**: `vnuieavheezjxbkyfxea`
+
+Example using Management API:
+```bash
+curl -X POST \
+  "https://api.supabase.com/v1/projects/vnuieavheezjxbkyfxea/database/query" \
+  -H "Authorization: Bearer sbp_10122b563ee9bd601c0b31dc799378486acf13d2" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "YOUR_SQL_HERE"}'
+```
 
 ### Core Workflow (MUST FOLLOW IN ORDER)
 1. **Create migration** → 2. **Test locally** → 3. **Generate types** → 4. **Deploy**
@@ -132,6 +152,45 @@ COMMENT ON POLICY "owner_access" ON project IS 'Simple owner-only access, no rec
 
 ## Vercel AI Gateway & GPT-5 Models
 
+### 🚨 CRITICAL: GPT-5 API Bug - MUST USE RESPONSES API
+**GPT-5 models have a KNOWN BUG with the Chat Completions API that causes empty responses!**
+
+#### The Problem (Discovered 2025-08-26):
+When GPT-5 models (gpt-5, gpt-5-mini, gpt-5-nano) are used with `chat.completions.create()`:
+- ALL tokens are allocated to internal `reasoning_tokens`
+- The actual response content is EMPTY
+- This happens even with simple prompts
+- The API call succeeds but returns no usable content
+
+#### The Solution: Use Responses API
+GPT-5 models MUST use the `client.responses.create()` API instead:
+
+```javascript
+// ❌ WRONG - Returns empty responses with GPT-5
+const response = await client.chat.completions.create({
+  model: 'gpt-5-mini',
+  messages: [...],
+  temperature: 1,
+  max_completion_tokens: 200
+})
+// Result: response.choices[0].message.content = "" (empty!)
+
+// ✅ CORRECT - Works perfectly with GPT-5
+const response = await client.responses.create({
+  model: 'gpt-5-mini',
+  input: 'Your prompt here',
+  text: { verbosity: 'high' },
+  reasoning: { effort: 'minimal' },
+  max_output_tokens: 200
+})
+// Result: response.output_text contains the actual response
+```
+
+#### Test Results:
+- Chat Completions API: Empty responses, all tokens go to reasoning
+- Responses API: Works perfectly, 2-3 second response times
+- GPT-4 models: Work fine with both APIs
+
 ### Important: GPT-5 Models via Vercel AI Gateway
 GPT-5 models (gpt-5, gpt-5-mini, gpt-5-nano) are available **exclusively through Vercel AI Gateway**, not directly via OpenAI API.
 
@@ -151,6 +210,141 @@ const result = streamText({
   prompt: "Your prompt here"
 })
 ```
+
+### 🚨 CRITICAL: Structured Outputs Requirements
+
+When using OpenAI's Structured Outputs feature for reliable JSON generation:
+
+#### MUST DO:
+1. **Use `zodResponseFormat` helper** from `openai/helpers/zod` for proper schema enforcement
+2. **Set `strict: true`** in the schema configuration for guaranteed adherence
+3. **Set `additionalProperties: false`** on ALL object schemas
+4. **Define proper types for EVERY field** - NEVER use `z.any()`
+5. **Make all fields required** - use union with `null` for optional fields
+
+#### Example Implementation:
+```javascript
+import { z } from "zod";
+import { zodResponseFormat } from "openai/helpers/zod";
+
+// ✅ CORRECT - Proper structured output schema
+const DocumentSchema = z.object({
+  title: z.string(),
+  sections: z.array(z.object({
+    heading: z.string(),
+    content: z.string(),
+    priority: z.enum(["high", "medium", "low"])
+  })),
+  metadata: z.object({
+    author: z.string(),
+    date: z.string(),
+    version: z.number()
+  }),
+  optionalNotes: z.union([z.string(), z.null()]) // Proper optional field
+});
+
+// Use with chat.completions.parse for structured output
+const response = await openai.chat.completions.parse({
+  model: "gpt-4o-2024-08-06",
+  messages: messages,
+  response_format: zodResponseFormat(DocumentSchema, "document")
+});
+
+// For direct JSON schema with GPT-5
+const gpt5Response = await client.responses.create({
+  model: "gpt-5-mini",
+  input: combinedInput,
+  text: {
+    format: {
+      type: "json_schema",
+      name: "document",
+      strict: true, // CRITICAL
+      schema: {
+        type: "object",
+        properties: { /* all properties */ },
+        required: [/* ALL fields */],
+        additionalProperties: false // CRITICAL
+      }
+    }
+  }
+});
+```
+
+#### Common Mistakes to AVOID:
+```javascript
+// ❌ WRONG - Using z.any() defeats structured outputs
+const BadSchema = z.object({
+  data: z.any(),
+  items: z.array(z.any())
+});
+
+// ❌ WRONG - Missing critical configuration
+const BadConfig = {
+  type: "json_schema",
+  schema: { /* schema */ }
+  // Missing: strict: true
+  // Missing: additionalProperties: false
+};
+```
+
+## GPT-4 vs GPT-5 Model Selection Guide
+
+### 🎯 When to Use Each Model Family
+
+#### Use GPT-4o Models (gpt-4o-nano, gpt-4o-mini) for:
+- **Structured Documents** with complex schemas (PID, Business Case)
+- **Form-like outputs** requiring strict field validation
+- **JSON generation** with guaranteed schema adherence via `zodResponseFormat`
+- **Data transformation** tasks requiring consistent structure
+- **API responses** that must conform to specific formats
+
+**Why:** GPT-4o models support `chat.completions.parse` with `zodResponseFormat`, guaranteeing valid structured outputs without truncation issues.
+
+#### Use GPT-5 Models (gpt-5-nano, gpt-5-mini) for:
+- **Narrative Documents** (Risk Register, Project Plans, Communication Plans)
+- **Creative content** requiring nuanced writing
+- **Analysis and insights** with detailed explanations
+- **Long-form content** with flowing narrative structure
+- **Strategic recommendations** requiring reasoning
+
+**Why:** GPT-5 excels at creative, analytical content with better reasoning capabilities but requires `responses.create` API which returns plain text.
+
+### 💰 Cost Optimization Strategy
+
+#### Model Pricing Comparison (per 1M tokens):
+| Model | Input | Output | Best For |
+|-------|--------|---------|----------|
+| gpt-4o-nano | $0.50 | $2.00 | Testing, simple structured data |
+| gpt-4o-mini | $1.50 | $6.00 | Production structured documents |
+| gpt-5-nano | $0.05 | $0.40 | Testing, short narratives |
+| gpt-5-mini | $0.25 | $2.00 | Production narrative documents |
+
+**Recommendation:** Use nano variants during development/testing, upgrade to mini for production.
+
+### 📋 Document-to-Model Mapping
+
+| Document Type | Recommended Model | Reasoning |
+|--------------|-------------------|-----------|
+| PID | gpt-4o-nano/mini | Complex nested schema, needs zodResponseFormat |
+| Business Case | gpt-4o-nano/mini | Structured financial data, strict validation |
+| Risk Register | gpt-5-nano/mini | Narrative risk descriptions and analysis |
+| Project Plan | gpt-5-nano/mini | Strategic planning and timeline narrative |
+| Communication Plan | gpt-5-nano/mini | Stakeholder analysis and engagement strategies |
+| Quality Management | gpt-5-nano/mini | Process descriptions and standards |
+| Technical Landscape | gpt-5-nano/mini | Technical analysis and architecture description |
+| Comparable Projects | gpt-5-nano/mini | Case studies and comparative analysis |
+
+### ⚠️ Known Issues and Solutions
+
+#### Issue: PID/Business Case Generation Failures with GPT-5
+**Symptom:** JSON parsing errors, truncated responses, `[object Object]` in output
+**Cause:** GPT-5's `responses.create` API returns plain text that gets truncated for large schemas
+**Solution:** Use GPT-4o models with `zodResponseFormat` for these structured documents
+
+#### Issue: Empty Responses from GPT-5 with Chat Completions
+**Symptom:** All tokens allocated to reasoning_tokens, empty content
+**Cause:** Known bug with GPT-5 models using chat.completions.create
+**Solution:** Always use `responses.create` API for GPT-5 models
 
 ### Email Service - Resend
 
@@ -725,3 +919,5 @@ await openCustomerPortal()
 - Keep bundle size optimized
 - Monitor Core Web Vitals
 - #DO NOT switch LLM models without approval.
+- DO NOT CHANGE LLM MODEL WITHOUT USER PERMISSION!
+- INCREASING TIMEOUTS IS NOT USUALLY A SOLUTION. IT IS A SYMPTOM OF AN UNDERLYING CODE ISSUE. ADJUST TIMEOUTS AS A LAST RESORT

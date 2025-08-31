@@ -50,6 +50,10 @@ interface UserSettings {
   notifications_email: boolean
   notifications_push: boolean
   notifications_marketing: boolean
+  // PDF customization settings
+  pdf_watermark_text?: string
+  pdf_hide_attribution?: boolean
+  pdf_watermark_enabled?: boolean
 }
 
 interface BrandingSettings {
@@ -103,25 +107,28 @@ export default function SettingsPage() {
         return
       }
 
-      // Load user settings
-      const { data: userData } = await supabase
-        .from('users')
+      // Try to get profile from profiles table first
+      const { data: profileData } = await supabase
+        .from('profiles')
         .select('*')
         .eq('id', user.user.id)
         .single()
 
-      if (userData) {
-        setUserSettings({
-          id: userData.id,
-          email: userData.email,
-          full_name: userData.full_name || '',
-          avatar_url: userData.avatar_url,
-          subscription_tier: userData.subscription_tier || 'free',
-          notifications_email: true,
-          notifications_push: false,
-          notifications_marketing: false
-        })
-      }
+      // Use profile data if it exists, otherwise use auth metadata
+      setUserSettings({
+        id: user.user.id,
+        email: user.user.email || '',
+        full_name: profileData?.full_name || user.user.user_metadata?.full_name || '',
+        avatar_url: profileData?.avatar_url || user.user.user_metadata?.avatar_url,
+        subscription_tier: profileData?.subscription_tier || 'free',
+        notifications_email: profileData?.notifications_email ?? true,
+        notifications_push: profileData?.notifications_push ?? false,
+        notifications_marketing: profileData?.notifications_marketing ?? false,
+        // PDF settings
+        pdf_watermark_text: profileData?.pdf_watermark_text || 'Strictly Private & Confidential',
+        pdf_hide_attribution: profileData?.pdf_hide_attribution || false,
+        pdf_watermark_enabled: profileData?.pdf_watermark_enabled ?? true
+      })
 
       // Generate API key (mock)
       setApiKey(`pk_${Math.random().toString(36).substring(2, 15)}`)
@@ -140,13 +147,32 @@ export default function SettingsPage() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
 
-      const { error } = await supabase
-        .from('users')
-        .update({
+      // Update auth metadata
+      await supabase.auth.updateUser({
+        data: { 
           full_name: userSettings.full_name,
+          avatar_url: userSettings.avatar_url 
+        }
+      })
+
+      // Upsert to profiles table
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userSettings.id,
+          email: userSettings.email,
+          full_name: userSettings.full_name,
+          avatar_url: userSettings.avatar_url,
+          subscription_tier: userSettings.subscription_tier,
+          notifications_email: userSettings.notifications_email,
+          notifications_push: userSettings.notifications_push,
+          notifications_marketing: userSettings.notifications_marketing,
+          // PDF settings
+          pdf_watermark_text: userSettings.pdf_watermark_text,
+          pdf_hide_attribution: userSettings.pdf_hide_attribution,
+          pdf_watermark_enabled: userSettings.pdf_watermark_enabled,
           updated_at: new Date().toISOString()
         })
-        .eq('id', userSettings.id)
 
       if (!error) {
         // Show success message
@@ -222,12 +248,13 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-6 w-full max-w-3xl">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="branding">Branding</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="api">API Keys</TabsTrigger>
+          <TabsTrigger value="pdf">PDF</TabsTrigger>
         </TabsList>
 
         {/* Profile Tab */}
@@ -682,6 +709,128 @@ export default function SettingsPage() {
                     <Button variant="outline">
                       <Download className="mr-2 h-4 w-4" />
                       Download API Documentation
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* PDF Settings Tab */}
+        <TabsContent value="pdf" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>PDF Customization</CardTitle>
+              <CardDescription>
+                {userSettings.subscription_tier === 'free' 
+                  ? 'Upgrade to customize PDF watermarks and branding'
+                  : 'Customize how your PDFs are generated'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {userSettings.subscription_tier === 'free' ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <p>Free tier PDFs include:</p>
+                      <ul className="list-disc list-inside space-y-1 text-sm">
+                        <li>"Project Genie" watermark (cannot be changed)</li>
+                        <li>Project Genie attribution in footer</li>
+                      </ul>
+                      <p className="mt-2">
+                        Upgrade to Basic or Premium to:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-sm">
+                        <li>Customize or remove watermark</li>
+                        <li>Hide Project Genie attribution</li>
+                        <li>Use your own branding</li>
+                      </ul>
+                      <Button 
+                        variant="link" 
+                        className="p-0 h-auto mt-2" 
+                        onClick={() => createCheckoutSession(STRIPE_PRICE_IDS.basic.monthly, 'monthly')}
+                        disabled={stripeLoading}
+                      >
+                        {stripeLoading ? 'Loading...' : 'Upgrade now →'}
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="watermark-enabled">Enable Watermark</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Show a watermark on generated PDFs
+                        </p>
+                      </div>
+                      <Switch
+                        id="watermark-enabled"
+                        checked={userSettings.pdf_watermark_enabled !== false}
+                        onCheckedChange={(checked) => 
+                          setUserSettings({ ...userSettings, pdf_watermark_enabled: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {userSettings.pdf_watermark_enabled !== false && (
+                    <div className="space-y-2">
+                      <Label htmlFor="watermark-text">Watermark Text</Label>
+                      <Input
+                        id="watermark-text"
+                        value={userSettings.pdf_watermark_text || 'Strictly Private & Confidential'}
+                        onChange={(e) => 
+                          setUserSettings({ ...userSettings, pdf_watermark_text: e.target.value })
+                        }
+                        placeholder="Enter custom watermark text"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        This text will appear as a watermark on your PDFs
+                      </p>
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="hide-attribution">Hide Project Genie Attribution</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Remove "Created by Project Genie" from PDF footer
+                        </p>
+                      </div>
+                      <Switch
+                        id="hide-attribution"
+                        checked={userSettings.pdf_hide_attribution === true}
+                        onCheckedChange={(checked) => 
+                          setUserSettings({ ...userSettings, pdf_hide_attribution: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      onClick={handleSaveProfile}
+                      disabled={saving}
+                    >
+                      {saving ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save PDF Settings
+                        </>
+                      )}
                     </Button>
                   </div>
                 </>

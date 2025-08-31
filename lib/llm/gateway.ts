@@ -16,33 +16,32 @@ export class LLMGateway {
     // Check if we should use mock mode
     const useMock = process.env.USE_MOCK_LLM === 'true' || process.env.NODE_ENV === 'test'
     
-    // Check for available providers
+    // Check for available providers - ALWAYS use GPT-5 mini for better performance
     let primaryProvider: LLMConfig['provider'] = 'mock'
     
     if (!useMock) {
-      // Prefer Vercel AI Gateway for GPT-5 models (works both locally and on Vercel)
-      if (process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY) {
+      // ALWAYS prefer Vercel AI Gateway for GPT-5 mini (better performance)
+      if (process.env.OPENAI_API_KEY) {
         primaryProvider = 'vercel-ai'
-        console.log('🚀 Vercel AI Gateway enabled for GPT-5 nano (works locally and on Vercel)')
+        console.log('🚀 Using GPT-5 mini via Vercel AI Gateway (optimized performance)')
       } else if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_groq_api_key') {
         primaryProvider = 'groq'
         console.log('⚡ Groq API enabled as fallback')
-      } else if (process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_API_KEY !== 'your_deepseek_api_key') {
-        primaryProvider = 'deepseek'
-        console.log('🚀 DeepSeek API enabled as fallback')
+      } else {
+        console.warn('⚠️ No API keys found, using mock provider')
       }
     }
     
-    // Default configuration from environment variables
+    // Default configuration - FORCE GPT-5 mini for better performance
     this.config = {
       provider: (config?.provider || process.env.LLM_PROVIDER || primaryProvider) as LLMConfig['provider'],
       apiKey: config?.apiKey,
-      model: config?.model || process.env.LLM_MODEL,
+      model: config?.model || process.env.LLM_MODEL || 'gpt-5-mini', // Default to GPT-5 mini
       maxTokens: config?.maxTokens || parseInt(process.env.LLM_MAX_TOKENS || '4000'),
       temperature: config?.temperature || parseFloat(process.env.LLM_TEMPERATURE || '0.7'),
       baseUrl: config?.baseUrl || process.env.OLLAMA_BASE_URL,
-      // Define fallback chain: vercel-ai -> openai -> groq -> deepseek -> mock
-      fallbackProviders: config?.fallbackProviders || ['vercel-ai', 'openai', 'groq', 'deepseek', 'mock']
+      // Simplified fallback chain: vercel-ai -> openai -> mock (no DeepSeek)
+      fallbackProviders: config?.fallbackProviders || ['vercel-ai', 'openai', 'mock']
     }
 
     // Initialize provider based on configuration
@@ -144,8 +143,127 @@ export class LLMGateway {
     // Generate response
     const response = await this.provider.generateText(prompt)
     
+    // Validate response is not empty
+    if (!response || response.trim() === '') {
+      console.error('[LLMGateway] Empty response received from provider')
+      throw new Error('LLM returned empty response. Please try again.')
+    }
+    
+    // Log successful generation
+    console.log('[LLMGateway] Generated text successfully, length:', response.length)
+    
     // Sanitize response before returning
     return this.sanitizer.sanitizeResponse(response)
+  }
+
+  /**
+   * Generate text with metrics
+   */
+  async generateTextWithMetrics(prompt: LLMPrompt): Promise<any> {
+    // Validate prompt for PII before sending
+    this.sanitizer.validatePrompt(prompt.system)
+    this.sanitizer.validatePrompt(prompt.user)
+    
+    console.log('[LLMGateway] Generating text with metrics:', {
+      provider: this.config.provider,
+      model: this.config.model || 'default',
+      promptLength: prompt.system.length + prompt.user.length,
+      temperature: prompt.temperature || this.config.temperature
+    })
+    
+    // Log for audit
+    await this.sanitizer.logSecurityEvent('PROMPT_VALIDATED', {
+      provider: this.config.provider,
+      model: this.config.model,
+      timestamp: new Date().toISOString()
+    })
+    
+    // Check if provider supports generateTextWithMetrics
+    if (typeof (this.provider as any).generateTextWithMetrics === 'function') {
+      const response = await (this.provider as any).generateTextWithMetrics(prompt)
+      const sanitizedContent = typeof response.content === 'string' 
+        ? this.sanitizer.sanitizeResponse(response.content)
+        : response.content
+      
+      return {
+        content: sanitizedContent,
+        usage: response.usage,
+        provider: response.provider || this.config.provider,
+        model: response.model || this.config.model,
+        generationTimeMs: response.generationTimeMs
+      }
+    }
+    
+    // Fallback to regular generateText
+    const startTime = Date.now()
+    const content = await this.generateText(prompt)
+    
+    return {
+      content,
+      usage: null, // No metrics available from regular generation
+      provider: this.config.provider,
+      model: this.config.model,
+      generationTimeMs: Date.now() - startTime
+    }
+  }
+
+  /**
+   * Generate JSON with metrics and schema validation
+   */
+  async generateJSONWithMetrics<T>(
+    prompt: LLMPrompt,
+    schema: any
+  ): Promise<LLMResponse<T>> {
+    // Validate prompt for PII
+    try {
+      this.sanitizer.validatePrompt(prompt.system)
+      this.sanitizer.validatePrompt(prompt.user)
+    } catch (error) {
+      console.error('Prompt validation failed. Debug info:')
+      console.error('System prompt length:', prompt.system.length)
+      console.error('User prompt length:', prompt.user.length)
+      throw error
+    }
+    
+    console.log('[LLMGateway] Generating JSON with metrics:', {
+      provider: this.config.provider,
+      model: this.config.model || 'default',
+      promptLength: prompt.system.length + prompt.user.length,
+      temperature: prompt.temperature || this.config.temperature,
+      reasoningEffort: prompt.reasoningEffort,
+      maxTokens: prompt.maxTokens,
+      schemaType: schema._def?.typeName || 'unknown'
+    })
+    
+    const startTime = Date.now()
+    
+    // Check if provider supports metrics
+    if ('generateJSONWithMetrics' in this.provider && this.provider.generateJSONWithMetrics) {
+      const response = await this.provider.generateJSONWithMetrics<T>(prompt, schema)
+      
+      // Sanitize the content
+      const sanitizedContent = JSON.parse(
+        this.sanitizer.sanitizeResponse(JSON.stringify(response.content))
+      )
+      
+      return {
+        ...response,
+        content: sanitizedContent
+      }
+    }
+    
+    // Fallback: use regular method and wrap response
+    const content = await this.generateJSON<T>(prompt, schema)
+    const generationTime = Date.now() - startTime
+    
+    return {
+      content,
+      provider: this.config.provider,
+      model: this.config.model,
+      usage: {
+        totalTokens: this.estimateTokens(prompt.system + prompt.user + JSON.stringify(content))
+      }
+    }
   }
 
   /**
@@ -291,20 +409,33 @@ export class LLMGateway {
    * Calculate estimated cost (in cents)
    */
   estimateCost(inputTokens: number, outputTokens: number): number {
-    // Pricing per 1K tokens (adjust based on model)
+    // Pricing per 1K tokens in cents (multiply by 100 for cents)
     const pricing = {
+      // GPT-5 models (from Vercel AI Gateway pricing)
+      'gpt-5': { input: 10.0, output: 30.0 }, // $0.10/$0.30 per 1K tokens
+      'gpt-5-mini': { input: 2.5, output: 10.0 }, // $0.025/$0.10 per 1K tokens
+      'gpt-5-nano': { input: 0.25, output: 2.0 }, // $0.0025/$0.02 per 1K tokens
+      // GPT-4 models
       'gpt-4-turbo-preview': { input: 1.0, output: 3.0 }, // $0.01/$0.03 per 1K
       'gpt-4': { input: 3.0, output: 6.0 }, // $0.03/$0.06 per 1K
       'gpt-3.5-turbo': { input: 0.05, output: 0.15 } // $0.0005/$0.0015 per 1K
     }
     
     const model = this.config.model || 'gpt-4-turbo-preview'
-    const modelPricing = pricing[model as keyof typeof pricing] || pricing['gpt-4-turbo-preview']
+    const modelPricing = pricing[model as keyof typeof pricing] || pricing['gpt-5-mini']
     
     const inputCost = (inputTokens / 1000) * modelPricing.input
     const outputCost = (outputTokens / 1000) * modelPricing.output
     
     return Math.round((inputCost + outputCost) * 100) // Return in cents
+  }
+  
+  /**
+   * Calculate cost in USD
+   */
+  calculateCostUsd(inputTokens: number, outputTokens: number): number {
+    const cents = this.estimateCost(inputTokens, outputTokens)
+    return cents / 100 // Convert cents to dollars
   }
 
   /**

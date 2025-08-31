@@ -3,12 +3,20 @@ import { getUser } from '@/lib/auth/auth-helpers'
 import { DashboardNav } from '@/components/dashboard/nav'
 import { UserMenu } from '@/components/dashboard/user-menu'
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import type { cookies as cookiesType } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
 async function ensureProfileExists(userId: string, email: string) {
-  const cookieStore = await cookies()
+  // Dynamic import to avoid webpack issues in Next.js 15.5.0
+  let cookieStore: Awaited<ReturnType<typeof cookiesType>>
+  try {
+    const nextHeaders = await import('next/headers')
+    cookieStore = await nextHeaders.cookies()
+  } catch (error) {
+    console.error('[Dashboard Layout] Failed to import cookies:', error)
+    throw error
+  }
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

@@ -113,28 +113,58 @@ export default function TeamPage() {
 
       setProjects(projectsData || [])
 
-      // Load team members
-      const { data: membersData } = await supabase
-        .from('project_members')
-        .select(`
-          *,
-          user:users!project_members_user_id_fkey(email, full_name, avatar_url),
-          project:projects!project_members_project_id_fkey(name)
-        `)
-        .in('project_id', projectsData?.map(p => p.id) || [])
-        .order('added_at', { ascending: false })
+      // Load team members without complex joins
+      let membersData: any[] = []
+      
+      if (projectsData && projectsData.length > 0) {
+        const { data: rawMembers } = await supabase
+          .from('project_members')
+          .select('*')
+          .in('project_id', projectsData.map(p => p.id))
+          .order('added_at', { ascending: false })
+        
+        // Enrich members with user and project data
+        if (rawMembers && rawMembers.length > 0) {
+          // Get unique user IDs
+          const userIds = [...new Set(rawMembers.map(m => m.user_id))]
+          
+          // Fetch user profiles
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, email, full_name, avatar_url')
+            .in('id', userIds)
+          
+          // Create lookup maps
+          const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+          const projectMap = Object.fromEntries(projectsData.map(p => [p.id, p]))
+          
+          // Combine the data
+          membersData = rawMembers.map(member => ({
+            ...member,
+            user: profileMap[member.user_id] || null,
+            project: { name: projectMap[member.project_id]?.name || 'Unknown' }
+          }))
+        }
+      }
 
-      // Also include project owners as members
+      // Get owner's profile
+      const { data: ownerProfile } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url')
+        .eq('id', user.user.id)
+        .single()
+      
+      // Include project owners as members
       const ownersAsMembers = projectsData?.map(project => ({
         id: `owner-${project.id}`,
         user_id: project.owner_id,
         project_id: project.id,
         role: 'owner' as const,
         added_at: project.created_at,
-        user: {
+        user: ownerProfile || {
           email: user.user.email || '',
-          full_name: user.user.user_metadata?.full_name || 'Project Owner',
-          avatar_url: user.user.user_metadata?.avatar_url
+          full_name: 'Project Owner',
+          avatar_url: null
         },
         project: {
           name: project.name

@@ -11,7 +11,10 @@ import {
   FileText,
   BarChart3,
   MessageSquare,
-  Plus
+  Plus,
+  Bug,
+  User,
+  HelpCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -32,6 +35,11 @@ const navItems = [
     icon: FileText,
   },
   {
+    title: 'Bug Tracker',
+    href: '/bugs',
+    icon: Bug,
+  },
+  {
     title: 'Analytics',
     href: '/analytics',
     icon: BarChart3,
@@ -42,9 +50,19 @@ const navItems = [
     icon: Users,
   },
   {
+    title: 'Profile',
+    href: '/profile',
+    icon: User,
+  },
+  {
     title: 'Settings',
     href: '/settings',
     icon: Settings,
+  },
+  {
+    title: 'Help',
+    href: '/help',
+    icon: HelpCircle,
   },
 ]
 

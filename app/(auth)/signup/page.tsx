@@ -48,6 +48,19 @@ export default function SignupPage() {
       setError(error.message)
       setLoading(false)
     } else if (data?.user) {
+      // Send signup notification
+      fetch('/api/auth/callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'SIGNED_IN',
+          user: {
+            ...data.user,
+            user_metadata: { full_name: fullName }
+          }
+        })
+      }).catch(err => console.error('Failed to send notification:', err))
+      
       setSuccess(true)
       setLoading(false)
     }
@@ -87,7 +100,7 @@ export default function SignupPage() {
           <CardHeader>
             <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
             <CardDescription>
-              We've sent a verification link to {email}
+              We&apos;ve sent a verification link to {email}
             </CardDescription>
           </CardHeader>
           <CardContent>

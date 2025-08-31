@@ -1,87 +1,112 @@
 export const agilePrompts = {
   projectCharter: {
-    system: `You are an expert Agile project manager creating a comprehensive Project Charter for a {{sector}} company.
-You have deep knowledge of Agile/Scrum methodologies and industry best practices.
-Generate professional, detailed documentation that follows Agile principles.
-IMPORTANT: Use placeholder tokens for people names (e.g., [STAKEHOLDER_1], [SENIOR_USER]) - never generate real names.`,
+    system: `You are an Agile Project Manager creating a Project Charter.
+
+CRITICAL JSON REQUIREMENTS:
+1. Return ONLY valid JSON, no markdown or explanatory text
+2. Use camelCase for ALL field names (executiveSummary NOT "Executive Summary")
+3. Follow the EXACT field structure shown in the example
+
+Role: Expert in Scrum methodologies for {{sector}} industry.
+Task: Generate structured JSON documentation following Agile principles.
+Constraint: Use placeholder tokens for names ([STAKEHOLDER_1], [SENIOR_USER]).`,
     
-    user: `Create a comprehensive Agile Project Charter for the following project:
+    user: `Complete these steps in order to create an Agile Project Charter:
 
-Project Name: {{projectName}}
-Vision: {{vision}}
-Business Case: {{businessCase}}
-Description: {{description}}
-Company Website: {{companyWebsite}}
-Industry Sector: {{sector}}
+STEP 1: Read project information
+- Project Name: {{projectName}}
+- Vision: {{vision}}
+- Business Case: {{businessCase}}
+- Description: {{description}}
+- Sector: {{sector}}
+- Stakeholders: {{stakeholders}}
 
-Stakeholders:
-{{stakeholders}}
+STEP 2: Generate exactly these 12 sections
+1. Executive Summary (150-200 words)
+2. Project Vision & Objectives (3-5 objectives)
+3. Success Criteria & KPIs (5 measurable KPIs)
+4. Scope Statement (5 in-scope, 3 out-of-scope items)
+5. Key Deliverables (5-7 deliverables with dates)
+6. Stakeholder Analysis (matrix format)
+7. Team Structure & Roles (5-8 roles)
+8. High-Level Timeline (3 phases)
+9. Initial Risk Assessment (top 5 risks)
+10. Assumptions & Dependencies (3 each)
+11. Communication Plan (weekly/monthly cadence)
+12. Definition of Done (5 criteria)
 
-Generate a detailed Project Charter with the following sections:
-1. Executive Summary
-2. Project Vision & Objectives
-3. Success Criteria & KPIs
-4. Scope Statement (In Scope / Out of Scope)
-5. Key Deliverables
-6. Stakeholder Analysis
-7. Team Structure & Roles
-8. High-Level Timeline
-9. Initial Risk Assessment
-10. Assumptions & Dependencies
-11. Communication Plan
-12. Definition of Done
-
-Research the company website to understand their business context and tailor the charter accordingly.
-Include specific, measurable success criteria relevant to the {{sector}} industry.
-Format the response as structured JSON.`,
+STEP 3: Output format
+Return ONLY valid JSON with all sections.
+Do not include markdown formatting or backticks.
+Ensure all text values are properly escaped.`,
   },
 
   productBacklog: {
-    system: `You are an expert Product Owner creating a prioritized Product Backlog.
-You understand user story writing, acceptance criteria, and MoSCoW prioritization.
-Generate realistic, actionable user stories based on the project vision.`,
+    system: `You are a Product Owner creating a Product Backlog.
+Expertise: User story writing and MoSCoW prioritization.
+Task: Generate actionable user stories with clear acceptance criteria.`,
     
-    user: `Create an initial Product Backlog for the following project:
+    user: `Execute these steps to create a Product Backlog:
 
-Project Name: {{projectName}}
-Vision: {{vision}}
-Business Case: {{businessCase}}
+STEP 1: Project context
+- Project: {{projectName}}
+- Vision: {{vision}}
+- Business Case: {{businessCase}}
 
-Generate 15-20 user stories with:
-1. User story format: "As a [role], I want [goal], so that [benefit]"
-2. Acceptance criteria (at least 3 per story)
-3. Story points estimate (1, 2, 3, 5, 8, 13)
-4. Priority (Must Have, Should Have, Could Have, Won't Have)
-5. Epic/Theme grouping
+STEP 2: Generate exactly 15 user stories
+Each story MUST have:
+- Format: "As a [role], I want [goal], so that [benefit]"
+- 3 acceptance criteria
+- Story points: Choose from [1, 2, 3, 5, 8, 13]
+- Priority: Choose from [Must Have, Should Have, Could Have, Won't Have]
+- Epic: Assign to one of 5 epics
 
-Focus on delivering value early and include stories for:
-- Core functionality
-- User experience
-- Security & compliance
-- Performance & scalability
-- Documentation & training
+STEP 3: Story distribution
+- 5 stories: Core functionality (Must Have)
+- 3 stories: User experience (Should Have)
+- 3 stories: Security & compliance (Must/Should Have)
+- 2 stories: Performance (Could Have)
+- 2 stories: Documentation (Could/Won't Have)
 
-Format as structured JSON with proper categorization.`,
+STEP 4: Output
+Return ONLY valid JSON array of story objects.
+No markdown, no backticks, no additional text.`,
   },
 
   sprintPlan: {
-    system: `You are an experienced Scrum Master planning sprint iterations.
-You understand velocity planning, dependency management, and sprint goals.`,
+    system: `You are a Scrum Master planning sprints.
+Expertise: Velocity planning and sprint goals.
+Task: Create structured sprint planning template.`,
     
-    user: `Create a Sprint Planning template for:
+    user: `Follow these steps to create a Sprint Plan:
 
-Project Name: {{projectName}}
-Team Size: Estimated from stakeholder count
-Sprint Duration: 2 weeks (standard)
+STEP 1: Project parameters
+- Project: {{projectName}}
+- Sprint Duration: 2 weeks
+- Team Size: 5-8 members
 
-Generate:
-1. Sprint 0 (Setup sprint) activities
-2. Sprint 1-3 goals and key deliverables
-3. Suggested velocity targets
-4. Sprint ceremony schedule
-5. Definition of Ready checklist
-6. Sprint retrospective format
+STEP 2: Generate sprint structure
+1. Sprint 0 (Setup)
+   - List 5 setup activities
+   - Duration: 1 week
+   
+2. Sprints 1-3 (Development)
+   - Define 1 goal per sprint
+   - List 3 deliverables per sprint
+   - Velocity: 20, 30, 35 points
 
-Format as structured JSON.`,
+STEP 3: Define ceremonies
+- Daily Standup: 15 min @ 9:30 AM
+- Sprint Planning: 2 hours, Day 1
+- Sprint Review: 1 hour, Last day
+- Sprint Retro: 1 hour, Last day
+
+STEP 4: Create checklists
+- Definition of Ready: 5 criteria
+- Retrospective format: 3 questions
+
+STEP 5: Output
+Return structured JSON with all sections.
+No additional formatting or text.`,
   },
 }

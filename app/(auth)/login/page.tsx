@@ -35,7 +35,7 @@ function LoginForm() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -44,6 +44,18 @@ function LoginForm() {
       setError(error.message)
       setLoading(false)
     } else {
+      // Send login notification
+      if (data?.user) {
+        fetch('/api/auth/callback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'SIGNED_IN',
+            user: data.user
+          })
+        }).catch(err => console.error('Failed to send notification:', err))
+      }
+      
       router.push(redirectTo)
     }
   }
@@ -190,7 +202,7 @@ function LoginForm() {
         
         <CardFooter className="flex flex-col space-y-2">
           <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-blue-600 hover:underline">
               Sign up
             </Link>

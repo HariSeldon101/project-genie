@@ -5,257 +5,112 @@ const contextManager = new ContextManager()
 export const technicalLandscapePrompts = {
   analysis: {
     buildPrompt: (params: any) => {
-      const systemPrompt = `You are a Senior Technical Architect and Technology Strategist creating comprehensive technical landscape analyses.
-You have deep expertise in enterprise architecture, technology trends, and digital transformation.
-Generate detailed technical documentation that provides strategic insights and actionable recommendations.
+      const systemPrompt = `You are a Senior Technology Analyst creating an industry technology overview document.
 
-ANALYSIS FRAMEWORK:
-1. Current State Assessment - Existing technology inventory
-2. Future State Vision - Emerging technologies and trends
-3. Gap Analysis - What's needed to bridge current to future
-4. Risk Assessment - Technical debt and obsolescence risks
-5. Opportunity Identification - Innovation and optimization areas
-6. Roadmap Development - Phased approach to transformation
+FOCUS: Create a strategic technology landscape overview for Project Managers (NOT developers).
+This document should provide context about the ${params.sector} industry's technology environment, 
+explain key technical concepts, and clarify terminology so PMs can effectively manage technical teams
+and communicate with stakeholders.
 
-IMPORTANT: 
-- Research current technology trends (2024-2025)
-- Consider industry-specific requirements
-- Balance innovation with pragmatism
-- Include both technical and business perspectives`
+Key Guidelines:
+- Focus on business implications of technology choices
+- Explain technical concepts in business terms
+- Provide industry context and market positioning
+- Include links to authoritative resources
+- Create a comprehensive glossary of technical terms (NOT PM terms)
+- Keep it strategic, not deeply technical
 
-      const userPrompt = `Create a comprehensive Technical Landscape Analysis for:
+Remember: Your audience is experienced Project Managers who need to understand the technology 
+landscape to make informed decisions, not to implement the technology themselves.`
 
-Project Name: ${params.projectName}
-Description: ${params.description}
-Industry Sector: ${params.sector}
-Company Website: ${params.companyWebsite}
-Vision: ${params.vision}
+      const userPrompt = `Create a Technology Landscape Overview for Project Managers:
 
-SYSTEMATIC ANALYSIS PROCESS:
-1. Research ${params.companyWebsite} to understand current technology context
-2. Analyze ${params.sector} industry technology trends and standards
-3. Identify relevant emerging technologies
-4. Map technology stack requirements
-5. Define integration architecture
-6. Create technology glossary
-7. Compile resource repository
+PROJECT CONTEXT:
+- Project: ${params.projectName}
+- Description: ${params.description}
+- Industry/Sector: ${params.sector}
+- Company Vision: ${params.vision}
+${params.budget ? `- Budget: ${params.budget}` : ''}
+${params.timeline ? `- Timeline: ${params.timeline}` : ''}
 
-Generate a detailed Technical Landscape document with:
+Generate these sections:
 
-1. EXECUTIVE SUMMARY
-   - Technology vision statement
-   - Key findings and recommendations
-   - Strategic technology priorities
-   - Investment requirements summary
-   - Risk and opportunity highlights
+1. EXECUTIVE OVERVIEW (200 words)
+   - Industry technology context for ${params.sector}
+   - Current market technology trends
+   - Strategic technology considerations
+   - Key competitive differentiators
 
-2. CURRENT TECHNOLOGY ASSESSMENT
-   - Existing Technology Stack
-     * Frontend technologies
-     * Backend frameworks
-     * Database systems
-     * Infrastructure and cloud platforms
-     * DevOps tools and practices
-     * Security technologies
-   - Technology Maturity Assessment
-     * Emerging (experimental)
-     * Growing (adoption increasing)
-     * Mature (widely adopted)
-     * Declining (consider replacement)
-     * Obsolete (requires migration)
-   - Technical Debt Analysis
-     * Legacy system dependencies
-     * Outdated frameworks/libraries
-     * Security vulnerabilities
-     * Performance bottlenecks
-     * Maintenance challenges
+2. INDUSTRY TECHNOLOGY LANDSCAPE (300 words)
+   - Standard technologies used in ${params.sector}
+   - Market leaders and their tech stacks
+   - Emerging technologies gaining traction
+   - Technology adoption maturity curve
+   - Investment trends in the sector
 
-3. INDUSTRY TECHNOLOGY TRENDS (${params.sector})
-   - Sector-Specific Technologies
-     * Industry-standard platforms
-     * Regulatory technology requirements
-     * Compliance frameworks
-     * Best-in-class solutions
-   - Competitive Technology Analysis
-     * What leaders are using
-     * Emerging differentiators
-     * Table stakes technologies
-     * Innovation opportunities
-   - Market Dynamics
-     * Technology adoption rates
-     * Vendor landscape
-     * Open source vs proprietary
-     * Cloud vs on-premise trends
+3. CLIENT COMPANY PROFILE (250 words)
+   - Current technology position
+   - Market positioning relative to competitors
+   - Key services and digital offerings
+   - Technology strengths and gaps
+   - Strategic technology opportunities
 
-4. EMERGING TECHNOLOGIES ASSESSMENT
-   - Artificial Intelligence & Machine Learning
-     * Applicable use cases
-     * Implementation complexity
-     * ROI potential
-     * Required expertise
-   - Cloud Native Technologies
-     * Microservices architecture
-     * Container orchestration
-     * Serverless computing
-     * Edge computing
-   - Data Technologies
-     * Real-time analytics
-     * Data lakes/warehouses
-     * Stream processing
-     * Data governance tools
-   - Security Technologies
-     * Zero trust architecture
-     * Identity management
-     * Threat detection
-     * Compliance automation
-   - Other Relevant Technologies
-     * IoT and sensors
-     * Blockchain/DLT
-     * AR/VR/Metaverse
-     * Quantum computing readiness
+4. RECOMMENDED TECHNOLOGY APPROACH (300 words)
+   - High-level architecture overview (business perspective)
+   - Core technology platform recommendations
+   - Integration strategy with existing systems
+   - Scalability and growth considerations
+   - Security and compliance requirements
 
-5. PROPOSED TECHNOLOGY STACK
-   - Architecture Principles
-     * Scalability requirements
-     * Performance targets
-     * Security standards
-     * Integration patterns
-   - Recommended Stack Components
-     * Frontend: [Framework, libraries, tools]
-     * Backend: [Languages, frameworks, services]
-     * Database: [SQL/NoSQL, caching, search]
-     * Infrastructure: [Cloud provider, IaC tools]
-     * DevOps: [CI/CD, monitoring, logging]
-     * Security: [Auth, encryption, scanning]
-   - Technology Selection Criteria
-     * Total cost of ownership
-     * Skills availability
-     * Vendor support
-     * Community strength
-     * Future-proofing
+5. KEY TECHNOLOGY DECISIONS (200 words)
+   - Build vs Buy considerations
+   - Cloud vs On-premise implications
+   - Open source vs Commercial solutions
+   - Technology partner selection criteria
+   - Risk vs Innovation balance
 
-6. INTEGRATION ARCHITECTURE
-   - System Integration Map
-     * Internal systems
-     * External services
-     * Partner integrations
-     * Data flows
-   - API Strategy
-     * API design standards
-     * Versioning approach
-     * Documentation requirements
-     * Security protocols
-   - Event-Driven Architecture
-     * Event streaming
-     * Message queuing
-     * Event sourcing
-     * CQRS patterns
-   - Data Integration
-     * ETL/ELT processes
-     * Real-time synchronization
-     * Data quality management
-     * Master data management
+6. RESOURCE & SKILLS REQUIREMENTS (200 words)
+   - Team composition needs
+   - Critical technical roles
+   - Skills availability in market
+   - Training and upskilling needs
+   - External expertise requirements
 
-7. TECHNICAL GLOSSARY
-   - Project-Specific Terms
-     * Domain terminology
-     * Technical acronyms
-     * Architecture patterns
-     * Protocol definitions
-   - Technology Definitions
-     * Framework descriptions
-     * Tool explanations
-     * Standard definitions
-     * Methodology terms
-   - Stakeholder Translation
-     * Technical to business mapping
-     * Benefit explanations
-     * Risk descriptions
-     * Success metrics
+7. TECHNOLOGY COST IMPLICATIONS (200 words)
+   - Initial investment breakdown
+   - Ongoing operational costs
+   - Total Cost of Ownership (TCO)
+   - ROI considerations
+   - Cost optimization opportunities
 
-8. COMPATIBILITY MATRIX
-   - Technology Dependencies
-     * Version compatibilities
-     * Library dependencies
-     * Platform requirements
-     * Browser support
-   - Integration Compatibility
-     * Protocol support
-     * Data format standards
-     * Authentication methods
-     * Performance characteristics
-   - Known Conflicts
-     * Incompatible technologies
-     * Version conflicts
-     * Licensing issues
-     * Performance impacts
+8. TECHNICAL GLOSSARY (400 words)
+   Create a comprehensive glossary of ALL technical terms, acronyms, and jargon used in this document.
+   Format: **Term**: Clear, business-friendly explanation
+   Include:
+   - Technology acronyms (API, SaaS, PaaS, etc.)
+   - Architecture terms
+   - Development methodologies
+   - Security concepts
+   - Data management terms
+   - Integration patterns
+   DO NOT include PM acronyms (like WBS, RACI, etc.)
 
-9. RESOURCE REPOSITORY
-   - Official Documentation
-     * Vendor documentation links
-     * API references
-     * Configuration guides
-     * Best practices guides
-   - Learning Resources
-     * Tutorials and courses
-     * Books and publications
-     * Video resources
-     * Certification paths
-   - Community Resources
-     * Forums and communities
-     * Stack Overflow tags
-     * GitHub repositories
-     * Discord/Slack channels
-   - Tools and Utilities
-     * Development tools
-     * Testing frameworks
-     * Monitoring solutions
-     * Debugging utilities
+9. REFERENCE RESOURCES (150 words)
+   Provide 8-10 curated links to:
+   - Industry technology reports
+   - Technology vendor documentation
+   - Quick overview guides
+   - Relevant tutorials or courses
+   - Industry analyst reports
+   Format: [Resource Name](URL) - Brief description
 
-10. IMPLEMENTATION ROADMAP
-    - Phase 1: Foundation (Months 1-3)
-      * Core infrastructure setup
-      * Development environment
-      * Basic integrations
-      * Security baseline
-    - Phase 2: Enhancement (Months 4-6)
-      * Advanced features
-      * Performance optimization
-      * Extended integrations
-      * Automation implementation
-    - Phase 3: Innovation (Months 7-12)
-      * Emerging technology pilots
-      * AI/ML integration
-      * Advanced analytics
-      * Continuous improvement
-
-11. RISK MITIGATION STRATEGIES
-    - Technology Risks
-      * Vendor lock-in mitigation
-      * Obsolescence planning
-      * Skills gap addressing
-      * Security vulnerability management
-    - Implementation Risks
-      * Complexity management
-      * Integration challenges
-      * Performance issues
-      * Adoption barriers
-
-12. SUCCESS METRICS
-    - Technical Metrics
-      * System performance KPIs
-      * Availability targets
-      * Security scores
-      * Technical debt ratio
-    - Business Metrics
-      * Time to market
-      * Development velocity
-      * Operational costs
-      * Innovation index
-
-Research current technology trends and provide specific, actionable recommendations.
-Include 2024-2025 technology perspectives and future-proofing strategies.
-Format as structured JSON with comprehensive details.`
+OUTPUT REQUIREMENTS:
+- Write for experienced PMs who need technology context
+- Focus on strategic implications, not implementation details
+- Use clear business language, explain all technical terms
+- Include specific technology names and versions where relevant
+- Provide actionable insights for project planning
+- Total length: 2000-2500 words`
 
       return { system: systemPrompt, user: userPrompt }
     }

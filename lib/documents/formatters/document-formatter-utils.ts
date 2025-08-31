@@ -35,19 +35,22 @@ export function ensurePIDStructure(data: any): any {
       ],
       interfaces: data?.projectDefinition?.interfaces || ['External systems']
     },
-    businessCase: data?.businessCase || {
-      reasons: 'Business reasons',
-      options: [],
-      expectedBenefits: [],
-      expectedDisbenefits: [],
-      timescale: 'Project timeline',
-      costs: {
+    businessCase: {
+      reasons: data?.businessCase?.reasons || 'Business reasons',
+      businessOptions: data?.businessCase?.businessOptions || data?.businessCase?.options || [],
+      options: data?.businessCase?.options || data?.businessCase?.businessOptions || [], // Support both names
+      expectedBenefits: data?.businessCase?.expectedBenefits || [],
+      expectedDisbenefits: data?.businessCase?.expectedDisbenefits || data?.businessCase?.expectedDisBenefits || [], // Support both spellings
+      expectedDisBenefits: data?.businessCase?.expectedDisBenefits || data?.businessCase?.expectedDisbenefits || [], // Support both spellings
+      timescale: data?.businessCase?.timescale || 'Project timeline',
+      costs: data?.businessCase?.costs || {
         development: '0',
         operational: '0',
+        maintenance: '0',
         total: '0'
       },
-      investmentAppraisal: 'Investment appraisal',
-      majorRisks: []
+      investmentAppraisal: data?.businessCase?.investmentAppraisal || 'Investment appraisal',
+      majorRisks: data?.businessCase?.majorRisks || []
     },
     organizationStructure: data?.organizationStructure || {
       projectBoard: {
@@ -78,14 +81,53 @@ export function ensurePIDStructure(data: any): any {
     },
     riskManagementApproach: data?.riskManagementApproach || {
       procedure: 'Risk procedure',
-      riskTolerance: 'Risk tolerance',
+      riskTolerance: {
+        time: '± 10%',
+        cost: '± 15%',
+        quality: 'Must meet standards',
+        scope: 'No changes without approval',
+        benefits: 'Must achieve 80%',
+        risk: 'Medium tolerance'
+      },
       riskRegisterFormat: 'Risk register format',
-      rolesAndResponsibilities: 'Risk roles'
+      rolesAndResponsibilities: [
+        {
+          role: 'Project Manager',
+          responsibilities: ['Maintain risk register', 'Facilitate risk workshops']
+        },
+        {
+          role: 'Project Board',
+          responsibilities: ['Approve risk management approach', 'Make decisions on escalated risks']
+        }
+      ],
+      riskCategories: ['Strategic', 'Operational', 'Technical', 'External'],
+      toolsAndTechniques: ['Risk workshops', 'Risk checklists', 'SWOT analysis'],
+      reporting: 'Monthly risk reports',
+      timingOfRiskManagementActivities: 'Risk reviews at each stage boundary'
     },
     communicationManagementApproach: data?.communicationManagementApproach || {
-      methods: ['Email', 'Meetings'],
-      frequency: 'Communication frequency',
-      stakeholderAnalysis: 'Stakeholder analysis'
+      methods: ['Email', 'Meetings', 'Reports', 'Presentations'],
+      frequency: 'Weekly status updates, Monthly steering committee meetings',
+      stakeholderAnalysis: [
+        {
+          stakeholder: 'Project Sponsor',
+          interest: 'High',
+          influence: 'High',
+          communicationMethod: 'Face-to-face meetings',
+          frequency: 'Weekly'
+        },
+        {
+          stakeholder: 'End Users',
+          interest: 'High',
+          influence: 'Medium',
+          communicationMethod: 'Email updates',
+          frequency: 'Bi-weekly'
+        }
+      ],
+      procedure: 'Communication procedures',
+      toolsAndTechniques: ['Email', 'MS Teams', 'Project Portal'],
+      reporting: 'Weekly status reports',
+      rolesAndResponsibilities: 'Project Manager responsible for all communications'
     },
     projectPlan: data?.projectPlan || {
       stages: [],

@@ -1,9 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import type { cookies as cookiesType } from 'next/headers'
 
 export async function checkAdminAuth() {
-  const cookieStore = await cookies()
+  // Dynamic import to avoid webpack issues in Next.js 15.5.0
+  let cookieStore: Awaited<ReturnType<typeof cookiesType>>
+  try {
+    const nextHeaders = await import('next/headers')
+    cookieStore = await nextHeaders.cookies()
+  } catch (error) {
+    console.error('[checkAdminAuth] Failed to import cookies:', error)
+    redirect('/login')
+  }
   
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,7 +46,15 @@ export async function checkAdminAuth() {
 }
 
 export async function isUserAdmin(userId: string): Promise<boolean> {
-  const cookieStore = await cookies()
+  // Dynamic import to avoid webpack issues in Next.js 15.5.0
+  let cookieStore: Awaited<ReturnType<typeof cookiesType>>
+  try {
+    const nextHeaders = await import('next/headers')
+    cookieStore = await nextHeaders.cookies()
+  } catch (error) {
+    console.error('[isUserAdmin] Failed to import cookies:', error)
+    return false
+  }
   
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

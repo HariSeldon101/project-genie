@@ -253,8 +253,8 @@ export default function NewProjectPage() {
       if (projectError) {
         console.error('Project creation error details:', {
           error: projectError,
-          code: projectError.code,
           message: projectError.message,
+          code: projectError.code,
           details: projectError.details,
           hint: projectError.hint
         })
@@ -331,13 +331,16 @@ export default function NewProjectPage() {
       setLoading(false)
       
       // Handle specific RLS error
-      if (error?.code === '42P17' || error?.message?.includes('infinite recursion')) {
+      if (error?.code === '42501') {
         alert(
-          'Database configuration issue detected.\n\n' +
-          'Please run the following in your Supabase SQL Editor:\n\n' +
-          'ALTER TABLE projects DISABLE ROW LEVEL SECURITY;\n' +
-          'ALTER TABLE project_members DISABLE ROW LEVEL SECURITY;\n\n' +
-          'Then try creating the project again.'
+          'Permission denied. Please ensure you are logged in and try again.\n\n' +
+          'If the problem persists, please contact support.'
+        )
+      } else if (error?.code === '42P17' || error?.message?.includes('infinite recursion')) {
+        alert(
+          'Database configuration error detected.\n\n' +
+          'The security policies have been recently updated. Please refresh the page and try again.\n\n' +
+          'If the problem persists, please contact support.'
         )
       } else {
         alert(`Error creating project: ${error?.message || 'Unknown error'}`)
@@ -844,10 +847,16 @@ export default function NewProjectPage() {
                     )}
                     {projectData.methodology === 'prince2' && (
                       <>
+                        <li className="font-semibold text-blue-800 dark:text-blue-200 mt-2">PRINCE2 Core Documents:</li>
                         <li>• Project Initiation Document (PID)</li>
                         <li>• Business Case</li>
                         <li>• Risk Register</li>
                         <li>• Project Plan</li>
+                        <li>• Quality Management Strategy</li>
+                        <li>• Communication Management Approach</li>
+                        <li className="font-semibold text-blue-800 dark:text-blue-200 mt-3">Project Genie Enhanced Intelligence:</li>
+                        <li>• Technology & Industry Landscape Analysis</li>
+                        <li>• Lessons Learned from Comparable Projects</li>
                       </>
                     )}
                     {projectData.methodology === 'hybrid' && (

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
 import { 
   Sparkles, 
   Loader2, 
@@ -13,7 +14,12 @@ import {
   AlertCircle,
   FileText,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Info,
+  Terminal,
+  CheckSquare,
+  Square,
+  DollarSign
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -28,6 +34,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useGenerationStream } from '@/lib/hooks/use-generation-stream'
+import { GenerationLogViewer, GenerationLogViewerCompact } from './generation-log-viewer'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface DocumentGeneratorProps {
   projectId: string
@@ -51,6 +60,24 @@ interface DocumentInfo {
   }
 }
 
+// Helper function to get documents based on methodology
+// For PRINCE2, research documents (Stage 1) come first
+function getMethodologyDocuments(methodology: string) {
+  switch (methodology) {
+    case 'agile':
+      // Agile doesn't use two-stage, so keep original order
+      return ['Project Charter', 'Product Backlog', 'Sprint Plan', 'Technical Landscape', 'Comparable Projects']
+    case 'prince2':
+      // PRINCE2 uses two-stage: Research documents first (Stage 1), then main documents (Stage 2)
+      return ['Technical Landscape', 'Comparable Projects', 'Project Initiation Document', 'Business Case', 'Risk Register', 'Project Plan', 'Quality Management Strategy', 'Communication Plan']
+    case 'hybrid':
+      // Hybrid also benefits from research first
+      return ['Technical Landscape', 'Comparable Projects', 'Hybrid Charter', 'Risk Register', 'Product Backlog']
+    default:
+      return []
+  }
+}
+
 export function DocumentGenerator({ projectId, projectData, onComplete }: DocumentGeneratorProps) {
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -63,6 +90,17 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
   const [documentProgress, setDocumentProgress] = useState<DocumentProgress[]>([])
   const [providerInfo, setProviderInfo] = useState<{ provider: string; model: string } | null>(null)
   const [viewPrompt, setViewPrompt] = useState<{ doc: string; prompt: { system: string; user: string } } | null>(null)
+  const [selectedDocInfo, setSelectedDocInfo] = useState<string | null>(null)
+  
+  // Project details for better document generation
+  const [budget, setBudget] = useState<string>('')
+  const [timeline, setTimeline] = useState<string>('')
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  
+  // Document selection state - all selected by default
+  const allDocuments = getMethodologyDocuments(projectData.methodology as string)
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set(allDocuments))
   
   const generationSteps = [
     { name: 'Initializing', message: 'Setting up document generation...' },
@@ -83,12 +121,23 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
   }
 
   const generateDocuments = async () => {
+    // Check if any documents are selected
+    if (selectedDocuments.size === 0) {
+      setError('Please select at least one document to generate')
+      setStatus('error')
+      return
+    }
+    
     setGenerating(true)
     setStatus('generating')
     setError(null)
     
-    // Initialize document progress tracking
-    const docList = getMethodologyDocuments(projectData.methodology as string).map(name => ({
+    // Initialize document progress tracking for selected documents only
+    // Order them according to methodology (research docs first for PRINCE2)
+    const methodologyOrder = getMethodologyDocuments(projectData.methodology as string)
+    const orderedSelectedDocs = methodologyOrder.filter(doc => selectedDocuments.has(doc))
+    
+    const docList = orderedSelectedDocs.map(name => ({
       name,
       status: 'pending' as const
     }))
@@ -123,7 +172,7 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       await new Promise(resolve => setTimeout(resolve, 500))
       
       // Step 5: Generate with AI
-      updateProgress(4, 'AI is creating your documents... This may take 30-60 seconds')
+      updateProgress(4, 'AI is creating your documents... This may take 2-5 minutes for complex documents')
       console.log('[DocumentGenerator] Starting document generation:', {
         projectId,
         methodology: projectData.methodology,
@@ -135,7 +184,11 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       
       // Call generation API with timeout
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 85000) // 85 second timeout
+      const timeoutId = setTimeout(() => {
+        // Don't immediately abort - give a warning first
+        console.warn('[DocumentGenerator] Generation taking longer than expected...')
+        controller.abort()
+      }, 600000) // 600 second (10 minute) timeout to match API maxDuration
       
       let response
       try {
@@ -147,16 +200,25 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
           },
           body: JSON.stringify({
             projectId,
-            projectData
+            projectData: {
+              ...projectData,
+              budget: budget || undefined,
+              timeline: timeline || undefined,
+              startDate: startDate || undefined,
+              endDate: endDate || undefined
+            },
+            selectedDocuments: Array.from(selectedDocuments)
           }),
           signal: controller.signal
         })
       } catch (err: any) {
         clearTimeout(timeoutId)
         if (err.name === 'AbortError') {
-          throw new Error('Document generation timed out. Please try again.')
+          // More graceful timeout handling
+          throw new Error('Document generation is taking longer than expected (over 10 minutes). The server may still be processing. Please check your documents page in a few minutes to see if they completed.')
         }
-        throw err
+        console.error('[DocumentGenerator] Fetch error:', err)
+        throw new Error(`Network error: ${err.message || 'Failed to connect to server'}`)
       }
       
       clearTimeout(timeoutId)
@@ -187,7 +249,7 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       }
 
       const result = responseData
-      console.log('[DocumentGenerator] Generation successful:', {
+      console.log('[DocumentGenerator] Generation response:', {
         provider: result.provider,
         model: result.model,
         documentsCount: result.documents?.length,
@@ -199,6 +261,10 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
         setProviderInfo({ provider: result.provider, model: result.model })
       }
       
+      // Check for partial success
+      const successfulDocs = result.documents?.filter(doc => !doc.error) || []
+      const failedDocs = result.documents?.filter(doc => doc.error) || []
+      
       // Step 6: Validate
       updateProgress(5, 'Checking document completeness...')
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -207,19 +273,45 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       updateProgress(6, 'Documents ready!')
       await new Promise(resolve => setTimeout(resolve, 300))
 
-      setDocuments(result.documents.map(doc => ({
-        title: doc.title,
-        version: doc.version,
-        insights: doc.insights,
-        prompt: doc.prompt
-      })))
-      setProgress(100)
-      setStatus('success')
-      setMessage('Success!')
-      setSubMessage(`Generated ${result.documents.length} project documents using ${result.provider}/${result.model}`)
+      // Store successful documents
+      if (successfulDocs.length > 0) {
+        setDocuments(successfulDocs.map(doc => ({
+          title: doc.title,
+          version: doc.version,
+          insights: doc.insights,
+          prompt: doc.prompt
+        })))
+      }
       
-      // Mark all documents as completed
-      setDocumentProgress(prev => prev.map(doc => ({ ...doc, status: 'completed' })))
+      // Update progress based on success/failure
+      setDocumentProgress(prev => prev.map(doc => {
+        const successful = successfulDocs.find(d => d.title === doc.name || d.type === doc.name.toLowerCase().replace(/ /g, '_'))
+        const failed = failedDocs.find(d => d.title === doc.name || d.type === doc.name.toLowerCase().replace(/ /g, '_'))
+        
+        if (successful) {
+          return { ...doc, status: 'completed' }
+        } else if (failed) {
+          return { ...doc, status: 'failed', error: 'Generation failed' }
+        }
+        return doc
+      }))
+      
+      setProgress(100)
+      
+      // Determine overall status
+      if (successfulDocs.length === 0) {
+        setStatus('error')
+        setMessage('Generation Failed')
+        setSubMessage('No documents were generated successfully. Please try again.')
+      } else if (failedDocs.length > 0) {
+        setStatus('success')
+        setMessage('Partial Success')
+        setSubMessage(`Generated ${successfulDocs.length} of ${result.documents.length} documents. ${failedDocs.length} failed.`)
+      } else {
+        setStatus('success')
+        setMessage('Success!')
+        setSubMessage(`Generated ${successfulDocs.length} project documents using ${result.provider}/${result.model}`)
+      }
       
       if (onComplete) {
         onComplete(result.documents)
@@ -280,16 +372,89 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
     }
   }
 
-  const getMethodologyDocuments = (methodology: string) => {
-    switch (methodology) {
-      case 'agile':
-        return ['Project Charter', 'Product Backlog', 'Sprint Plan']
-      case 'prince2':
-        return ['Project Initiation Document', 'Business Case', 'Risk Register', 'Project Plan']
-      case 'hybrid':
-        return ['Hybrid Charter', 'Risk Register', 'Product Backlog']
-      default:
-        return []
+  
+  const toggleDocument = (docName: string) => {
+    setSelectedDocuments(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(docName)) {
+        newSet.delete(docName)
+      } else {
+        newSet.add(docName)
+      }
+      return newSet
+    })
+  }
+  
+  const toggleAllDocuments = () => {
+    if (selectedDocuments.size === allDocuments.length) {
+      // If all selected, deselect all
+      setSelectedDocuments(new Set())
+    } else {
+      // Otherwise, select all
+      setSelectedDocuments(new Set(allDocuments))
+    }
+  }
+
+  const documentDescriptions: Record<string, { brief: string; full: string; purpose: string; structure: string[] }> = {
+    'Project Charter': {
+      brief: 'High-level project scope and objectives',
+      full: 'The Project Charter is a formal document that authorizes the project and provides the project manager with the authority to apply organizational resources.',
+      purpose: 'To formally authorize the project, define high-level requirements, and establish project boundaries and success criteria.',
+      structure: ['Project Vision & Objectives', 'Scope Statement', 'Key Stakeholders', 'Success Criteria', 'High-level Timeline', 'Initial Risk Assessment']
+    },
+    'Product Backlog': {
+      brief: 'Prioritized list of features and user stories',
+      full: 'The Product Backlog is a prioritized list of features, functions, requirements, enhancements, and fixes that constitute the changes to be made to the product.',
+      purpose: 'To provide a single source of requirements for any changes to be made to the product, ordered by priority and business value.',
+      structure: ['User Stories', 'Acceptance Criteria', 'Priority Rankings', 'Story Points/Estimates', 'Dependencies', 'Sprint Allocation']
+    },
+    'Sprint Plan': {
+      brief: 'Detailed plan for upcoming sprint iterations',
+      full: 'The Sprint Plan outlines the work to be performed during the sprint, including selected backlog items and the plan for delivering them.',
+      purpose: 'To define what can be delivered in the sprint and how that work will be achieved by the development team.',
+      structure: ['Sprint Goals', 'Selected User Stories', 'Task Breakdown', 'Resource Allocation', 'Definition of Done', 'Sprint Timeline']
+    },
+    'Project Initiation Document': {
+      brief: 'Comprehensive project definition and approach',
+      full: 'The Project Initiation Document (PID) defines the project and is the basis for managing and controlling the project under PRINCE2 methodology.',
+      purpose: 'To define the project, provide justification for undertaking it, and establish the management structure and controls.',
+      structure: ['Project Definition', 'Business Case Summary', 'Project Organization', 'Quality Management Strategy', 'Risk Management Strategy', 'Communication Plan', 'Project Controls']
+    },
+    'Business Case': {
+      brief: 'Financial justification and expected benefits',
+      full: 'The Business Case provides justification for undertaking a project, evaluating the benefit, cost, and risk of alternative options.',
+      purpose: 'To establish whether the project is desirable, viable, and achievable, and continues to be so throughout the project lifecycle.',
+      structure: ['Executive Summary', 'Strategic Alignment', 'Options Analysis', 'Expected Benefits', 'Cost-Benefit Analysis', 'Investment Appraisal', 'Risk Assessment']
+    },
+    'Risk Register': {
+      brief: 'Identified risks with mitigation strategies',
+      full: 'The Risk Register is a document that contains information about identified risks, their analysis, and response plans.',
+      purpose: 'To record details of all identified risks, their assessment, and the measures to manage them throughout the project.',
+      structure: ['Risk Description', 'Risk Category', 'Probability Assessment', 'Impact Analysis', 'Risk Score', 'Mitigation Strategies', 'Contingency Plans', 'Risk Owner']
+    },
+    'Project Plan': {
+      brief: 'Timeline, milestones, and resource allocation',
+      full: 'The Project Plan provides a comprehensive roadmap of how and when the project objectives will be achieved.',
+      purpose: 'To communicate the project approach, timeline, resources, and controls to stakeholders and guide project execution.',
+      structure: ['Work Breakdown Structure', 'Gantt Chart/Timeline', 'Milestone Schedule', 'Resource Plan', 'Budget Allocation', 'Quality Checkpoints', 'Critical Path']
+    },
+    'Hybrid Charter': {
+      brief: 'Blended approach combining Agile and PRINCE2',
+      full: 'The Hybrid Charter combines elements of both Agile and PRINCE2 methodologies to provide flexibility with governance.',
+      purpose: 'To establish a project framework that balances agility with structured governance and control mechanisms.',
+      structure: ['Governance Framework', 'Agile Principles', 'Sprint Cadence', 'Stage Gates', 'Stakeholder Engagement', 'Change Control Process']
+    },
+    'Technical Landscape': {
+      brief: 'Current and future technology architecture',
+      full: 'The Technical Landscape document provides a comprehensive view of the current technology environment and proposed architecture.',
+      purpose: 'To document existing technical infrastructure, identify gaps, and define the target architecture and technology stack.',
+      structure: ['Current State Architecture', 'Technology Stack Analysis', 'Integration Points', 'Security Architecture', 'Scalability Plan', 'Technical Debt Assessment', 'Migration Strategy']
+    },
+    'Comparable Projects': {
+      brief: 'Analysis of similar projects and lessons learned',
+      full: 'The Comparable Projects analysis examines similar initiatives to identify best practices, risks, and success factors.',
+      purpose: 'To leverage insights from similar projects, avoid common pitfalls, and apply proven strategies for success.',
+      structure: ['Project Comparisons', 'Industry Benchmarks', 'Success Factors', 'Common Challenges', 'Lessons Learned', 'Best Practices', 'Risk Patterns']
     }
   }
 
@@ -308,16 +473,132 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       <CardContent className="space-y-4">
         {status === 'idle' && (
           <>
+            {/* Project Budget and Timeline Inputs */}
+            <div className="bg-purple-500/10 rounded-lg p-4 border border-purple-500/20 space-y-4">
+              <h4 className="font-medium flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Project Details for Enhanced Generation
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="budget" className="block text-sm font-medium mb-1">
+                    Project Budget (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="budget"
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    placeholder="e.g., $500,000 or £2.5M"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Helps generate realistic cost estimates and resource plans
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="timeline" className="block text-sm font-medium mb-1">
+                    Project Timeline (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="timeline"
+                    value={timeline}
+                    onChange={(e) => setTimeline(e.target.value)}
+                    placeholder="e.g., 6 months, Q2 2025 - Q1 2026"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Improves milestone planning and phase definitions
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="startDate" className="block text-sm font-medium mb-1">
+                    Start Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    id="startDate"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="endDate" className="block text-sm font-medium mb-1">
+                    Target End Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    id="endDate"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
-              <h4 className="font-medium mb-2">Documents to be generated:</h4>
-              <ul className="space-y-1">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-medium">Documents to be generated:</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleAllDocuments}
+                  className="text-xs h-7 px-2"
+                >
+                  {selectedDocuments.size === allDocuments.length ? (
+                    <><CheckSquare className="h-3.5 w-3.5 mr-1" /> Deselect All</>
+                  ) : (
+                    <><Square className="h-3.5 w-3.5 mr-1" /> Select All</>
+                  )}
+                </Button>
+              </div>
+              <ul className="space-y-2">
                 {getMethodologyDocuments(projectData.methodology).map((doc, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <FileText className="h-4 w-4 text-blue-400" />
-                    {doc}
+                  <li key={i} className="flex items-start gap-2">
+                    <Checkbox
+                      id={`doc-${i}`}
+                      checked={selectedDocuments.has(doc)}
+                      onCheckedChange={() => toggleDocument(doc)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <label 
+                        htmlFor={`doc-${i}`}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{doc}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setSelectedDocInfo(doc)
+                            }}
+                            className="text-blue-400 hover:text-blue-300 transition-colors"
+                            aria-label={`View details for ${doc}`}
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {documentDescriptions[doc]?.brief}
+                        </p>
+                      </label>
+                    </div>
                   </li>
                 ))}
               </ul>
+              {selectedDocuments.size > 0 && (
+                <div className="mt-3 pt-3 border-t border-white/10">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedDocuments.size} of {allDocuments.length} documents selected
+                  </p>
+                </div>
+              )}
             </div>
 
             <Alert className="bg-amber-500/10 border-amber-500/20">
@@ -408,7 +689,7 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
                   <Sparkles className="h-4 w-4 text-blue-400" />
                   <AlertDescription className="text-sm">
                     <strong>AI Working:</strong> Creating customized documents based on your project details. 
-                    This typically takes 30-60 seconds.
+                    This typically takes 2-5 minutes depending on document complexity.
                   </AlertDescription>
                 </Alert>
                 {providerInfo && (
@@ -487,11 +768,42 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
         )}
 
         {status === 'error' && (
-          <Alert className="bg-red-500/10 border-red-500/20">
-            <AlertCircle className="h-4 w-4 text-red-400" />
-            <AlertTitle>Generation Failed</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <div className="space-y-3">
+            <Alert className="bg-red-500/10 border-red-500/20">
+              <AlertCircle className="h-4 w-4 text-red-400" />
+              <AlertTitle>Generation Issues</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{error}</p>
+                {error?.includes('timeout') && (
+                  <div className="mt-2 p-2 bg-amber-500/10 rounded text-sm">
+                    <p className="font-medium text-amber-400">💡 Tip:</p>
+                    <ul className="list-disc list-inside mt-1 text-amber-300">
+                      <li>Complex documents may take longer to generate</li>
+                      <li>Check your documents page - they may still complete</li>
+                      <li>Try generating fewer documents at once</li>
+                      <li>Ensure your project description is clear and concise</li>
+                    </ul>
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+            
+            {/* Show any partial results */}
+            {documents.length > 0 && (
+              <Alert className="bg-green-500/10 border-green-500/20">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <AlertTitle>Partial Success</AlertTitle>
+                <AlertDescription>
+                  <p className="mb-2">{documents.length} document(s) were generated successfully:</p>
+                  <ul className="list-disc list-inside">
+                    {documents.map((doc, i) => (
+                      <li key={i} className="text-sm">{doc.title}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         )}
       </CardContent>
 
@@ -564,6 +876,61 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
           </DialogContent>
         </Dialog>
       )}
+      
+      {/* Document Details Dialog */}
+      {selectedDocInfo && documentDescriptions[selectedDocInfo] && (
+        <Dialog open={!!selectedDocInfo} onOpenChange={() => setSelectedDocInfo(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-400" />
+                {selectedDocInfo}
+              </DialogTitle>
+              <DialogDescription className="text-base mt-2">
+                {documentDescriptions[selectedDocInfo].brief}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 mt-4">
+              <div>
+                <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide text-muted-foreground">Overview</h4>
+                <p className="text-sm leading-relaxed">
+                  {documentDescriptions[selectedDocInfo].full}
+                </p>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide text-muted-foreground">Purpose</h4>
+                <p className="text-sm leading-relaxed">
+                  {documentDescriptions[selectedDocInfo].purpose}
+                </p>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold mb-3 text-sm uppercase tracking-wide text-muted-foreground">Document Structure</h4>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <ul className="space-y-2">
+                    {documentDescriptions[selectedDocInfo].structure.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-sm">
+                        <span className="text-blue-400 mt-0.5">•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t">
+                <p className="text-xs text-muted-foreground">
+                  This document will be generated using AI based on your project details and will be fully customized to your specific requirements.
+                </p>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   )
 }
+
+// Export the streaming version as well
+export { DocumentGeneratorStream } from './document-generator-stream'

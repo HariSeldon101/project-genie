@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
       } else {
         setSuccess(true)
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
             </div>
             <CardTitle>Check your email</CardTitle>
             <CardDescription>
-              We've sent a password reset link to {email}
+              We&apos;ve sent a password reset link to {email}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
               </AlertDescription>
             </Alert>
             <p className="text-sm text-muted-foreground text-center">
-              Didn't receive the email? Check your spam folder or{' '}
+              Didn&apos;t receive the email? Check your spam folder or{' '}
               <button
                 onClick={() => {
                   setSuccess(false)
@@ -95,7 +95,7 @@ export default function ForgotPasswordPage() {
         <CardHeader>
           <CardTitle>Forgot your password?</CardTitle>
           <CardDescription>
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we&apos;ll send you a link to reset your password.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleResetPassword}>
