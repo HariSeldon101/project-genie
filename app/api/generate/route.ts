@@ -5,9 +5,9 @@ import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
 import { logger } from '@/lib/utils/permanent-logger'
 
-// Set a maximum time for the entire route (600 seconds / 10 minutes for parallel generation)
+// Set a maximum time for the entire route (300 seconds / 5 minutes - max for Vercel hobby plan)
 // PRINCE2 documents can take 4-5 minutes per document with retries
-export const maxDuration = 600
+export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
