@@ -223,7 +223,42 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       
       clearTimeout(timeoutId)
 
-      // Parse response body once
+      // Check response status FIRST before trying to parse
+      if (!response.ok) {
+        console.error('[DocumentGenerator] HTTP Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url
+        })
+        
+        // Try to get error details from response
+        const contentType = response.headers.get('content-type')
+        let errorMessage = `Request failed with status ${response.status}`
+        
+        try {
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json()
+            errorMessage = errorData.details || errorData.error || errorMessage
+          } else if (contentType && contentType.includes('text/html')) {
+            // Vercel returns HTML error pages in production
+            console.warn('[DocumentGenerator] Received HTML error page instead of JSON')
+            if (response.status === 405) {
+              errorMessage = 'Method not allowed. This may be due to Vercel deployment protection.'
+            } else if (response.status === 401) {
+              errorMessage = 'Authentication required. Please log in and try again.'
+            }
+          } else {
+            const text = await response.text()
+            console.error('[DocumentGenerator] Non-JSON error response:', text.substring(0, 200))
+          }
+        } catch (parseError) {
+          console.error('[DocumentGenerator] Could not parse error response:', parseError)
+        }
+        
+        throw new Error(errorMessage)
+      }
+
+      // Now parse successful response
       let responseData
       const contentType = response.headers.get('content-type')
       
@@ -231,21 +266,14 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
         if (contentType && contentType.includes('application/json')) {
           responseData = await response.json()
         } else {
-          // If not JSON, get as text
+          // This shouldn't happen for successful responses
           const text = await response.text()
-          console.error('Non-JSON response:', text)
-          throw new Error(`Server returned non-JSON response: ${text.substring(0, 200)}`)
+          console.error('[DocumentGenerator] Unexpected non-JSON success response:', text.substring(0, 200))
+          throw new Error('Server returned successful response but not in JSON format')
         }
       } catch (parseError) {
-        console.error('Failed to parse response:', parseError)
+        console.error('[DocumentGenerator] Failed to parse successful response:', parseError)
         throw new Error(`Failed to parse server response: ${parseError.message}`)
-      }
-
-      // Check if request was successful
-      if (!response.ok) {
-        const errorMessage = responseData?.details || responseData?.error || 'Generation failed'
-        console.error('[DocumentGenerator] API Error:', errorMessage, responseData)
-        throw new Error(errorMessage)
       }
 
       const result = responseData

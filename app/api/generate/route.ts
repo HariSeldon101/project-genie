@@ -9,8 +9,38 @@ import { logger } from '@/lib/utils/permanent-logger'
 // PRINCE2 documents can take 4-5 minutes per document with retries
 export const maxDuration = 300
 
+// Add CORS headers for production
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Content-Type': 'application/json',
+}
+
+// Handle OPTIONS requests for CORS preflight
+export async function OPTIONS(request: NextRequest) {
+  console.log('[API] OPTIONS request received for /api/generate')
+  return new Response(null, {
+    status: 200,
+    headers: corsHeaders,
+  })
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
+  
+  // Log request details for debugging
+  console.log('[API] POST /api/generate request received:', {
+    method: request.method,
+    url: request.url,
+    headers: {
+      contentType: request.headers.get('content-type'),
+      authorization: request.headers.get('authorization') ? 'Bearer ***' : 'none',
+      origin: request.headers.get('origin'),
+      referer: request.headers.get('referer')
+    },
+    timestamp: new Date().toISOString()
+  })
   
   logger.info('API_GENERATE', 'Generate endpoint called', {
     timestamp: new Date().toISOString(),
@@ -20,7 +50,6 @@ export async function POST(request: NextRequest) {
     runtime: process.env.VERCEL_REGION || 'local'
   })
   
-  console.log('[API] Generate endpoint called at', new Date().toISOString())
   console.log('[API] Environment check:', {
     hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -41,23 +70,33 @@ export async function POST(request: NextRequest) {
     let user = null
     let authError = null
     
+    console.log('[API] Auth check:', {
+      hasAuthHeader: !!authHeader,
+      headerLength: authHeader?.length || 0
+    })
+    
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '')
+      console.log('[API] Attempting authentication with token (length:', token.length, ')')
       
       // Add retry logic for auth verification
       for (let attempt = 0; attempt < 3; attempt++) {
         const { data: authData, error } = await supabase.auth.getUser(token)
         if (!error && authData?.user) {
           user = authData.user
+          console.log('[API] Authentication successful for user:', user.id)
           break
         }
         authError = error
+        console.log(`[API] Auth attempt ${attempt + 1} failed:`, error?.message)
         
         // Wait before retrying (exponential backoff)
         if (attempt < 2) {
           await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt)))
         }
       }
+    } else {
+      console.log('[API] No authorization header provided')
     }
     
     // Parse request body
@@ -75,14 +114,20 @@ export async function POST(request: NextRequest) {
           error: 'Authentication required', 
           details: authError?.message || 'Please log in and try again'
         },
-        { status: 401 }
+        { 
+          status: 401,
+          headers: corsHeaders
+        }
       )
     }
     
     if (!projectId || !projectData) {
       return NextResponse.json(
         { error: 'Missing projectId or projectData' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: corsHeaders
+        }
       )
     }
 
@@ -193,6 +238,8 @@ export async function POST(request: NextRequest) {
         generationTimeMs: doc.metadata.generationTimeMs,
         prompt: doc.metadata.prompt // Include prompt for debugging
       }))
+    }, {
+      headers: corsHeaders
     })
 
   } catch (error) {
@@ -219,7 +266,10 @@ export async function POST(request: NextRequest) {
           error: 'Security violation: PII detected in request',
           details: 'Personal information was detected and blocked'
         },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: corsHeaders
+        }
       )
     }
     
@@ -230,7 +280,10 @@ export async function POST(request: NextRequest) {
           error: 'Configuration error',
           details: 'LLM provider is not properly configured'
         },
-        { status: 500 }
+        { 
+          status: 500,
+          headers: corsHeaders
+        }
       )
     }
     
@@ -240,7 +293,10 @@ export async function POST(request: NextRequest) {
         error: 'Document generation failed',
         details: errorMessage || 'Unknown error occurred'
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: corsHeaders
+      }
     )
   }
 }
@@ -254,7 +310,10 @@ export async function GET(request: NextRequest) {
     if (!projectId) {
       return NextResponse.json(
         { error: 'Missing projectId' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: corsHeaders
+        }
       )
     }
 
@@ -273,13 +332,18 @@ export async function GET(request: NextRequest) {
         createdAt: doc.created_at,
         updatedAt: doc.updated_at
       }))
+    }, {
+      headers: corsHeaders
     })
 
   } catch (error) {
     console.error('Error checking documents:', error)
     return NextResponse.json(
       { error: 'Failed to check documents' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: corsHeaders
+      }
     )
   }
 }
