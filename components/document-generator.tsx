@@ -543,8 +543,8 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
               <div className="flex items-start gap-2">
                 <Sparkles className="h-4 w-4 text-purple-400 mt-0.5" />
                 <div className="flex-1">
-                  <h5 className="text-sm font-medium text-purple-100 mb-1">Project Genie Enhanced Intelligence</h5>
-                  <p className="text-xs text-purple-200/80">
+                  <h5 className="text-sm font-medium text-white mb-1">Project Genie Enhanced Intelligence</h5>
+                  <p className="text-xs text-gray-300">
                     Technical Landscape and Comparable Projects analyses are always generated as they provide essential context 
                     for creating more accurate and insightful project documents.
                   </p>
