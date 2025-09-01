@@ -134,6 +134,10 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
     setStatus('generating')
     setError(null)
     
+    // Declare interval refs outside try/catch
+    let progressInterval: NodeJS.Timeout | undefined
+    let completionInterval: NodeJS.Timeout | undefined
+    
     // Initialize document progress tracking for selected documents only
     // Order them according to methodology (research docs first for PRINCE2)
     const methodologyOrder = getMethodologyDocuments(projectData.methodology as string)
@@ -174,15 +178,25 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       await new Promise(resolve => setTimeout(resolve, 500))
       
       // Step 5: Generate with AI
-      updateProgress(4, 'AI is creating your documents... This may take 2-5 minutes for complex documents')
+      updateProgress(4, 'AI is creating your documents... This may take up to 10 minutes for complex documents')
       console.log('[DocumentGenerator] Starting document generation:', {
         projectId,
         methodology: projectData.methodology,
         timestamp: new Date().toISOString()
       })
       
-      // Mark all documents as generating
-      setDocumentProgress(prev => prev.map(doc => ({ ...doc, status: 'generating' })))
+      // Start a progress simulation - update documents one by one
+      progressInterval = setInterval(() => {
+        setDocumentProgress(prev => {
+          const pendingIndex = prev.findIndex(doc => doc.status === 'pending')
+          if (pendingIndex >= 0) {
+            const updated = [...prev]
+            updated[pendingIndex] = { ...updated[pendingIndex], status: 'generating' }
+            return updated
+          }
+          return prev
+        })
+      }, 2000) // Mark a new document as generating every 2 seconds
       
       // Call generation API with timeout
       const controller = new AbortController()
@@ -338,18 +352,42 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
         })))
       }
       
-      // Update progress based on success/failure
-      setDocumentProgress(prev => prev.map(doc => {
-        const successful = successfulDocs.find(d => d.title === doc.name || d.type === doc.name.toLowerCase().replace(/ /g, '_'))
-        const failed = failedDocs.find(d => d.title === doc.name || d.type === doc.name.toLowerCase().replace(/ /g, '_'))
-        
-        if (successful) {
-          return { ...doc, status: 'completed' }
-        } else if (failed) {
-          return { ...doc, status: 'failed', error: 'Generation failed' }
-        }
-        return doc
-      }))
+      // Clear the progress interval
+      clearInterval(progressInterval)
+      
+      // Simulate progressive completion - mark documents as completed one by one
+      let completedCount = 0
+      completionInterval = setInterval(() => {
+        setDocumentProgress(prev => {
+          const generatingIndex = prev.findIndex(doc => doc.status === 'generating')
+          if (generatingIndex >= 0 && completedCount < successfulDocs.length) {
+            const updated = [...prev]
+            const successful = successfulDocs[completedCount]
+            const docIndex = prev.findIndex(doc => 
+              successful && (doc.name === successful.title || doc.name === successful.type)
+            )
+            if (docIndex >= 0) {
+              updated[docIndex] = { ...updated[docIndex], status: 'completed' }
+              completedCount++
+            }
+            return updated
+          } else {
+            clearInterval(completionInterval)
+            // Final update to mark any remaining documents
+            return prev.map(doc => {
+              const successful = successfulDocs.find(d => d.title === doc.name || d.type === doc.name.toLowerCase().replace(/ /g, '_'))
+              const failed = failedDocs.find(d => d.title === doc.name || d.type === doc.name.toLowerCase().replace(/ /g, '_'))
+              
+              if (successful) {
+                return { ...doc, status: 'completed' }
+              } else if (failed) {
+                return { ...doc, status: 'failed', error: 'Generation failed' }
+              }
+              return doc
+            })
+          }
+        })
+      }, 500) // Mark a document as completed every 500ms
       
       setProgress(100)
       
@@ -377,6 +415,19 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
         error: err instanceof Error ? err.message : 'Unknown error',
         stack: err instanceof Error ? err.stack : undefined
       })
+      // Clear any running intervals
+      if (typeof progressInterval !== 'undefined') {
+        clearInterval(progressInterval)
+      }
+      if (typeof completionInterval !== 'undefined') {
+        clearInterval(completionInterval)
+      }
+      // Mark all pending/generating documents as failed
+      setDocumentProgress(prev => prev.map(doc => 
+        doc.status === 'pending' || doc.status === 'generating' 
+          ? { ...doc, status: 'failed', error: 'Generation interrupted' }
+          : doc
+      ))
       setStatus('error')
       setError(err instanceof Error ? err.message : 'Failed to generate documents')
       setMessage('')
@@ -710,7 +761,7 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
                   <Sparkles className="h-4 w-4 text-blue-400" />
                   <AlertDescription className="text-sm">
                     <strong>AI Working:</strong> Creating customized documents based on your project details. 
-                    This typically takes 2-5 minutes depending on document complexity.
+                    This typically takes up to 10 minutes depending on document complexity.
                   </AlertDescription>
                 </Alert>
                 {providerInfo && (
