@@ -34,6 +34,10 @@ interface ProjectData {
   methodology: MethodologyType
   companyWebsite: string
   sector: string
+  budget: string
+  timeline: string
+  startDate: string
+  endDate: string
   stakeholders: Stakeholder[]
   prince2Stakeholders?: {
     seniorUser: Stakeholder
@@ -71,6 +75,7 @@ const SECTORS = [
 const STEPS = [
   { id: 'methodology', title: 'Choose Methodology', description: 'Select your project management approach' },
   { id: 'basics', title: 'Project Basics', description: 'Define your project fundamentals' },
+  { id: 'timeline', title: 'Timeline & Budget', description: 'Set project timeline and budget' },
   { id: 'stakeholders', title: 'Key Stakeholders', description: 'Identify project stakeholders' },
   { id: 'agilometer', title: 'Agilometer', description: 'Fine-tune your hybrid approach' },
   { id: 'review', title: 'Review & Create', description: 'Confirm your project setup' },
@@ -88,6 +93,10 @@ export default function NewProjectPage() {
     methodology: 'agile',
     companyWebsite: '',
     sector: '',
+    budget: '',
+    timeline: '',
+    startDate: '',
+    endDate: '',
     stakeholders: [{ name: '', email: '', title: '' }],
     prince2Stakeholders: {
       seniorUser: { name: '', email: '', title: '' },
@@ -131,6 +140,10 @@ export default function NewProjectPage() {
       methodology: demo.methodology,
       companyWebsite: demo.companyWebsite,
       sector: demo.sector,
+      budget: demo.budget?.toString() || '',
+      timeline: demo.timeline || '',
+      startDate: demo.startDate || '',
+      endDate: demo.endDate || '',
       stakeholders: demoStakeholders.slice(0, 3), // Take first 3 for general stakeholders
       prince2Stakeholders: demo.prince2Stakeholders ? {
         seniorUser: {
@@ -164,6 +177,8 @@ export default function NewProjectPage() {
         return projectData.companyWebsite && projectData.sector
       case 'basics':
         return projectData.name && projectData.vision
+      case 'timeline':
+        return true // All fields are optional
       case 'stakeholders':
         if (projectData.methodology === 'prince2') {
           return projectData.prince2Stakeholders?.seniorUser.name && 
@@ -238,7 +253,11 @@ export default function NewProjectPage() {
         status: 'planning',
         company_info: {
           website: projectData.companyWebsite,
-          sector: projectData.sector
+          sector: projectData.sector,
+          budget: projectData.budget || null,
+          timeline: projectData.timeline || null,
+          startDate: projectData.startDate || null,
+          endDate: projectData.endDate || null
         }
       }
 
@@ -498,6 +517,83 @@ export default function NewProjectPage() {
                 placeholder="Outline the business justification, ROI, and expected benefits..."
                 rows={4}
               />
+            </div>
+          </div>
+        )
+
+      case 'timeline':
+        return (
+          <div className="space-y-6">
+            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              <p className="text-sm text-purple-800 dark:text-purple-200">
+                These fields are optional but help generate more accurate project plans, schedules, and resource allocations.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="budget">Project Budget</Label>
+                <Input
+                  id="budget"
+                  type="text"
+                  value={projectData.budget}
+                  onChange={(e) => setProjectData({ ...projectData, budget: e.target.value })}
+                  placeholder="e.g., $500,000 or £2.5M"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Helps generate realistic cost estimates
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="timeline">Project Timeline</Label>
+                <Input
+                  id="timeline"
+                  type="text"
+                  value={projectData.timeline}
+                  onChange={(e) => setProjectData({ ...projectData, timeline: e.target.value })}
+                  placeholder="e.g., 6 months, 18 months"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Duration for the project
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={projectData.startDate}
+                  onChange={(e) => setProjectData({ ...projectData, startDate: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  When the project will begin
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="endDate">Target End Date</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={projectData.endDate}
+                  onChange={(e) => setProjectData({ ...projectData, endDate: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Expected completion date
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+              <h4 className="font-medium text-sm mb-2">Why provide this information?</h4>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• Generates accurate project schedules and Gantt charts</li>
+                <li>• Creates realistic resource allocation plans</li>
+                <li>• Improves risk assessment and mitigation strategies</li>
+                <li>• Enables better milestone and deliverable planning</li>
+              </ul>
             </div>
           </div>
         )
@@ -794,6 +890,31 @@ export default function NewProjectPage() {
                 </div>
               )}
 
+              {(projectData.budget || projectData.timeline || projectData.startDate || projectData.endDate) && (
+                <div>
+                  <h4 className="font-medium mb-1">Timeline & Budget</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {projectData.budget && (
+                      <>
+                        <strong>Budget:</strong> {
+                          isNaN(Number(projectData.budget)) 
+                            ? projectData.budget 
+                            : new Intl.NumberFormat('en-US', { 
+                                style: 'currency', 
+                                currency: 'USD',
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0
+                              }).format(Number(projectData.budget))
+                        }<br />
+                      </>
+                    )}
+                    {projectData.timeline && <><strong>Timeline:</strong> {projectData.timeline}<br /></>}
+                    {projectData.startDate && <><strong>Start Date:</strong> {new Date(projectData.startDate).toLocaleDateString()}<br /></>}
+                    {projectData.endDate && <><strong>End Date:</strong> {new Date(projectData.endDate).toLocaleDateString()}</>}
+                  </p>
+                </div>
+              )}
+
               <div>
                 <h4 className="font-medium mb-1">Stakeholders</h4>
                 <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
@@ -893,8 +1014,8 @@ export default function NewProjectPage() {
           </p>
         </div>
 
-        {/* Demo Selector - Only shown in development */}
-        {process.env.NODE_ENV === 'development' && currentStep === 0 && (
+        {/* Demo Selector - Available for beta testing */}
+        {currentStep === 0 && (
           <DemoSelector onSelectDemo={handleDemoSelect} />
         )}
 

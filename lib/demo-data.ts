@@ -1,4 +1,4 @@
-// Demo data for development testing - REMOVE IN PRODUCTION
+// Demo data for testing - Available in both development and production for beta testing
 export const demoProjects = {
   techStartup: {
     projectName: "CloudSync Platform Development",
@@ -8,6 +8,10 @@ export const demoProjects = {
     methodology: "agile" as const,
     companyWebsite: "https://techventures.io",
     sector: "Technology / SaaS",
+    budget: 2500000, // $2.5M
+    startDate: "2025-10-01",
+    endDate: "2026-06-30",
+    timeline: "9 months",
     stakeholders: [
       { name: "Sarah Chen", role: "CEO & Product Visionary", email: "s.chen@techventures.io" },
       { name: "Marcus Johnson", role: "CTO & Technical Lead", email: "m.johnson@techventures.io" },
@@ -37,6 +41,10 @@ export const demoProjects = {
     methodology: "prince2" as const,
     companyWebsite: "https://premiers-bank.co.uk",
     sector: "Financial Services / Banking",
+    budget: 12000000, // £12M
+    startDate: "2025-07-01",
+    endDate: "2027-01-31",
+    timeline: "18 months",
     stakeholders: [
       { name: "James Wellington", role: "Chief Executive Officer", email: "j.wellington@premiers-bank.co.uk" },
       { name: "Margaret Thornton", role: "Chief Risk Officer", email: "m.thornton@premiers-bank.co.uk" },
@@ -67,6 +75,10 @@ export const demoProjects = {
     methodology: "hybrid" as const,
     companyWebsite: "https://royalhealth-nhs.org.uk",
     sector: "Healthcare / Public Sector",
+    budget: 8000000, // £8M
+    startDate: "2025-09-01",
+    endDate: "2026-08-31",
+    timeline: "12 months",
     stakeholders: [
       { name: "Dr. Amanda Foster", role: "Medical Director", email: "a.foster@royalhealth-nhs.org.uk" },
       { name: "Michael O'Brien", role: "Chief Operating Officer", email: "m.obrien@royalhealth-nhs.org.uk" },

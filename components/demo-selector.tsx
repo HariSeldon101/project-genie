@@ -21,7 +21,8 @@ interface DemoSelectorProps {
 }
 
 export function DemoSelector({ onSelectDemo, isVisible = true }: DemoSelectorProps) {
-  if (!isVisible || process.env.NODE_ENV === 'production') {
+  // Show demo selector in both development and production for beta testing
+  if (!isVisible) {
     return null
   }
 
@@ -37,6 +38,7 @@ export function DemoSelector({ onSelectDemo, isVisible = true }: DemoSelectorPro
       industry: 'Technology',
       budget: '$2.5M',
       duration: '9 months',
+      dates: 'Oct 2025 - Jun 2026',
       techStack: ['React', 'Node.js', 'AWS', 'AI/ML']
     },
     {
@@ -50,6 +52,7 @@ export function DemoSelector({ onSelectDemo, isVisible = true }: DemoSelectorPro
       industry: 'Financial Services',
       budget: '£12M',
       duration: '18 months',
+      dates: 'Jul 2025 - Jan 2027',
       techStack: ['Java', 'Oracle', 'Kubernetes', 'Blockchain']
     },
     {
@@ -63,6 +66,7 @@ export function DemoSelector({ onSelectDemo, isVisible = true }: DemoSelectorPro
       industry: 'Healthcare',
       budget: '£8M',
       duration: '12 months',
+      dates: 'Sep 2025 - Aug 2026',
       techStack: ['Python', 'PostgreSQL', 'FHIR', 'AI Diagnostics']
     }
   ]
@@ -75,13 +79,12 @@ export function DemoSelector({ onSelectDemo, isVisible = true }: DemoSelectorPro
           Development Mode - Demo Projects
         </h3>
         <Badge variant="outline" className="ml-auto bg-yellow-100 dark:bg-yellow-800">
-          DEV ONLY
+          BETA TESTING
         </Badge>
       </div>
       
       <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-4">
-        Select a demo project to auto-fill the wizard with realistic test data. 
-        These options will not appear in production.
+        Select a demo project to auto-fill the wizard with realistic test data for beta testing.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -132,6 +135,10 @@ export function DemoSelector({ onSelectDemo, isVisible = true }: DemoSelectorPro
                   <span>{demo.techStack.length} techs</span>
                 </div>
               </div>
+              
+              <div className="text-xs text-muted-foreground font-medium">
+                📅 {demo.dates}
+              </div>
 
               <div className="flex flex-wrap gap-1 pt-2">
                 {demo.techStack.map((tech) => (
@@ -171,9 +178,7 @@ export function DemoSelector({ onSelectDemo, isVisible = true }: DemoSelectorPro
 
 // Compact version for smaller spaces
 export function DemoSelectorCompact({ onSelectDemo }: DemoSelectorProps) {
-  if (process.env.NODE_ENV === 'production') {
-    return null
-  }
+  // Available in production for beta testing
 
   return (
     <div className="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-400 dark:border-yellow-600 rounded-md">
