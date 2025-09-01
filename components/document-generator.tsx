@@ -242,17 +242,31 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
           } else if (contentType && contentType.includes('text/html')) {
             // Vercel returns HTML error pages in production
             console.warn('[DocumentGenerator] Received HTML error page instead of JSON')
-            if (response.status === 405) {
-              errorMessage = 'Method not allowed. This may be due to Vercel deployment protection.'
+            const text = await response.text()
+            
+            // Check for specific Vercel error patterns
+            if (text.includes('DEPLOYMENT_NOT_FOUND') || response.status === 404) {
+              errorMessage = 'Service temporarily unavailable. Please try again in a moment.'
+            } else if (response.status === 405) {
+              errorMessage = 'Method not allowed. Please ensure you are logged in and try again.'
             } else if (response.status === 401) {
               errorMessage = 'Authentication required. Please log in and try again.'
+            } else if (response.status === 500 || response.status === 502) {
+              errorMessage = 'Server error. Please try again in a few moments.'
+            } else {
+              // Generic HTML response error
+              errorMessage = 'Unable to generate documents. Please refresh the page and try again.'
             }
+            
+            console.error('[DocumentGenerator] HTML response detected, likely Vercel protection:', text.substring(0, 500))
           } else {
             const text = await response.text()
             console.error('[DocumentGenerator] Non-JSON error response:', text.substring(0, 200))
+            errorMessage = 'Unexpected response from server. Please try again.'
           }
         } catch (parseError) {
           console.error('[DocumentGenerator] Could not parse error response:', parseError)
+          errorMessage = 'Connection error. Please check your internet connection and try again.'
         }
         
         throw new Error(errorMessage)
@@ -265,15 +279,29 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       try {
         if (contentType && contentType.includes('application/json')) {
           responseData = await response.json()
-        } else {
-          // This shouldn't happen for successful responses
+        } else if (contentType && contentType.includes('text/html')) {
+          // This means we got an HTML page even with a 200 status - likely Vercel auth wall
           const text = await response.text()
-          console.error('[DocumentGenerator] Unexpected non-JSON success response:', text.substring(0, 200))
-          throw new Error('Server returned successful response but not in JSON format')
+          console.error('[DocumentGenerator] Got HTML response with 200 status - likely Vercel auth:', text.substring(0, 500))
+          
+          if (text.includes('Vercel') || text.includes('deployment') || text.includes('protection')) {
+            throw new Error('Access denied by deployment protection. Please ensure you are properly authenticated.')
+          } else {
+            throw new Error('Service configuration error. Please contact support.')
+          }
+        } else {
+          // Unexpected content type for successful response
+          const text = await response.text()
+          console.error('[DocumentGenerator] Unexpected content-type for success response:', contentType, text.substring(0, 200))
+          throw new Error('Server returned successful response but not in expected format')
         }
       } catch (parseError) {
+        // Re-throw if it's already our error
+        if (parseError.message.includes('Access denied') || parseError.message.includes('Service configuration')) {
+          throw parseError
+        }
         console.error('[DocumentGenerator] Failed to parse successful response:', parseError)
-        throw new Error(`Failed to parse server response: ${parseError.message}`)
+        throw new Error(`Unable to process server response. Please try again.`)
       }
 
       const result = responseData
