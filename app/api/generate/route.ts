@@ -101,6 +101,24 @@ export async function POST(request: NextRequest) {
     // Parse request body
     const { projectId, projectData, selectedDocuments, forceProvider } = await request.json()
     
+    // Log wizard data to verify it's being received correctly
+    console.log('[API] Received project data:', {
+      name: projectData.name,
+      methodology: projectData.methodology,
+      budget: projectData.budget,
+      timeline: projectData.timeline,
+      startDate: projectData.startDate,
+      endDate: projectData.endDate,
+      stakeholderCount: projectData.stakeholders?.length || 0,
+      selectedDocumentCount: selectedDocuments?.length || 0
+    })
+    
+    // Ensure required Project Genie Intelligence documents are always included
+    const requiredDocuments = ['Technical Landscape', 'Comparable Projects']
+    const documentsToGenerate = selectedDocuments ? [...new Set([...requiredDocuments, ...selectedDocuments])] : requiredDocuments
+    
+    console.log('[API] Documents to generate (with required):', documentsToGenerate)
+    
     // For testing purposes, allow unauthenticated requests with forceProvider
     if (!user && !forceProvider) {
       logger.warn('AUTH_FAILED', 'Authentication failed for generate endpoint', {
@@ -145,11 +163,11 @@ export async function POST(request: NextRequest) {
     // Log provider info
     const providerInfo = generator.getProviderInfo()
     console.log('[API] Using LLM Provider:', providerInfo)
-    console.log('[API] Selected documents:', selectedDocuments)
+    console.log('[API] Documents being generated:', documentsToGenerate)
     
     // Generate documents without artificial timeout - let Vercel's maxDuration handle it
     const generationStartTime = Date.now()
-    const documents = await generator.generateProjectDocuments(projectData, projectId, selectedDocuments)
+    const documents = await generator.generateProjectDocuments(projectData, projectId, documentsToGenerate)
     const generationTimeMs = Date.now() - generationStartTime
 
     // Get aggregated metrics from generator

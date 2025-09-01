@@ -146,6 +146,24 @@ export class DocumentGenerator {
     projectId: string,
     selectedDocuments?: string[]
   ): Promise<GeneratedDocument[]> {
+    // Log incoming project data to verify wizard data flow
+    console.log(`
+==========================================
+🚀 DOCUMENT GENERATION SESSION STARTED
+==========================================
+  🎯 Methodology: ${projectData.methodology}
+  📝 Documents: ${selectedDocuments?.length || 'All'} selected
+  💰 Budget: ${projectData.budget || 'Not specified'}
+  📅 Timeline: ${projectData.timeline || 'Not specified'}
+  📆 Start Date: ${projectData.startDate || 'Not specified'}
+  📆 End Date: ${projectData.endDate || 'Not specified'}
+  👥 Stakeholders: ${(projectData.stakeholders as any[])?.length || 0}
+  🔧 Provider: ${this.getProvider()}
+  ⏱️  Time: ${new Date().toISOString()}
+==========================================
+`)
+    console.log('Selected documents to generate:', selectedDocuments)
+    
     // Sanitize project data first
     const sanitizedData = this.sanitizer.sanitizeProjectData(projectData)
     

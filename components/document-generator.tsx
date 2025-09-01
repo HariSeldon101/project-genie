@@ -19,7 +19,8 @@ import {
   Terminal,
   CheckSquare,
   Square,
-  DollarSign
+  DollarSign,
+  Lock
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -427,7 +428,16 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
   }
 
   
+  // Define required Project Genie Intelligence documents
+  const requiredDocuments = ['Technical Landscape', 'Comparable Projects']
+  const isRequiredDocument = (docName: string) => requiredDocuments.includes(docName)
+  
   const toggleDocument = (docName: string) => {
+    // Prevent deselection of required documents
+    if (isRequiredDocument(docName)) {
+      return // Don't allow toggling required documents
+    }
+    
     setSelectedDocuments(prev => {
       const newSet = new Set(prev)
       if (newSet.has(docName)) {
@@ -441,8 +451,8 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
   
   const toggleAllDocuments = () => {
     if (selectedDocuments.size === allDocuments.length) {
-      // If all selected, deselect all
-      setSelectedDocuments(new Set())
+      // If all selected, deselect all except required documents
+      setSelectedDocuments(new Set(requiredDocuments))
     } else {
       // Otherwise, select all
       setSelectedDocuments(new Set(allDocuments))
@@ -528,6 +538,20 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
         {status === 'idle' && (
           <>
 
+            {/* Project Genie Enhanced Intelligence Info */}
+            <div className="bg-purple-500/10 rounded-lg p-3 border border-purple-500/20 mb-4">
+              <div className="flex items-start gap-2">
+                <Sparkles className="h-4 w-4 text-purple-400 mt-0.5" />
+                <div className="flex-1">
+                  <h5 className="text-sm font-medium text-purple-100 mb-1">Project Genie Enhanced Intelligence</h5>
+                  <p className="text-xs text-purple-200/80">
+                    Technical Landscape and Comparable Projects analyses are always generated as they provide essential context 
+                    for creating more accurate and insightful project documents.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-medium">Documents to be generated:</h4>
@@ -545,41 +569,49 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
                 </Button>
               </div>
               <ul className="space-y-2">
-                {getMethodologyDocuments(projectData.methodology).map((doc, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <Checkbox
-                      id={`doc-${i}`}
-                      checked={selectedDocuments.has(doc)}
-                      onCheckedChange={() => toggleDocument(doc)}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1">
-                      <label 
-                        htmlFor={`doc-${i}`}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{doc}</span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setSelectedDocInfo(doc)
-                            }}
-                            className="text-blue-400 hover:text-blue-300 transition-colors"
-                            aria-label={`View details for ${doc}`}
-                          >
-                            <Info className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {documentDescriptions[doc]?.brief}
-                        </p>
-                      </label>
-                    </div>
-                  </li>
-                ))}
+                {getMethodologyDocuments(projectData.methodology).map((doc, i) => {
+                  const isRequired = isRequiredDocument(doc)
+                  return (
+                    <li key={i} className={`flex items-start gap-2 ${isRequired ? 'opacity-90' : ''}`}>
+                      <Checkbox
+                        id={`doc-${i}`}
+                        checked={selectedDocuments.has(doc)}
+                        onCheckedChange={() => toggleDocument(doc)}
+                        disabled={isRequired}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <label 
+                          htmlFor={`doc-${i}`}
+                          className={isRequired ? "cursor-not-allowed" : "cursor-pointer"}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{doc}</span>
+                            {isRequired && (
+                              <Lock className="h-3 w-3 text-purple-400" title="Required for Project Genie Enhanced Intelligence" />
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setSelectedDocInfo(doc)
+                              }}
+                              className="text-blue-400 hover:text-blue-300 transition-colors"
+                              aria-label={`View details for ${doc}`}
+                            >
+                              <Info className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {documentDescriptions[doc]?.brief}
+                            {isRequired && ' (Required for enhanced AI intelligence)'}
+                          </p>
+                        </label>
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
               {selectedDocuments.size > 0 && (
                 <div className="mt-3 pt-3 border-t border-white/10">
