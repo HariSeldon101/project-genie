@@ -6,6 +6,7 @@ import { VercelAIProvider } from './providers/vercel-ai'
 import { OllamaProvider } from './providers/ollama'
 import { MockProvider } from './providers/mock'
 import { DataSanitizer } from './sanitizer'
+import { ToolConfig } from '../documents/tool-config'
 
 export class LLMGateway {
   private provider: LLMProvider
@@ -32,11 +33,11 @@ export class LLMGateway {
       }
     }
     
-    // Default configuration - FORCE GPT-5 mini for better performance
+    // Default configuration - Allow model override for tool-enabled documents
     this.config = {
       provider: (config?.provider || process.env.LLM_PROVIDER || primaryProvider) as LLMConfig['provider'],
       apiKey: config?.apiKey,
-      model: config?.model || process.env.LLM_MODEL || 'gpt-5-mini', // Default to GPT-5 mini
+      model: config?.model || process.env.LLM_MODEL || 'gpt-5-mini', // Default but can be overridden
       maxTokens: config?.maxTokens || parseInt(process.env.LLM_MAX_TOKENS || '4000'),
       temperature: config?.temperature || parseFloat(process.env.LLM_TEMPERATURE || '0.7'),
       baseUrl: config?.baseUrl || process.env.OLLAMA_BASE_URL,
@@ -154,6 +155,53 @@ export class LLMGateway {
     
     // Sanitize response before returning
     return this.sanitizer.sanitizeResponse(response)
+  }
+
+  /**
+   * Generate text with tools support (web search, etc.)
+   */
+  async generateTextWithTools(prompt: LLMPrompt, tools?: ToolConfig[]): Promise<any> {
+    // Validate prompt for PII before sending
+    this.sanitizer.validatePrompt(prompt.system)
+    this.sanitizer.validatePrompt(prompt.user)
+    
+    console.log('[LLMGateway] Generating text with tools:', {
+      provider: this.config.provider,
+      model: this.config.model || 'default',
+      promptLength: prompt.system.length + prompt.user.length,
+      temperature: prompt.temperature || this.config.temperature,
+      toolsCount: tools?.length || 0,
+      hasWebSearch: tools?.some(t => t.type === 'web_search')
+    })
+    
+    // Log for audit
+    await this.sanitizer.logSecurityEvent('PROMPT_VALIDATED_WITH_TOOLS', {
+      provider: this.config.provider,
+      model: this.config.model,
+      tools: tools?.map(t => t.type),
+      timestamp: new Date().toISOString()
+    })
+    
+    // Check if provider supports generateTextWithTools
+    if (typeof (this.provider as any).generateTextWithTools === 'function') {
+      const response = await (this.provider as any).generateTextWithTools(prompt, tools)
+      const sanitizedContent = typeof response.content === 'string' 
+        ? this.sanitizer.sanitizeResponse(response.content)
+        : response.content
+      
+      return {
+        content: sanitizedContent,
+        usage: response.usage,
+        provider: response.provider || this.config.provider,
+        model: response.model || this.config.model,
+        generationTimeMs: response.generationTimeMs,
+        toolsUsed: response.toolsUsed
+      }
+    }
+    
+    // Fallback to regular generateTextWithMetrics if tools not supported
+    console.warn('[LLMGateway] Provider does not support tools, falling back to standard generation')
+    return this.generateTextWithMetrics(prompt)
   }
 
   /**

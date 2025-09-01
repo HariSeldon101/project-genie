@@ -516,15 +516,28 @@ export class UnifiedBusinessCaseFormatter extends BaseUnifiedFormatter<BusinessC
         <h2>4. Business Options</h2>
         
         <h3>4.1 Options Considered</h3>
-        ${options.map((opt, index) => `
-          <div class="business-option">
-            <h4>Option ${index + 1}: ${opt.option}</h4>
-            ${opt.description ? `<p><strong>Description:</strong> ${opt.description}</p>` : ''}
-            <p><strong>Costs:</strong> ${opt.costs}</p>
-            <p><strong>Benefits:</strong> ${opt.benefits}</p>
-            <p><strong>Risks:</strong> ${opt.risks}</p>
-          </div>
-        `).join('')}
+        <table class="options-table">
+          <thead>
+            <tr>
+              <th style="width: 15%">Option</th>
+              <th style="width: 35%">Description</th>
+              <th style="width: 15%">Costs</th>
+              <th style="width: 35%">Benefits</th>
+              <th style="width: 35%">Risks</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${options.map((opt, index) => `
+              <tr>
+                <td><strong>Option ${index + 1}: ${opt.option}</strong></td>
+                <td>${opt.description || 'N/A'}</td>
+                <td>${opt.costs}</td>
+                <td>${opt.benefits}</td>
+                <td>${opt.risks}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
         
         <h3>4.2 Options Comparison Matrix</h3>
         <table class="comparison-matrix">

@@ -570,6 +570,18 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       full: 'The Comparable Projects analysis examines similar initiatives to identify best practices, risks, and success factors.',
       purpose: 'To leverage insights from similar projects, avoid common pitfalls, and apply proven strategies for success.',
       structure: ['Project Comparisons', 'Industry Benchmarks', 'Success Factors', 'Common Challenges', 'Lessons Learned', 'Best Practices', 'Risk Patterns']
+    },
+    'Quality Management Strategy': {
+      brief: 'Quality standards and assurance processes',
+      full: 'The Quality Management Strategy defines the quality standards, processes, and procedures to ensure project deliverables meet requirements.',
+      purpose: 'To establish how quality will be managed throughout the project lifecycle, ensuring deliverables meet stakeholder expectations.',
+      structure: ['Quality Standards', 'Quality Assurance Process', 'Quality Control Measures', 'Acceptance Criteria', 'Review Procedures', 'Quality Metrics', 'Continuous Improvement']
+    },
+    'Communication Plan': {
+      brief: 'Stakeholder engagement and information flow',
+      full: 'The Communication Plan outlines how project information will be distributed to stakeholders, ensuring effective communication throughout the project.',
+      purpose: 'To define communication requirements, methods, frequency, and responsibilities to keep all stakeholders informed and engaged.',
+      structure: ['Stakeholder Analysis', 'Communication Matrix', 'Information Distribution Methods', 'Meeting Schedule', 'Reporting Structure', 'Escalation Procedures', 'Feedback Mechanisms']
     }
   }
 
@@ -594,8 +606,8 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
               <div className="flex items-start gap-2">
                 <Sparkles className="h-4 w-4 text-purple-400 mt-0.5" />
                 <div className="flex-1">
-                  <h5 className="text-sm font-medium text-purple-200 mb-1">Project Genie Enhanced Intelligence</h5>
-                  <p className="text-xs text-purple-100">
+                  <h5 className="text-sm font-medium mb-1">Project Genie Enhanced Intelligence</h5>
+                  <p className="text-xs text-muted-foreground">
                     Technical Landscape and Comparable Projects analyses are always generated as they provide essential context 
                     for creating more accurate and insightful project documents.
                   </p>

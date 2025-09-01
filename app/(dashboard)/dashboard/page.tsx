@@ -263,7 +263,14 @@ export default function DashboardPage() {
                     )}
                     <div className="mt-4 flex items-center text-sm text-gray-600">
                       <Clock className="h-4 w-4 mr-1" />
-                      Updated {new Date(project.updated_at).toLocaleDateString()}
+                      Updated {new Date(project.updated_at).toLocaleString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
                     </div>
                   </CardContent>
                 </Card>

@@ -15,6 +15,7 @@ import { TwoStageGenerator, ResearchContext } from './two-stage-generator'
 import { DevLogger } from '@/lib/utils/dev-logger'
 import { SectionedDocumentGenerator } from './sectioned-generator'
 import { StructuredDocumentGenerator } from './structured-generator'
+import { getDocumentToolConfig, isWebSearchEnabled, ToolConfig } from './tool-config'
 
 // GPT-5 optimized document configurations based on architecture doc
 // Reasoning effort levels optimized for document complexity
@@ -1799,8 +1800,15 @@ Agilometer Settings:
     data: SanitizedProjectData,
     projectId: string
   ): Promise<GeneratedDocument> {
-    console.log('🌐 Generating Technical Landscape Analysis...')
-    const config = DOCUMENT_CONFIG.technical_landscape
+    console.log('🌐 Generating Technical Landscape Analysis with Web Search...')
+    
+    // Get tool configuration for technical landscape
+    const toolConfig = getDocumentToolConfig('technical_landscape')
+    console.log('  📋 Tool Config:', {
+      model: toolConfig.model,
+      hasWebSearch: toolConfig.tools.some(t => t.type === 'web_search'),
+      validationRequired: toolConfig.validationRequired
+    })
     
     // Build the prompt using the technical landscape prompt builder
     const promptData = {
@@ -1816,13 +1824,23 @@ Agilometer Settings:
     }
     
     const { system, user } = technicalLandscapePrompts.analysis.buildPrompt(promptData)
-    const prompt = { system, user }
     
-    // Apply configuration to prompt
-    const optimizedPrompt = {
-      ...prompt,
-      maxTokens: config.maxTokens,
-      reasoningEffort: config.reasoningEffort
+    // Add web search instructions to the prompt
+    const enhancedUser = user + `
+
+CRITICAL: Use web search to find current technology information:
+- Search for "${data.sector} technology stack 2024"
+- Search for "cloud architecture best practices ${data.sector}"
+- Search for "API standards microservices ${data.sector}"
+- Search for "cybersecurity frameworks ${data.sector} 2024"
+- Include actual technology vendor names and versions
+- Reference real implementation examples from industry leaders`
+    
+    const prompt = { 
+      system, 
+      user: enhancedUser,
+      model: toolConfig.model, // Use cost-optimized model from config
+      maxTokens: 12000 // Increased for comprehensive analysis
     }
     
     // Generate with retry logic
@@ -1835,14 +1853,41 @@ Agilometer Settings:
       try {
         attempts++
         console.log(`  Attempt ${attempts}/${maxAttempts}...`)
-        metricsResponse = await this.gateway.generateTextWithMetrics(optimizedPrompt)
+        console.log(`  🔍 Using web search with model: ${toolConfig.model}`)
+        
+        // Use generateTextWithTools for web search support
+        metricsResponse = await this.gateway.generateTextWithTools(prompt, toolConfig.tools)
         content = metricsResponse.content
+        
+        console.log(`  ✅ Response received:`, {
+          contentLength: content.length,
+          hasUsage: !!metricsResponse.usage,
+          toolsUsed: metricsResponse.toolsUsed
+        })
         
         // Validate content is not empty
         if (!content || content.trim() === '') {
           documentLogger.logEmptyContent('technical_landscape', this.getProvider(), attempts)
           throw new Error('Empty content received from LLM')
         }
+        
+        // Validate content has real technologies if validation required
+        if (toolConfig.validationRequired) {
+          const hasRealTech = /AWS|Azure|Google Cloud|Kubernetes|Docker|React|Angular|Vue|Node\.js|Python|Java|MongoDB|PostgreSQL/i.test(content)
+          const hasVersions = /\d+\.\d+|\d{4}/g.test(content) // Look for version numbers or years
+          
+          if (!hasRealTech || !hasVersions) {
+            console.warn(`  ⚠️ Content validation failed - missing real technologies or versions`)
+            if (attempts < maxAttempts) {
+              console.log(`  🔄 Retrying with enhanced search instructions...`)
+              content = '' // Reset to trigger retry
+              continue
+            }
+          } else {
+            console.log(`  ✅ Content validation passed - has real technologies and versions`)
+          }
+        }
+        
       } catch (error: any) {
         console.warn(`  ⚠️ Attempt ${attempts} failed: ${error.message}`)
         documentLogger.logGenerationFailure(projectId, 'technical_landscape', error, attempts, maxAttempts)
@@ -1861,12 +1906,12 @@ Agilometer Settings:
       version: 1,
       generatedAt: new Date(),
       llmProvider: metricsResponse?.provider || this.getProvider(),
-      model: metricsResponse?.model || this.getProviderInfo().model,
+      model: metricsResponse?.model || toolConfig.model,
       temperature: 0.7,
-      maxTokens: config.maxTokens,
-      reasoningEffort: config.reasoningEffort,
+      maxTokens: 12000,
       usage: metricsResponse?.usage,
-      generationTimeMs: metricsResponse?.generationTimeMs
+      generationTimeMs: metricsResponse?.generationTimeMs,
+      toolsUsed: metricsResponse?.toolsUsed
     }
     
     return {
@@ -1874,7 +1919,8 @@ Agilometer Settings:
       content: { analysis: content },
       aiInsights: {
         keyTechnologies: ['Cloud Architecture', 'API Design', 'Security Framework'],
-        recommendations: ['Adopt microservices', 'Implement CI/CD', 'Use containerization']
+        recommendations: ['Adopt microservices', 'Implement CI/CD', 'Use containerization'],
+        webSearchUsed: metricsResponse?.toolsUsed || false
       }
     }
   }
@@ -1887,9 +1933,15 @@ Agilometer Settings:
     projectId: string
   ): Promise<GeneratedDocument> {
     DevLogger.logSection('generateComparableProjects')
-    console.log('📊 Generating Comparable Projects Analysis...')
-    const config = DOCUMENT_CONFIG.comparable_projects
-    const providerInfo = this.getProviderInfo()
+    console.log('📊 Generating Comparable Projects Analysis with Web Search...')
+    
+    // Get tool configuration for comparable projects
+    const toolConfig = getDocumentToolConfig('comparable_projects')
+    console.log('  📋 Tool Config:', {
+      model: toolConfig.model,
+      hasWebSearch: toolConfig.tools.some(t => t.type === 'web_search'),
+      validationRequired: toolConfig.validationRequired
+    })
     
     // Build the prompt using the comparable projects prompt builder
     const promptData = {
@@ -1907,12 +1959,29 @@ Agilometer Settings:
     DevLogger.logStep('Comparable Projects prompt data', promptData)
     
     const { system, user } = comparableProjectsPrompts.analysis.buildPrompt(promptData)
+    
+    // Add web search instructions to the prompt
+    const enhancedUser = user + `
+
+CRITICAL: Use web search to find REAL examples:
+- Search for "${data.sector} digital transformation case studies 2023-2024"
+- Search for companies like "JPMorgan technology modernization", "Bank of America digital banking", etc.
+- Search for "${data.sector} IT projects budget timeline success metrics"
+- Include actual URLs from your search results as references
+- DO NOT generate generic examples - use web search to find real ones`
+    
     const prompt = { 
       system, 
-      user,
-      maxTokens: config.maxTokens,
-      reasoningEffort: config.reasoningEffort
+      user: enhancedUser,
+      model: toolConfig.model, // Use cost-optimized model from config (gpt-4o-mini for web search)
+      maxTokens: 10000 // Increased for comprehensive results
     }
+    
+    // Log the actual model being used
+    console.log(`  📊 Comparable Projects Configuration:`)
+    console.log(`     Model: ${toolConfig.model} (${toolConfig.description})`)
+    console.log(`     Web Search: ${toolConfig.tools?.some(t => t.type === 'web_search' && t.enabled) ? 'ENABLED' : 'DISABLED'}`)
+    console.log(`     Validation Required: ${toolConfig.validationRequired}`)
     
     // Generate with retry logic
     let content: string = ''
@@ -1924,17 +1993,50 @@ Agilometer Settings:
       try {
         attempts++
         console.log(`  Attempt ${attempts}/${maxAttempts}...`)
-        DevLogger.logStep(`Comparable Projects generation attempt ${attempts}`)
+        console.log(`  🔍 Using web search with model: ${prompt.model}`)
+        DevLogger.logStep(`Comparable Projects generation attempt ${attempts} with web search`, { 
+          model: prompt.model,
+          toolsEnabled: toolConfig.tools?.length > 0
+        })
         
-        // Use generateTextWithMetrics to capture usage data
-        metricsResponse = await this.gateway.generateTextWithMetrics(prompt)
+        // Use generateTextWithTools for web search support
+        metricsResponse = await this.gateway.generateTextWithTools(prompt, toolConfig.tools)
         content = metricsResponse.content
-        DevLogger.logStep('Comparable Projects response', { contentLength: content.length, hasUsage: !!metricsResponse.usage })
+        
+        console.log(`  ✅ Response received:`, {
+          contentLength: content.length,
+          hasUsage: !!metricsResponse.usage,
+          toolsUsed: metricsResponse.toolsUsed
+        })
+        
+        DevLogger.logStep('Comparable Projects response', { 
+          contentLength: content.length, 
+          hasUsage: !!metricsResponse.usage,
+          toolsUsed: metricsResponse.toolsUsed 
+        })
         
         // Validate content is not empty
         if (!content || content.trim() === '') {
           throw new Error('Empty content received from LLM')
         }
+        
+        // Validate content has real companies if validation required
+        if (toolConfig.validationRequired) {
+          const hasRealCompanies = /JPMorgan|Bank of America|Wells Fargo|Citigroup|Goldman Sachs|HSBC|Barclays/i.test(content)
+          const hasURLs = /https?:\/\/[^\s]+/g.test(content)
+          
+          if (!hasRealCompanies || !hasURLs) {
+            console.warn(`  ⚠️ Content validation failed - missing real companies or URLs`)
+            if (attempts < maxAttempts) {
+              console.log(`  🔄 Retrying with enhanced search instructions...`)
+              content = '' // Reset to trigger retry
+              continue
+            }
+          } else {
+            console.log(`  ✅ Content validation passed - has real companies and URLs`)
+          }
+        }
+        
       } catch (error: any) {
         console.warn(`  ⚠️ Attempt ${attempts} failed: ${error.message}`)
         DevLogger.logWarning(`Comparable Projects attempt ${attempts} failed`, error)
@@ -1954,13 +2056,13 @@ Agilometer Settings:
       methodology: data.methodology,
       version: 1,
       generatedAt: new Date(),
-      llmProvider: metricsResponse?.provider || providerInfo.provider,
-      model: metricsResponse?.model || providerInfo.model,
-      reasoningEffort: config.reasoningEffort,
+      llmProvider: metricsResponse?.provider || this.getProvider(),
+      model: metricsResponse?.model || toolConfig.model,
       temperature: 0.7,
-      maxTokens: config.maxTokens,
+      maxTokens: 10000,
       usage: metricsResponse?.usage,
-      generationTimeMs: metricsResponse?.generationTimeMs
+      generationTimeMs: metricsResponse?.generationTimeMs,
+      toolsUsed: metricsResponse?.toolsUsed
     }
     
     DevLogger.logStep('Comparable Projects metadata', metadata)
@@ -1970,14 +2072,16 @@ Agilometer Settings:
       content: { analysis: content },
       aiInsights: {
         criticalSuccessFactors: ['Clear objectives', 'Stakeholder buy-in', 'Adequate resources'],
-        commonPitfalls: ['Scope creep', 'Poor communication', 'Inadequate testing']
+        commonPitfalls: ['Scope creep', 'Poor communication', 'Inadequate testing'],
+        webSearchUsed: metricsResponse?.toolsUsed || false
       }
     }
     
     DevLogger.logSuccess('Comparable Projects generation complete', { 
       hasContent: !!result.content,
       hasMetadata: !!result.metadata,
-      hasUsage: !!result.metadata.usage 
+      hasUsage: !!result.metadata.usage,
+      toolsUsed: metricsResponse?.toolsUsed 
     })
     
     return result

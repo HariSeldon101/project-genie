@@ -321,3 +321,108 @@
 .document-html-content code {
   @apply bg-muted px-1 py-0.5 rounded text-sm;
 }
+
+/* Responsive table styles for document generation */
+.document-html-content table {
+  @apply w-full border-collapse my-4;
+  table-layout: auto;
+  word-wrap: break-word;
+}
+
+.document-html-content th,
+.document-html-content td {
+  @apply p-2 border;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Specific table styles for different document types */
+.document-html-content .risk-register-table {
+  table-layout: fixed;
+  font-size: 0.85rem;
+}
+
+.document-html-content .risk-register-table th {
+  @apply bg-gradient-to-r from-purple-600 to-purple-700 text-white;
+  padding: 0.5rem;
+}
+
+.document-html-content .risk-register-table td {
+  padding: 0.5rem;
+  word-break: break-word;
+}
+
+.document-html-content .options-table,
+.document-html-content .comparison-table,
+.document-html-content .project-references-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.document-html-content .options-table th,
+.document-html-content .comparison-table th,
+.document-html-content .project-references-table th {
+  @apply bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold;
+}
+
+/* Risk level color coding */
+.document-html-content .risk-critical {
+  background-color: #ffcdd2 !important;
+}
+
+.document-html-content .risk-high {
+  background-color: #ffebee !important;
+}
+
+.document-html-content .risk-medium {
+  background-color: #fff9e6 !important;
+}
+
+.document-html-content .risk-low {
+  background-color: #e8f5e9 !important;
+}
+
+.document-html-content .risk-very-low {
+  background-color: #e3f2fd !important;
+}
+
+/* Matrix cells */
+.document-html-content .matrix-critical {
+  background-color: #ffcdd2 !important;
+}
+
+.document-html-content .matrix-high {
+  background-color: #ffccbc !important;
+}
+
+.document-html-content .matrix-medium {
+  background-color: #fff9c4 !important;
+}
+
+.document-html-content .matrix-low {
+  background-color: #c8e6c9 !important;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+  .document-html-content table {
+    font-size: 0.75rem;
+  }
+  
+  .document-html-content th,
+  .document-html-content td {
+    padding: 0.25rem;
+  }
+}
+
+/* Print-specific styles */
+@media print {
+  .document-html-content table {
+    page-break-inside: avoid;
+  }
+  
+  .document-html-content tr {
+    page-break-inside: avoid;
+  }
+}

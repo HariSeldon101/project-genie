@@ -77,6 +77,7 @@ export default function AllDocumentsPage() {
   const [filterType, setFilterType] = useState('all')
   const [filterProject, setFilterProject] = useState('all')
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
+  const [currentUser, setCurrentUser] = useState<{ firstName: string; fullName: string } | null>(null)
   
   // Development mode flag - disable caching during development
   const isDevelopment = process.env.NODE_ENV === 'development'
@@ -98,6 +99,17 @@ export default function AllDocumentsPage() {
         return
       }
 
+      // Get user profile for display name
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.user.id)
+        .single()
+
+      const fullName = profile?.full_name || user.user.user_metadata?.full_name || user.user.email?.split('@')[0] || 'User'
+      const firstName = fullName.split(' ')[0]
+      setCurrentUser({ firstName, fullName })
+
       // Load all projects for the user
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
@@ -118,6 +130,7 @@ export default function AllDocumentsPage() {
       }
 
       console.log('[AllDocuments] Loaded projects:', projectsData?.length || 0)
+      console.log('[AllDocuments] Project IDs:', projectsData?.map(p => p.id) || [])
       setProjects(projectsData || [])
 
       // Load all documents across all projects
@@ -125,34 +138,59 @@ export default function AllDocumentsPage() {
       let transformedDocs: any[] = []
       
       if (projectsData && projectsData.length > 0) {
+        console.log('[AllDocuments] Querying artifacts for project IDs:', projectsData.map(p => p.id))
+        
+        // Use simple query without join
         const { data: docs, error } = await supabase
           .from('artifacts')
           .select('*')
           .in('project_id', projectsData.map(p => p.id))
           .order('created_at', { ascending: false })
+        
+        console.log('[AllDocuments] Query result:', { 
+          success: !error, 
+          count: docs?.length || 0,
+          error: error,
+          projectIds: projectsData.map(p => p.id),
+          documents: docs 
+        })
 
         if (error) {
-          console.error('[AllDocuments] Error loading documents:', {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint,
-            fullError: JSON.stringify(error)
-          })
-          // Don't throw, just log the error
+          console.error('[AllDocuments] Error loading documents:', error)
           setDocuments([])
           return
         }
-
+        
         // Create a project map for quick lookup
         const projectMap = Object.fromEntries(
           projectsData.map(p => [p.id, p])
         )
+        
+        // Get creator profiles for documents
+        const creatorIds = [...new Set(docs?.map(doc => doc.created_by).filter(Boolean))]
+        let profilesMap: Record<string, any> = {}
+        
+        if (creatorIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', creatorIds)
+          
+          if (profiles) {
+            profilesMap = Object.fromEntries(
+              profiles.map(p => [p.id, p])
+            )
+          }
+        }
 
         // Transform data to match expected structure
         transformedDocs = (docs || []).map(doc => ({
           ...doc,
-          project: projectMap[doc.project_id] || null
+          project: projectMap[doc.project_id] || null,
+          creator: profilesMap[doc.created_by] || { 
+            full_name: fullName || 'User', // Use the logged-in user's name
+            email: user.user.email 
+          }
         }))
       }
 
@@ -323,8 +361,8 @@ export default function AllDocumentsPage() {
     markdown += `**Type:** ${doc.type}\n`
     markdown += `**Project:** ${doc.project?.name || 'Unknown'}\n`
     markdown += `**Version:** v${doc.version}\n`
-    markdown += `**Created:** ${format(new Date(doc.created_at), 'MMMM d, yyyy')}\n`
-    markdown += `**Updated:** ${format(new Date(doc.updated_at), 'MMMM d, yyyy')}\n\n`
+    markdown += `**Created:** ${format(new Date(doc.created_at), 'MMMM d, yyyy, h:mm a')}\n`
+    markdown += `**Updated:** ${format(new Date(doc.updated_at), 'MMMM d, yyyy, h:mm a')}\n\n`
     
     // Add generation metadata if available
     if (doc.generation_model) {
@@ -577,11 +615,11 @@ export default function AllDocumentsPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    <span>{format(new Date(doc.created_at), 'MMM d, yyyy')}</span>
+                    <span>{format(new Date(doc.created_at), 'MMM d, yyyy, h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <User className="h-4 w-4" />
-                    <span>{doc.creator?.full_name || 'AI Generated'}</span>
+                    <span>{doc.creator?.full_name || currentUser?.firstName || 'User'}</span>
                   </div>
 
                   {/* Generation Metadata */}
@@ -735,6 +773,7 @@ export default function AllDocumentsPage() {
               }
             }}
             onClose={() => setSelectedDoc(null)}
+            currentUser={currentUser || undefined}
           />
         )}
       </ResizableModal>

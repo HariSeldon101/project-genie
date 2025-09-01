@@ -95,14 +95,51 @@ Generate these sections:
    - Integration patterns
    DO NOT include PM acronyms (like WBS, RACI, etc.)
 
-9. REFERENCE RESOURCES (150 words)
-   Provide 8-10 curated links to:
-   - Industry technology reports
-   - Technology vendor documentation
-   - Quick overview guides
-   - Relevant tutorials or courses
-   - Industry analyst reports
-   Format: [Resource Name](URL) - Brief description
+9. REFERENCE RESOURCES (MANDATORY - REAL URLS REQUIRED)
+   IMPORTANT: Research and provide 15-20 REAL, WORKING URLs to authoritative sources.
+   Each link must be current (2023-2025) and directly relevant to ${params.projectName}.
+   
+   Categories to include:
+   
+   A. Architecture Standards & Guidelines (3-4 links)
+   - Cloud Architecture Frameworks (AWS Well-Architected, Azure Architecture, GCP)
+   - TOGAF or other enterprise architecture standards
+   - Microservices or SOA guidelines
+   Format: [Document Title](https://actual-url.com) - Brief description
+   
+   B. Security Best Practices (3-4 links)
+   - OWASP Top 10 or security guidelines
+   - Cloud security best practices
+   - Industry-specific security standards (PCI-DSS, HIPAA, etc.)
+   - NIST Cybersecurity Framework
+   Format: [Security Standard](https://actual-url.com) - Compliance/security focus
+   
+   C. Vendor Documentation (3-4 links)
+   - Official documentation for recommended platforms
+   - API documentation for key services
+   - Integration guides
+   - Pricing calculators
+   Format: [Vendor - Product Docs](https://actual-url.com) - What it covers
+   
+   D. Industry Standards & Compliance (3-4 links)
+   - ISO standards relevant to ${params.sector}
+   - Industry-specific regulations
+   - Data protection requirements (GDPR, CCPA, etc.)
+   - Accessibility standards (WCAG)
+   Format: [Standard/Regulation](https://actual-url.com) - Compliance requirement
+   
+   E. Technology Research & Reports (3-4 links)
+   - Gartner/Forrester reports (public versions)
+   - McKinsey/Deloitte technology insights
+   - Stack Overflow Developer Survey
+   - GitHub State of the Octoverse
+   Format: [Report Title - Organization](https://actual-url.com) - Key insights
+   
+   REQUIREMENTS:
+   - All URLs must be real and accessible
+   - Prefer official sources (.gov, .org, vendor sites)
+   - Include publication date where relevant
+   - Focus on resources that PMs can actually use
 
 OUTPUT REQUIREMENTS:
 - Write for experienced PMs who need technology context

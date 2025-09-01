@@ -23,7 +23,10 @@
     "test:api:quick": "RUN_FULL_API_TESTS=false vitest run --config vitest.config.api.ts",
     "test:api:full": "RUN_FULL_API_TESTS=true vitest run --config vitest.config.api.ts",
     "test:api:watch": "vitest watch --config vitest.config.api.ts",
-    "cache:clear-pdfs": "tsx scripts/clear-pdf-cache.ts"
+    "cache:clear-pdfs": "tsx scripts/clear-pdf-cache.ts",
+    "test:generation": "tsx scripts/test-document-generation.ts",
+    "test:generation:comparable": "tsx scripts/test-document-generation.ts --doc comparable_projects",
+    "test:generation:validate": "tsx lib/documents/test-runner.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.19",

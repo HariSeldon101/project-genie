@@ -340,18 +340,18 @@ export class UnifiedRiskRegisterFormatter extends BaseUnifiedFormatter<RiskRegis
 
   private generateRiskTable(risks: Risk[]): string {
     return `
-      <table class="risk-register-table">
+      <table class="risk-register-table" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Risk</th>
-            <th>Category</th>
-            <th>Probability</th>
-            <th>Impact</th>
-            <th>Score</th>
-            <th>Response</th>
-            <th>Owner</th>
-            <th>Status</th>
+            <th style="width: 6%;">ID</th>
+            <th style="width: 22%;">Risk</th>
+            <th style="width: 10%;">Category</th>
+            <th style="width: 8%;">Prob.</th>
+            <th style="width: 8%;">Impact</th>
+            <th style="width: 10%;">Score</th>
+            <th style="width: 18%;">Response</th>
+            <th style="width: 10%;">Owner</th>
+            <th style="width: 8%;">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -361,17 +361,43 @@ export class UnifiedRiskRegisterFormatter extends BaseUnifiedFormatter<RiskRegis
             const score = this.calculateRiskScore(probability, impact)
             const scoreClass = this.getRiskScoreClass(score)
             
+            // Define inline colors for risk levels
+            let rowBgColor = ''
+            if (score >= 20) rowBgColor = 'background-color: #ffcdd2;' // Critical - light red
+            else if (score >= 15) rowBgColor = 'background-color: #ffebee;' // High - very light red
+            else if (score >= 10) rowBgColor = 'background-color: #fff9e6;' // Medium - light yellow
+            else if (score >= 5) rowBgColor = 'background-color: #e8f5e9;' // Low - light green
+            else rowBgColor = 'background-color: #e3f2fd;' // Very Low - light blue
+            
+            // Define score badge colors
+            let badgeStyle = ''
+            if (score >= 20) badgeStyle = 'background: #9C27B0; color: white;' // Critical - purple
+            else if (score >= 15) badgeStyle = 'background: #F44336; color: white;' // High - red
+            else if (score >= 10) badgeStyle = 'background: #FF9800; color: white;' // Medium - orange
+            else if (score >= 5) badgeStyle = 'background: #4CAF50; color: white;' // Low - green
+            else badgeStyle = 'background: #2196F3; color: white;' // Very Low - blue
+            
+            // Define status badge colors
+            let statusStyle = ''
+            const status = (risk.status || 'Open').toLowerCase()
+            if (status === 'open') statusStyle = 'background: #FFF3E0; color: #E65100;'
+            else if (status === 'monitoring') statusStyle = 'background: #E3F2FD; color: #0D47A1;'
+            else if (status === 'closed') statusStyle = 'background: #E0E0E0; color: #616161;'
+            else if (status === 'resolved') statusStyle = 'background: #E8F5E9; color: #1B5E20;'
+            else if (status === 'occurred') statusStyle = 'background: #FCE4EC; color: #880E4F;'
+            else statusStyle = 'background: #FFF3E0; color: #E65100;' // Default to open
+            
             return `
-              <tr class="${scoreClass}">
-                <td>${risk.id || `R${(index + 1).toString().padStart(3, '0')}`}</td>
-                <td>${risk.risk || risk.description || risk.title || ''}</td>
-                <td>${risk.category || 'General'}</td>
-                <td>${probability}</td>
-                <td>${impact}</td>
-                <td><span class="risk-score-badge ${scoreClass}">${this.getRiskRating(score)}</span></td>
-                <td>${risk.response || risk.mitigation || 'TBD'}</td>
-                <td>${risk.owner || 'Unassigned'}</td>
-                <td><span class="status-badge status-${(risk.status || 'Open').toLowerCase().replace(' ', '-')}">${risk.status || 'Open'}</span></td>
+              <tr style="${rowBgColor}">
+                <td style="padding: 0.5rem; word-wrap: break-word;">${risk.id || `R${(index + 1).toString().padStart(3, '0')}`}</td>
+                <td style="padding: 0.5rem; word-wrap: break-word;">${risk.risk || risk.description || risk.title || ''}</td>
+                <td style="padding: 0.5rem; word-wrap: break-word;">${risk.category || 'General'}</td>
+                <td style="padding: 0.5rem;">${probability}</td>
+                <td style="padding: 0.5rem;">${impact}</td>
+                <td style="padding: 0.5rem;"><span style="${badgeStyle} padding: 3px 10px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">${this.getRiskRating(score)}</span></td>
+                <td style="padding: 0.5rem; word-wrap: break-word;">${risk.response || risk.mitigation || 'TBD'}</td>
+                <td style="padding: 0.5rem; word-wrap: break-word;">${risk.owner || 'Unassigned'}</td>
+                <td style="padding: 0.5rem;"><span style="${statusStyle} padding: 3px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 500; display: inline-block;">${risk.status || 'Open'}</span></td>
               </tr>
             `
           }).join('')}
@@ -642,24 +668,24 @@ export class UnifiedRiskRegisterFormatter extends BaseUnifiedFormatter<RiskRegis
         width: 100%;
         border-collapse: collapse;
         margin: 1.5rem 0;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        table-layout: fixed;
       }
       
       .risk-register-table th {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 0.75rem;
+        padding: 0.5rem;
         text-align: left;
         font-weight: 600;
+        border: 1px solid #667eea;
       }
       
       .risk-register-table td {
-        padding: 0.75rem;
+        padding: 0.5rem;
         border: 1px solid #e0e0e0;
-      }
-      
-      .risk-register-table tbody tr:nth-child(even) {
-        background: #f9f9f9;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
       }
       
       .risk-very-low {

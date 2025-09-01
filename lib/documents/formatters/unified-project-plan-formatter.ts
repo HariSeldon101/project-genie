@@ -26,6 +26,41 @@ interface ProjectPlanData {
 
 export class UnifiedProjectPlanFormatter extends BaseUnifiedFormatter<ProjectPlanData> {
   protected ensureStructure(data: any): ProjectPlanData {
+    // Handle wrapped content
+    if (data?.plan) {
+      const plan = data.plan
+      
+      // If plan is a string, try to parse it
+      if (typeof plan === 'string') {
+        return this.parseProjectPlanFromText(plan)
+      }
+      
+      // If plan is an object with rawText, parse that
+      if (plan.rawText) {
+        return this.parseProjectPlanFromText(plan.rawText)
+      }
+      
+      // Otherwise use the plan object
+      return {
+        overview: plan.overview || {},
+        phases: plan.phases || plan.stages || [],
+        workBreakdown: plan.workBreakdown || {},
+        milestones: plan.milestones || [],
+        timeline: plan.timeline || {},
+        resources: plan.resources || {},
+        budget: plan.budget || {},
+        risks: plan.risks || [],
+        quality: plan.quality || {},
+        communication: plan.communication || {},
+        stakeholders: plan.stakeholders || [],
+        governance: plan.governance || {},
+        changeManagement: plan.changeManagement || {},
+        successCriteria: plan.successCriteria || [],
+        ...plan,
+        ...data
+      }
+    }
+    
     return {
       overview: data?.overview || {},
       phases: data?.phases || [],
@@ -43,6 +78,86 @@ export class UnifiedProjectPlanFormatter extends BaseUnifiedFormatter<ProjectPla
       successCriteria: data?.successCriteria || [],
       ...data
     }
+  }
+  
+  private parseProjectPlanFromText(text: string): ProjectPlanData {
+    // Parse phases
+    const phases = this.extractPhases(text)
+    
+    // Parse milestones
+    const milestones = this.extractMilestones(text)
+    
+    // If no phases found, provide defaults
+    const defaultPhases = phases.length === 0 ? [
+      { name: 'Initiation', duration: '1 month', status: 'Planned' },
+      { name: 'Planning', duration: '2 months', status: 'Planned' },
+      { name: 'Execution', duration: '6 months', status: 'Planned' },
+      { name: 'Monitoring', duration: 'Continuous', status: 'Planned' },
+      { name: 'Closure', duration: '1 month', status: 'Planned' }
+    ] : phases
+    
+    // If no milestones found, provide defaults
+    const defaultMilestones = milestones.length === 0 ? [
+      { name: 'Project Kickoff', date: 'Month 1', status: 'Pending' },
+      { name: 'Requirements Complete', date: 'Month 2', status: 'Pending' },
+      { name: 'Design Approval', date: 'Month 3', status: 'Pending' },
+      { name: 'Development Complete', date: 'Month 7', status: 'Pending' },
+      { name: 'Testing Complete', date: 'Month 9', status: 'Pending' },
+      { name: 'Go Live', date: 'Month 10', status: 'Pending' }
+    ] : milestones
+    
+    return {
+      overview: {},
+      phases: defaultPhases,
+      workBreakdown: {},
+      milestones: defaultMilestones,
+      timeline: {},
+      resources: {},
+      budget: {},
+      risks: [],
+      quality: {},
+      communication: {},
+      stakeholders: [],
+      governance: {},
+      changeManagement: {},
+      successCriteria: [],
+      rawText: text
+    }
+  }
+  
+  private extractPhases(text: string): any[] {
+    const phases = []
+    
+    // Look for phase patterns
+    const phaseRegex = /(?:phase|stage)\s*(\d+)[:\s]+([^.\n]+)/gi
+    const matches = text.matchAll(phaseRegex)
+    
+    for (const match of matches) {
+      phases.push({
+        name: match[2].trim(),
+        number: parseInt(match[1]),
+        status: 'Planned'
+      })
+    }
+    
+    return phases
+  }
+  
+  private extractMilestones(text: string): any[] {
+    const milestones = []
+    
+    // Look for milestone patterns
+    const milestoneRegex = /milestone[:\s]+([^.\n]+)/gi
+    const matches = text.matchAll(milestoneRegex)
+    
+    for (const match of matches) {
+      milestones.push({
+        name: match[1].trim(),
+        status: 'Pending'
+      })
+    }
+    
+    return milestones
   }
   
   constructor(data: ProjectPlanData, metadata: DocumentMetadata) {

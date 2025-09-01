@@ -45,6 +45,7 @@ interface DocumentViewerProps {
     version: number
     created_at: string
     updated_at: string
+    created_by?: string
     // Generation metadata
     generation_model?: string
     generation_provider?: string
@@ -62,11 +63,20 @@ interface DocumentViewerProps {
       name: string
       methodology_type: string
     }
+    // Creator metadata
+    creator?: {
+      full_name: string
+      email: string
+    }
   }
   onClose?: () => void
+  currentUser?: {
+    firstName: string
+    fullName: string
+  }
 }
 
-export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
+export function DocumentViewer({ document, onClose, currentUser }: DocumentViewerProps) {
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted')
   const [copied, setCopied] = useState(false)
   const [formattedContent, setFormattedContent] = useState<string>('')
@@ -99,7 +109,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
         month: 'long',
         year: 'numeric'
       }),
-      author: 'User',
+      author: document.creator?.full_name || currentUser?.fullName || 'User',
       // Add project dates and budget
       startDate: project?.start_date || undefined,
       endDate: project?.end_date || undefined,
