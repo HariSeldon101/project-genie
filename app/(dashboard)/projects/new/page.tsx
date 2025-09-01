@@ -122,6 +122,28 @@ export default function NewProjectPage() {
   const progressPercentage = ((currentStep + 1) / activeSteps.length) * 100
 
   // Handle demo data selection
+  // Helper function to parse budget strings like "£2m" or "$50M" to numbers
+  const parseBudgetString = (budgetStr: string): number | null => {
+    if (!budgetStr) return null
+    
+    // Remove spaces and convert to lowercase for parsing
+    const cleaned = budgetStr.replace(/\s/g, '').toLowerCase()
+    
+    // Extract number and multiplier
+    const match = cleaned.match(/([£$€]?)(\d+(?:\.\d+)?)(k|m|b)?/)
+    if (!match) return null
+    
+    const [, currency, numberStr, multiplier] = match
+    let value = parseFloat(numberStr)
+    
+    // Apply multiplier
+    if (multiplier === 'k') value *= 1000
+    else if (multiplier === 'm') value *= 1000000
+    else if (multiplier === 'b') value *= 1000000000
+    
+    return value
+  }
+
   const handleDemoSelect = (projectKey: DemoProjectKey) => {
     const demo = demoProjects[projectKey]
     
@@ -255,6 +277,7 @@ export default function NewProjectPage() {
           website: projectData.companyWebsite,
           sector: projectData.sector,
           budget: projectData.budget || null,
+          budgetNumeric: parseBudgetString(projectData.budget) || null, // Store parsed numeric value
           timeline: projectData.timeline || null,
           startDate: projectData.startDate || null,
           endDate: projectData.endDate || null
@@ -524,11 +547,6 @@ export default function NewProjectPage() {
       case 'timeline':
         return (
           <div className="space-y-6">
-            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-              <p className="text-sm text-purple-800 dark:text-purple-200">
-                These fields are optional but help generate more accurate project plans, schedules, and resource allocations.
-              </p>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -897,14 +915,36 @@ export default function NewProjectPage() {
                     {projectData.budget && (
                       <>
                         <strong>Budget:</strong> {
-                          isNaN(Number(projectData.budget)) 
-                            ? projectData.budget 
-                            : new Intl.NumberFormat('en-US', { 
+                          (() => {
+                            // Try to parse formatted entries like "£2m" or "$50M"
+                            const parsedValue = parseBudgetString(projectData.budget)
+                            if (parsedValue !== null) {
+                              // Detect currency from original string
+                              const currencyMatch = projectData.budget.match(/^[£$€]/)
+                              const currency = currencyMatch ? currencyMatch[0] : '$'
+                              const currencyCode = currency === '£' ? 'GBP' : currency === '€' ? 'EUR' : 'USD'
+                              
+                              return new Intl.NumberFormat('en-US', { 
+                                style: 'currency', 
+                                currency: currencyCode,
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0
+                              }).format(parsedValue)
+                            }
+                            
+                            // If it's a plain number, format as USD
+                            if (!isNaN(Number(projectData.budget))) {
+                              return new Intl.NumberFormat('en-US', { 
                                 style: 'currency', 
                                 currency: 'USD',
                                 minimumFractionDigits: 0,
                                 maximumFractionDigits: 0
                               }).format(Number(projectData.budget))
+                            }
+                            
+                            // Otherwise display as-is
+                            return projectData.budget
+                          })()
                         }<br />
                       </>
                     )}
