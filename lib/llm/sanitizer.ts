@@ -8,6 +8,10 @@ interface ProjectData {
   methodology: 'agile' | 'prince2' | 'hybrid'
   companyWebsite: string
   sector: string
+  budget?: string
+  timeline?: string
+  startDate?: string
+  endDate?: string
   stakeholders: Array<{
     name: string
     email: string
@@ -57,6 +61,10 @@ export class DataSanitizer {
       methodology: data.methodology || 'agile',
       companyWebsite: data.companyWebsite || '',
       sector: data.sector || '',
+      budget: data.budget || '',
+      timeline: data.timeline || '',
+      startDate: data.startDate || '',
+      endDate: data.endDate || '',
       stakeholders: data.stakeholders || [],
       prince2Stakeholders: data.prince2Stakeholders,
       agilometer: data.agilometer
@@ -70,6 +78,11 @@ export class DataSanitizer {
       methodology: projectData.methodology as 'agile' | 'prince2' | 'hybrid',
       companyWebsite: projectData.companyWebsite,
       sector: projectData.sector,
+      budget: projectData.budget,
+      timeline: projectData.timeline,
+      startDate: projectData.startDate,
+      endDate: projectData.endDate,
+      expectedTimeline: projectData.timeline, // Alias for compatibility
       stakeholders: projectData.stakeholders
         .filter((s: any) => s && (s.name || s.title))
         .map((s: any, i: number) => ({

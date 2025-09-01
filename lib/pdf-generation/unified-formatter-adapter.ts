@@ -54,7 +54,12 @@ export class UnifiedFormatterAdapter extends BaseHTMLFormatter {
         month: 'long',
         year: 'numeric'
       }),
-      author: this.metadata.author
+      author: this.metadata.author,
+      // Pass project dates and budget from options
+      startDate: this.options.startDate,
+      endDate: this.options.endDate,
+      budget: this.options.budget,
+      timeline: this.options.timeline
     }
     
     switch (this.documentType) {

@@ -557,7 +557,14 @@ IMPORTANT INSTRUCTIONS:
 3. Ensure all arrays have meaningful items (minimum 3-5 items each)
 4. Make content specific and actionable, not generic
 5. Include realistic dates, costs, and metrics
-6. All cost fields should be formatted as strings with dollar signs (e.g., "$100,000")`
+6. All cost fields should be formatted as strings with dollar signs (e.g., "$100,000")
+
+CRITICAL DATE INSTRUCTIONS:
+- NEVER use specific years like "2024", "2023", or any hardcoded year
+- ALL dates MUST be derived from the provided project start and end dates
+- Use relative date descriptions (e.g., "Month 3 of project", "End of Year 1")
+- For milestones, calculate dates based on project duration
+- Avoid mentioning specific calendar years in any context`
 
     if (researchContext?.industryInsights?.length > 0) {
       prompt += `\n\nINDUSTRY INSIGHTS TO CONSIDER:\n${researchContext.industryInsights.join('\n- ')}`
@@ -582,7 +589,12 @@ PROJECT DETAILS:
 - Description: ${data.description}
 - Sector: ${data.sector}
 - Business Case: ${data.businessCase}
-- Expected Timeline: ${data.expectedTimeline || '6-12 months'}
+- Budget: ${data.budget || 'Not specified'}
+- Timeline: ${data.timeline || '6-12 months'}
+- Start Date: ${data.startDate || 'TBD'}
+- End Date: ${data.endDate || 'TBD'}
+
+DATE CONTEXT: The project runs from ${data.startDate} to ${data.endDate}. Base ALL dates on this timeline.
 
 REQUIREMENTS:
 1. Project Definition: Include comprehensive background, SMART objectives (5+), outcomes, scope (included/excluded), constraints, assumptions, deliverables with quality criteria, and interfaces
@@ -615,7 +627,14 @@ IMPORTANT INSTRUCTIONS:
 5. All cost fields must be formatted as strings with dollar signs (e.g., "$250,000")
 6. Provide realistic ROI, payback periods, and NPV values
 7. Include at least 3 business options with detailed analysis
-8. Define measurable benefits with baselines and targets`
+8. Define measurable benefits with baselines and targets
+
+CRITICAL DATE INSTRUCTIONS:
+- NEVER use specific years like "2024", "2023", or any hardcoded year
+- ALL dates and timelines MUST be based on the provided project start and end dates
+- When mentioning regulatory deadlines, calculate them relative to the project timeline
+- Use quarters relative to the project start date (e.g., "Q3 of Year 1" not "Q3 2024")
+- For any compliance or regulatory requirements, state them as "within X months of project start" rather than specific calendar dates`
 
     if (researchContext?.industryInsights?.length > 0) {
       prompt += `\n\nINDUSTRY INSIGHTS:\n${researchContext.industryInsights.join('\n- ')}`
@@ -640,7 +659,12 @@ PROJECT DETAILS:
 - Description: ${data.description}
 - Sector: ${data.sector}
 - Initial Business Case: ${data.businessCase}
-- Timeline: ${data.expectedTimeline || '6-12 months'}
+- Budget: ${data.budget || 'Not specified'}
+- Timeline: ${data.timeline || '6-12 months'}
+- Start Date: ${data.startDate || 'TBD'}
+- End Date: ${data.endDate || 'TBD'}
+
+IMPORTANT: Base ALL dates, deadlines, and timelines on the Start Date (${data.startDate}) and End Date (${data.endDate}) provided above. Do NOT use any hardcoded years like 2024 or 2025.
 
 REQUIREMENTS:
 1. Executive Summary: Comprehensive overview of the business case
@@ -660,6 +684,21 @@ REQUIREMENTS:
 15. Constraints and Dependencies: Lists of constraints, dependencies, and assumptions
 
 Generate professional, detailed content with specific metrics and realistic financials.`
+  }
+
+  /**
+   * Helper function to calculate stage end date
+   */
+  private calculateStageEndDate(startDate: string | undefined, monthsToAdd: number): string {
+    if (!startDate) return 'TBD';
+    
+    try {
+      const date = new Date(startDate);
+      date.setMonth(date.getMonth() + monthsToAdd);
+      return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+    } catch {
+      return 'TBD';
+    }
   }
 
   /**
@@ -770,8 +809,8 @@ Generate professional, detailed content with specific metrics and realistic fina
         stages: [
           {
             name: 'Initiation',
-            startDate: 'Month 1',
-            endDate: 'Month 2',
+            startDate: data.startDate || 'TBD',
+            endDate: this.calculateStageEndDate(data.startDate, 1) || 'TBD',
             objectives: ['Setup project', 'Define requirements'],
             deliverables: ['PID', 'Requirements document']
           }
@@ -779,7 +818,7 @@ Generate professional, detailed content with specific metrics and realistic fina
         milestones: [
           {
             name: 'Project kickoff',
-            date: 'Month 1',
+            date: data.startDate || 'TBD',
             criteria: 'Team assembled'
           }
         ],

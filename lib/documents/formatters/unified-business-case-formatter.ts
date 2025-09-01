@@ -61,6 +61,50 @@ export interface BusinessCase {
 export class UnifiedBusinessCaseFormatter extends BaseUnifiedFormatter<BusinessCase> {
   
   /**
+   * Format date for Gantt chart (YYYY-MM-DD)
+   */
+  private formatDateForGantt(date: Date): string {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
+  /**
+   * Format date for display (MMM YYYY)
+   */
+  private formatDateForDisplay(date: Date): string {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return `${months[date.getMonth()]} ${date.getFullYear()}`
+  }
+  
+  /**
+   * Calculate project quarters based on dates
+   */
+  private calculateProjectQuarters(startDate: Date, endDate: Date): string[] {
+    const quarters: string[] = []
+    const currentDate = new Date(startDate)
+    
+    // Generate quarters for project duration plus benefits realization
+    for (let i = 0; i < 8; i++) {
+      const quarter = Math.floor(currentDate.getMonth() / 3) + 1
+      const year = currentDate.getFullYear()
+      quarters.push(`Q${quarter} ${year}`)
+      currentDate.setMonth(currentDate.getMonth() + 3)
+    }
+    
+    return quarters
+  }
+  
+  /**
+   * Calculate milestone date based on project progress
+   */
+  private calculateMilestoneDate(startDate: Date, endDate: Date, progress: number): Date {
+    const duration = endDate.getTime() - startDate.getTime()
+    return new Date(startDate.getTime() + duration * progress)
+  }
+  
+  /**
    * Ensure Business Case data has all required structure
    */
   protected ensureStructure(data: any): BusinessCase {
@@ -550,6 +594,15 @@ export class UnifiedBusinessCaseFormatter extends BaseUnifiedFormatter<BusinessC
     const measurable = this.data.expectedBenefits.filter(b => b.measurable)
     const nonMeasurable = this.data.expectedBenefits.filter(b => !b.measurable)
     
+    // Calculate dynamic dates based on project timeline
+    const startDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+    const endDate = this.metadata.endDate ? new Date(this.metadata.endDate) : new Date(startDate.getTime() + 365 * 24 * 60 * 60 * 1000)
+    
+    // Benefits realization dates (after project completion)
+    const quickWinsStart = this.formatDateForGantt(endDate)
+    const mediumTermStart = this.formatDateForGantt(new Date(endDate.getTime() + 90 * 24 * 60 * 60 * 1000))
+    const longTermStart = this.formatDateForGantt(new Date(endDate.getTime() + 180 * 24 * 60 * 60 * 1000))
+    
     return `
       <section class="document-section" id="expected-benefits">
         <h2>5. Expected Benefits</h2>
@@ -595,11 +648,11 @@ gantt
     title Benefits Realization Timeline
     dateFormat YYYY-MM-DD
     section Quick Wins
-    Efficiency Gains :2024-06-01, 90d
+    Efficiency Gains :${quickWinsStart}, 90d
     section Medium Term
-    Cost Savings :2024-09-01, 180d
+    Cost Savings :${mediumTermStart}, 180d
     section Long Term
-    Strategic Benefits :2025-01-01, 365d
+    Strategic Benefits :${longTermStart}, 365d
         `)}
       </section>
     `
@@ -670,6 +723,12 @@ gantt
   }
 
   private generateTimescaleSection(): string {
+    // Calculate quarters based on actual project dates
+    const startDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+    const endDate = this.metadata.endDate ? new Date(this.metadata.endDate) : new Date(startDate.getTime() + 365 * 24 * 60 * 60 * 1000)
+    
+    const quarters = this.calculateProjectQuarters(startDate, endDate)
+    
     return `
       <section class="document-section" id="timescale">
         <h2>7. Timescale</h2>
@@ -682,17 +741,17 @@ gantt
 timeline
     title Project Timeline
     
-    Project Initiation : Q1 2024
+    Project Initiation : ${quarters[0]}
     
-    Phase 1 - Foundation : Q2 2024
+    Phase 1 - Foundation : ${quarters[1]}
     
-    Phase 2 - Development : Q3 2024
+    Phase 2 - Development : ${quarters[2]}
     
-    Phase 3 - Implementation : Q4 2024
+    Phase 3 - Implementation : ${quarters[3]}
     
-    Project Closure : Q1 2025
+    Project Closure : ${quarters[4]}
     
-    Benefits Realization : Q2-Q4 2025
+    Benefits Realization : ${quarters[5]}-${quarters[7]}
         `)}
         
         <h3>Critical Dates</h3>
@@ -707,27 +766,27 @@ timeline
           <tbody>
             <tr>
               <td>Project Start</td>
-              <td>Month 1</td>
+              <td>${this.formatDateForDisplay(startDate)}</td>
               <td>Approval & Funding</td>
             </tr>
             <tr>
               <td>Phase 1 Complete</td>
-              <td>Month 3</td>
+              <td>${this.formatDateForDisplay(this.calculateMilestoneDate(startDate, endDate, 0.25))}</td>
               <td>Requirements finalized</td>
             </tr>
             <tr>
               <td>Phase 2 Complete</td>
-              <td>Month 6</td>
+              <td>${this.formatDateForDisplay(this.calculateMilestoneDate(startDate, endDate, 0.5))}</td>
               <td>Development resources</td>
             </tr>
             <tr>
               <td>Go-Live</td>
-              <td>Month 9</td>
+              <td>${this.formatDateForDisplay(this.calculateMilestoneDate(startDate, endDate, 0.75))}</td>
               <td>Testing & training</td>
             </tr>
             <tr>
               <td>Project Close</td>
-              <td>Month 10</td>
+              <td>${this.formatDateForDisplay(endDate)}</td>
               <td>Handover complete</td>
             </tr>
           </tbody>

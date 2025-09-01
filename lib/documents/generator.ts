@@ -1808,7 +1808,11 @@ Agilometer Settings:
       description: data.description,
       sector: data.sector,
       companyWebsite: data.companyWebsite,
-      vision: data.vision
+      vision: data.vision,
+      budget: data.budget,
+      timeline: data.timeline,
+      startDate: data.startDate,
+      endDate: data.endDate
     }
     
     const { system, user } = technicalLandscapePrompts.analysis.buildPrompt(promptData)
@@ -1893,7 +1897,11 @@ Agilometer Settings:
       description: data.description,
       sector: data.sector,
       vision: data.vision,
-      businessCase: data.businessCase
+      businessCase: data.businessCase,
+      budget: data.budget,
+      timeline: data.timeline,
+      startDate: data.startDate,
+      endDate: data.endDate
     }
     
     DevLogger.logStep('Comparable Projects prompt data', promptData)

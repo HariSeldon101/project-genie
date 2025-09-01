@@ -394,6 +394,10 @@ export class LLMGateway {
       .replace('{{description}}', data.description)
       .replace('{{companyWebsite}}', data.companyWebsite)
       .replace('{{stakeholders}}', stakeholderList)
+      .replace('{{budget}}', data.budget || 'Not specified')
+      .replace('{{timeline}}', data.timeline || 'Not specified')
+      .replace('{{startDate}}', data.startDate || 'TBD')
+      .replace('{{endDate}}', data.endDate || 'TBD')
     
     return { system, user }
   }

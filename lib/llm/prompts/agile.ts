@@ -19,6 +19,10 @@ STEP 1: Read project information
 - Business Case: {{businessCase}}
 - Description: {{description}}
 - Sector: {{sector}}
+- Budget: {{budget}}
+- Timeline: {{timeline}}
+- Start Date: {{startDate}}
+- End Date: {{endDate}}
 - Stakeholders: {{stakeholders}}
 
 STEP 2: Generate exactly these 12 sections
@@ -52,6 +56,10 @@ STEP 1: Project context
 - Project: {{projectName}}
 - Vision: {{vision}}
 - Business Case: {{businessCase}}
+- Budget: {{budget}}
+- Timeline: {{timeline}}
+- Start Date: {{startDate}}
+- End Date: {{endDate}}
 
 STEP 2: Generate exactly 15 user stories
 Each story MUST have:
@@ -84,6 +92,10 @@ STEP 1: Project parameters
 - Project: {{projectName}}
 - Sprint Duration: 2 weeks
 - Team Size: 5-8 members
+- Budget: {{budget}}
+- Timeline: {{timeline}}
+- Start Date: {{startDate}}
+- End Date: {{endDate}}
 
 STEP 2: Generate sprint structure
 1. Sprint 0 (Setup)

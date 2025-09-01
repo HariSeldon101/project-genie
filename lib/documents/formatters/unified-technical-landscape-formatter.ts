@@ -895,12 +895,17 @@ graph TB
         </ol>
         
         <h3>14.2 Migration Timeline</h3>
-        ${this.options.includeCharts ? this.createMermaidChart('gantt', `
+        ${this.options.includeCharts ? (() => {
+          // Calculate dates based on project timeline
+          const startDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+          const startDateStr = startDate.toISOString().split('T')[0]
+          
+          return this.createMermaidChart('gantt', `
 gantt
     title Migration Timeline
     dateFormat YYYY-MM-DD
     section Phase 1
-    Infrastructure Setup :a1, 2024-01-01, 30d
+    Infrastructure Setup :a1, ${startDateStr}, 30d
     Core Services :a2, after a1, 20d
     section Phase 2
     Data Migration Planning :b1, after a2, 15d
@@ -911,7 +916,8 @@ gantt
     section Phase 4
     Cutover Planning :d1, after c2, 10d
     Go-Live :milestone, after d1, 0d
-        `) : ''}
+        `)
+        })() : ''}
         
         <h3>14.3 Rollback Plan</h3>
         <ul>

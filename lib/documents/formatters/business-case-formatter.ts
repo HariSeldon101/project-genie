@@ -1,3 +1,13 @@
+import {
+  calculateQuarterFromDate,
+  calculateMilestoneDate,
+  formatDateForDisplay,
+  generateTimelineEntries,
+  calculateProjectDuration,
+  formatProjectDurationForTable,
+  formatNumberedReasons
+} from './date-utils'
+
 export interface BusinessCaseData {
   executiveSummary?: string
   reasons: string
@@ -37,6 +47,10 @@ export class BusinessCaseFormatter {
   private companyName: string
   private version: string
   private date: string
+  private startDate?: string
+  private endDate?: string
+  private budget?: string
+  private timeline?: string
 
   constructor(
     data: BusinessCaseData,
@@ -45,17 +59,25 @@ export class BusinessCaseFormatter {
       companyName?: string
       version?: string
       date?: string
+      startDate?: string
+      endDate?: string
+      budget?: string
+      timeline?: string
     }
   ) {
     this.data = data
     this.projectName = metadata.projectName
-    this.companyName = metadata.companyName || 'Your Company'
+    this.companyName = metadata.companyName || metadata.projectName
     this.version = metadata.version || '1.0'
     this.date = metadata.date || new Date().toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'long',
       year: 'numeric'
     })
+    this.startDate = metadata.startDate
+    this.endDate = metadata.endDate
+    this.budget = metadata.budget
+    this.timeline = metadata.timeline
   }
 
   public format(): string {
@@ -146,8 +168,15 @@ ${summary}
 | **Total Investment** | ${this.data.costs.total} |
 | **ROI** | ${this.data.investmentAppraisal.roi} |
 | **Payback Period** | ${this.data.investmentAppraisal.paybackPeriod} |
-| **Duration** | ${this.data.timescale} |
 | **Risk Level** | ${this.calculateRiskLevel()} |
+
+### Project Timeline
+
+| Timeline | Details |
+|----------|----------|
+| **Duration** | ${this.data.timescale || this.timeline || 'TBD'} |
+| **Start Date** | ${formatDateForDisplay(this.startDate, 'long')} |
+| **End Date** | ${formatDateForDisplay(this.endDate, 'long')} |
 
 ### Recommendation
 
@@ -200,10 +229,13 @@ The organization is prepared for this project with:
   }
 
   private generateReasonsForProject(): string {
+    // Format the reasons text if it contains numbered items
+    const formattedReasons = formatNumberedReasons(this.data.reasons)
+    
     return `
 ## 3. Reasons for the Project
 
-${this.data.reasons}
+${formattedReasons}
 
 ### Key Drivers
 
@@ -288,7 +320,7 @@ ${option.description}
 | Benefit | Measurable | Measurement Method | Baseline | Target | When Realized |
 |---------|------------|-------------------|----------|--------|---------------|
 ${this.data.expectedBenefits.filter(b => b.measurable).map(b => 
-  `| ${b.benefit} | ✅ Yes | ${b.measurement || 'TBD'} | ${b.baseline || 'Current'} | ${b.target || 'TBD'} | Project + 6 months |`
+  `| ${b.benefit} | ✅ Yes | ${b.measurement || 'TBD'} | ${b.baseline || 'Current'} | ${b.target || 'TBD'} | ${this.endDate ? formatDateForDisplay(calculateMilestoneDate(this.endDate, 6, 'full'), 'short') : 'Project + 6 months'} |`
 ).join('\n')}
 
 ### 5.2 Non-Quantifiable Benefits
@@ -304,11 +336,11 @@ gantt
     title Benefits Realization Timeline
     dateFormat YYYY-MM-DD
     section Quick Wins
-    Efficiency Gains :2024-06-01, 90d
+    Efficiency Gains :${this.endDate ? formatDateForDisplay(calculateMilestoneDate(this.endDate, 1, 'full'), 'iso') : '2024-06-01'}, 90d
     section Medium Term
-    Cost Savings :2024-09-01, 180d
+    Cost Savings :${this.endDate ? formatDateForDisplay(calculateMilestoneDate(this.endDate, 3, 'full'), 'iso') : '2024-09-01'}, 180d
     section Long Term
-    Strategic Benefits :2025-01-01, 365d
+    Strategic Benefits :${this.endDate ? formatDateForDisplay(calculateMilestoneDate(this.endDate, 6, 'full'), 'iso') : '2025-01-01'}, 365d
 \`\`\`
 
 <div style="page-break-after: always;"></div>
@@ -371,6 +403,18 @@ ${disbenefits.map(db => {
   }
 
   private generateTimescale(): string {
+    // Generate dynamic timeline entries based on actual project dates
+    const timelineEntries = generateTimelineEntries(this.startDate, this.endDate, true)
+    
+    // Calculate actual milestone dates
+    const milestones = [
+      { name: 'Project Start', offset: 0, deps: 'Approval & Funding' },
+      { name: 'Phase 1 Complete', offset: 3, deps: 'Requirements finalized' },
+      { name: 'Phase 2 Complete', offset: 6, deps: 'Development resources' },
+      { name: 'Go-Live', offset: 9, deps: 'Testing & training' },
+      { name: 'Project Close', offset: 10, deps: 'Handover complete' }
+    ]
+    
     return `
 ## 7. Timescale
 
@@ -383,29 +427,16 @@ ${this.data.timescale}
 \`\`\`mermaid
 timeline
     title Project Timeline
-    
-    Project Initiation : Q1 2024
-    
-    Phase 1 - Foundation : Q2 2024
-    
-    Phase 2 - Development : Q3 2024
-    
-    Phase 3 - Implementation : Q4 2024
-    
-    Project Closure : Q1 2025
-    
-    Benefits Realization : Q2-Q4 2025
+${timelineEntries.join('\n')}
 \`\`\`
 
 ### Critical Dates
 
 | Milestone | Target Date | Dependencies |
 |-----------|------------|--------------|
-| Project Start | Month 1 | Approval & Funding |
-| Phase 1 Complete | Month 3 | Requirements finalized |
-| Phase 2 Complete | Month 6 | Development resources |
-| Go-Live | Month 9 | Testing & training |
-| Project Close | Month 10 | Handover complete |
+${milestones.map(m => 
+  `| ${m.name} | ${calculateMilestoneDate(this.startDate, m.offset, 'full')} | ${m.deps} |`
+).join('\n')}
 
 <div style="page-break-after: always;"></div>
 `.trim()
@@ -484,7 +515,7 @@ pie title Cost Distribution
 
 \`\`\`mermaid
 graph LR
-    A[Investment] -->|Month 0| B[${this.data.costs.total}]
+    A[Investment] -->|${this.startDate ? formatDateForDisplay(this.startDate, 'short') : 'Month 0'}| B[${this.data.costs.total}]
     B -->|Operations| C[Break-even]
     C -->|${this.data.investmentAppraisal.paybackPeriod}| D[Profit]
     D -->|Ongoing| E[ROI ${this.data.investmentAppraisal.roi}]
@@ -572,7 +603,7 @@ ${risks.map(risk => {
 
 If major risks materialize:
 - ROI could reduce by up to 20%
-- Payback period could extend by 6 months
+- Payback period could extend by ${this.timeline ? Math.round(parseInt(this.timeline) * 0.3) + ' months' : '20% of duration'}
 - Additional contingency funds may be required
 
 <div style="page-break-after: always;"></div>
@@ -675,6 +706,10 @@ export function formatBusinessCase(
     companyName?: string
     version?: string
     date?: string
+    startDate?: string
+    endDate?: string
+    budget?: string
+    timeline?: string
   }
 ): string {
   const formatter = new BusinessCaseFormatter(data, metadata)

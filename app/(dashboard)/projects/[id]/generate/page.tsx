@@ -85,11 +85,11 @@ export default function GenerateDocumentsPage() {
     }
   }
 
+  const [generationComplete, setGenerationComplete] = useState(false)
+  
   const handleComplete = (documents: unknown[]) => {
-    // After successful generation, redirect to project dashboard
-    setTimeout(() => {
-      router.push(`/projects/${projectId}`)
-    }, 2000)
+    // Show completion state instead of auto-redirecting
+    setGenerationComplete(true)
   }
 
   const skipGeneration = () => {
@@ -158,21 +158,52 @@ export default function GenerateDocumentsPage() {
             </CardHeader>
           </Card>
 
-          <DocumentGenerator
-            projectId={projectId}
-            projectData={projectData}
-            onComplete={handleComplete}
-          />
+          {generationComplete ? (
+            <Card className="backdrop-blur-md bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-xl text-green-400">
+                  ✨ Documents Generated Successfully!
+                </CardTitle>
+                <CardDescription>
+                  Your project documents have been created and are ready to view.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button 
+                  onClick={() => router.push(`/projects/${projectId}/documents`)}
+                  className="w-full"
+                  size="lg"
+                >
+                  View Your Documents
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/projects/${projectId}`)}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Go to Project Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <DocumentGenerator
+                projectId={projectId}
+                projectData={projectData}
+                onComplete={handleComplete}
+              />
 
-          <div className="text-center">
-            <Button
-              variant="ghost"
-              onClick={skipGeneration}
-              className="text-white/50 hover:text-white/70"
-            >
-              Skip for now - I&apos;ll generate documents later
-            </Button>
-          </div>
+              <div className="text-center">
+                <Button
+                  variant="ghost"
+                  onClick={skipGeneration}
+                  className="text-white/50 hover:text-white/70"
+                >
+                  Skip for now - I&apos;ll generate documents later
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

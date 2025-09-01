@@ -11,6 +11,20 @@
  * - Full support for charts, tables, and visual elements
  */
 
+import {
+  calculateQuarterFromDate,
+  calculateMilestoneDate,
+  formatDateForDisplay,
+  generateTimelineEntries,
+  calculateProjectDuration,
+  formatProjectDurationForTable,
+  formatNumberedReasons,
+  calculateSprintDates,
+  calculatePhaseTimeline,
+  calculateBudgetThresholds,
+  calculateDelayThresholds
+} from './date-utils'
+
 export interface DocumentMetadata {
   projectName: string
   companyName?: string
@@ -18,6 +32,11 @@ export interface DocumentMetadata {
   date?: string
   author?: string
   methodology?: 'prince2' | 'agile' | 'hybrid'
+  // Project context for dynamic date/budget calculations
+  startDate?: string
+  endDate?: string
+  budget?: string
+  timeline?: string
 }
 
 export interface FormatterOptions {
@@ -40,7 +59,7 @@ export abstract class BaseUnifiedFormatter<T = any> {
     // Set defaults for metadata
     this.metadata = {
       projectName: metadata.projectName || 'Project',
-      companyName: metadata.companyName || 'Your Company',
+      companyName: metadata.companyName || metadata.projectName || 'Organization',
       version: metadata.version || '1.0',
       date: metadata.date || new Date().toLocaleDateString('en-GB', {
         day: '2-digit',
@@ -48,7 +67,12 @@ export abstract class BaseUnifiedFormatter<T = any> {
         year: 'numeric'
       }),
       author: metadata.author,
-      methodology: metadata.methodology || 'prince2'
+      methodology: metadata.methodology || 'prince2',
+      // Preserve project context
+      startDate: metadata.startDate,
+      endDate: metadata.endDate,
+      budget: metadata.budget,
+      timeline: metadata.timeline
     }
 
     // Set defaults for options
@@ -291,6 +315,56 @@ export abstract class BaseUnifiedFormatter<T = any> {
     }
     
     return this.escapeHtml(value)
+  }
+
+  /**
+   * Helper methods for date calculations using project context
+   */
+  protected getProjectQuarter(dateOffset: number = 0): string {
+    const date = this.metadata.startDate 
+      ? calculateMilestoneDate(this.metadata.startDate, dateOffset, 'full')
+      : undefined
+    return calculateQuarterFromDate(date)
+  }
+
+  protected getMilestoneDate(monthOffset: number, format: 'full' | 'month' | 'quarter' = 'full'): string {
+    return calculateMilestoneDate(this.metadata.startDate, monthOffset, format)
+  }
+
+  protected getSprintDates(sprintNumber: number): { start: string; end: string } {
+    return calculateSprintDates(this.metadata.startDate, sprintNumber)
+  }
+
+  protected getProjectPhases(phaseNames?: string[]): ReturnType<typeof calculatePhaseTimeline> {
+    return calculatePhaseTimeline(this.metadata.startDate, this.metadata.endDate, phaseNames)
+  }
+
+  protected getTimelineEntries(includePostProject: boolean = true): string[] {
+    return generateTimelineEntries(this.metadata.startDate, this.metadata.endDate, includePostProject)
+  }
+
+  protected getProjectDuration(): ReturnType<typeof calculateProjectDuration> {
+    return calculateProjectDuration(this.metadata.startDate, this.metadata.endDate)
+  }
+
+  protected formatProjectTimeline(): string {
+    return formatProjectDurationForTable(this.metadata.startDate, this.metadata.endDate, this.metadata.timeline)
+  }
+
+  protected formatReasons(text: string): string {
+    return formatNumberedReasons(text)
+  }
+
+  protected getBudgetThresholds(): ReturnType<typeof calculateBudgetThresholds> {
+    return calculateBudgetThresholds(this.metadata.budget)
+  }
+
+  protected getDelayThresholds(): ReturnType<typeof calculateDelayThresholds> {
+    return calculateDelayThresholds(this.metadata.timeline)
+  }
+
+  protected formatDate(date: string | undefined, format: 'short' | 'long' | 'iso' = 'long'): string {
+    return formatDateForDisplay(date, format)
   }
 
   /**

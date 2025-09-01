@@ -285,12 +285,16 @@ ${phases.map((phase, i) => `    Phase ${i + 1} : ${phase.name || phase}`).join('
     if (this.data.timeline) {
       content += this.formatContent(this.data.timeline)
     } else if (this.options.includeCharts && this.data.phases) {
+      // Calculate dates based on project timeline
+      const startDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+      const startDateStr = startDate.toISOString().split('T')[0]
+      
       content += this.createMermaidChart('gantt', `
 gantt
     title Project Timeline
     dateFormat YYYY-MM-DD
     section Planning
-    Requirements :a1, 2024-01-01, 30d
+    Requirements :a1, ${startDateStr}, 30d
     Design :a2, after a1, 20d
     section Development
     Implementation :b1, after a2, 60d

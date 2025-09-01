@@ -51,6 +51,16 @@ interface BacklogData {
 }
 
 export class UnifiedBacklogFormatter extends BaseUnifiedFormatter<BacklogData> {
+  /**
+   * Format date for sprint display (YYYY-MM-DD)
+   */
+  private formatDateForSprint(date: Date): string {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
   constructor(content: BacklogData, metadata: any) {
     super(content, metadata)
   }
@@ -453,28 +463,31 @@ export class UnifiedBacklogFormatter extends BaseUnifiedFormatter<BacklogData> {
   }
 
   private generateSprints(): string {
+    // Calculate sprint dates based on project start date
+    const startDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+    
     const sprints = this.data.sprints || [
       {
         name: 'Sprint 1',
         goal: 'Complete user authentication',
-        startDate: '2024-01-01',
-        endDate: '2024-01-14',
+        startDate: this.formatDateForSprint(startDate),
+        endDate: this.formatDateForSprint(new Date(startDate.getTime() + 14 * 24 * 60 * 60 * 1000)),
         velocity: 21,
         items: ['US-001', 'US-004', 'US-007']
       },
       {
         name: 'Sprint 2',
         goal: 'Implement core dashboard',
-        startDate: '2024-01-15',
-        endDate: '2024-01-28',
+        startDate: this.formatDateForSprint(new Date(startDate.getTime() + 14 * 24 * 60 * 60 * 1000)),
+        endDate: this.formatDateForSprint(new Date(startDate.getTime() + 28 * 24 * 60 * 60 * 1000)),
         velocity: 18,
         items: ['US-002', 'US-005', 'US-008']
       },
       {
         name: 'Sprint 3',
         goal: 'Add data export functionality',
-        startDate: '2024-01-29',
-        endDate: '2024-02-11',
+        startDate: this.formatDateForSprint(new Date(startDate.getTime() + 28 * 24 * 60 * 60 * 1000)),
+        endDate: this.formatDateForSprint(new Date(startDate.getTime() + 42 * 24 * 60 * 60 * 1000)),
         velocity: 0,
         items: ['US-003', 'US-006', 'US-009']
       }
@@ -606,30 +619,35 @@ export class UnifiedBacklogFormatter extends BaseUnifiedFormatter<BacklogData> {
   }
 
   private generateRoadmap(): string {
+    // Calculate quarters based on project timeline
+    const startDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+    const year = startDate.getFullYear()
+    const startQuarter = Math.floor(startDate.getMonth() / 3) + 1
+    
     const quarters = [
-      { name: 'Q1 2024', focus: 'Foundation & Core Features', items: 25 },
-      { name: 'Q2 2024', focus: 'Integration & Enhancement', items: 20 },
-      { name: 'Q3 2024', focus: 'Optimization & Scaling', items: 15 },
-      { name: 'Q4 2024', focus: 'Advanced Features', items: 18 }
+      { name: `Q${startQuarter} ${year}`, focus: 'Foundation & Core Features', items: 25 },
+      { name: `Q${(startQuarter % 4) + 1} ${startQuarter === 4 ? year + 1 : year}`, focus: 'Integration & Enhancement', items: 20 },
+      { name: `Q${((startQuarter + 1) % 4) + 1} ${startQuarter >= 3 ? year + 1 : year}`, focus: 'Optimization & Scaling', items: 15 },
+      { name: `Q${((startQuarter + 2) % 4) + 1} ${startQuarter >= 2 ? year + 1 : year}`, focus: 'Advanced Features', items: 18 }
     ]
 
     const roadmap = this.createMermaidChart('timeline', `
       timeline
-        title Product Roadmap 2024
+        title Product Roadmap ${year}${startQuarter >= 2 ? `-${year + 1}` : ''}
         
-        Q1 2024 : Foundation
+        ${quarters[0].name} : Foundation
                 : Core Features
                 : User Management
         
-        Q2 2024 : Integration
+        ${quarters[1].name} : Integration
                 : Third-party Services
                 : API Development
         
-        Q3 2024 : Optimization
+        ${quarters[2].name} : Optimization
                 : Performance
                 : Scaling
         
-        Q4 2024 : Advanced Features
+        ${quarters[3].name} : Advanced Features
                 : Analytics
                 : AI/ML Features
     `)

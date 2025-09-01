@@ -484,14 +484,24 @@ export class UnifiedCharterFormatter extends BaseUnifiedFormatter<CharterData> {
   }
 
   private generateTimeline(): string {
+    // Use project dates from metadata
+    const projectStartDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+    const projectEndDate = this.metadata.endDate ? new Date(this.metadata.endDate) : new Date(projectStartDate.getTime() + 180 * 24 * 60 * 60 * 1000)
+    
+    // Calculate phase dates based on project timeline
+    const totalDuration = projectEndDate.getTime() - projectStartDate.getTime()
+    const initiationEnd = new Date(projectStartDate.getTime() + totalDuration * 0.1)
+    const planningEnd = new Date(projectStartDate.getTime() + totalDuration * 0.2)
+    const executionEnd = new Date(projectStartDate.getTime() + totalDuration * 0.85)
+    
     const timeline = this.data.timeline || {
-      startDate: '2024-01-01',
-      endDate: '2024-06-30',
+      startDate: this.formatDateForGantt(projectStartDate),
+      endDate: this.formatDateForGantt(projectEndDate),
       phases: [
-        { name: 'Initiation', startDate: '2024-01-01', endDate: '2024-01-31' },
-        { name: 'Planning', startDate: '2024-02-01', endDate: '2024-02-28' },
-        { name: 'Execution', startDate: '2024-03-01', endDate: '2024-05-31' },
-        { name: 'Closure', startDate: '2024-06-01', endDate: '2024-06-30' }
+        { name: 'Initiation', startDate: this.formatDateForGantt(projectStartDate), endDate: this.formatDateForGantt(initiationEnd) },
+        { name: 'Planning', startDate: this.formatDateForGantt(initiationEnd), endDate: this.formatDateForGantt(planningEnd) },
+        { name: 'Execution', startDate: this.formatDateForGantt(planningEnd), endDate: this.formatDateForGantt(executionEnd) },
+        { name: 'Closure', startDate: this.formatDateForGantt(executionEnd), endDate: this.formatDateForGantt(projectEndDate) }
       ]
     }
 
@@ -518,8 +528,8 @@ export class UnifiedCharterFormatter extends BaseUnifiedFormatter<CharterData> {
         </thead>
         <tbody>
           ${phases.map(p => {
-            const start = new Date(p.startDate || '2024-01-01')
-            const end = new Date(p.endDate || '2024-06-30')
+            const start = new Date(p.startDate || this.formatDateForGantt(projectStartDate))
+            const end = new Date(p.endDate || this.formatDateForGantt(projectEndDate))
             const duration = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
             return `
               <tr>
@@ -688,26 +698,34 @@ export class UnifiedCharterFormatter extends BaseUnifiedFormatter<CharterData> {
     `
   }
 
-  private formatDateForGantt(dateStr: string | undefined): string {
-    if (!dateStr) return '2024-01-01'
+  private formatDateForGantt(date: Date | string | undefined): string {
+    if (!date) {
+      // Use project start date from metadata as fallback
+      const fallbackDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+      return fallbackDate.toISOString().split('T')[0]
+    }
+    
+    if (date instanceof Date) {
+      return date.toISOString().split('T')[0]
+    }
     
     // If it's already in YYYY-MM-DD format, return it
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return dateStr
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return date
     }
     
     // Otherwise, create a date based on the string
-    const now = new Date()
-    if (dateStr.toLowerCase().includes('week')) {
-      const weekNum = parseInt(dateStr.match(/\d+/)?.[0] || '1')
-      const targetDate = new Date(now.getFullYear(), 0, weekNum * 7)
+    const baseDate = this.metadata.startDate ? new Date(this.metadata.startDate) : new Date()
+    if (date.toLowerCase().includes('week')) {
+      const weekNum = parseInt(date.match(/\d+/)?.[0] || '1')
+      const targetDate = new Date(baseDate.getFullYear(), 0, weekNum * 7)
       return targetDate.toISOString().split('T')[0]
-    } else if (dateStr.toLowerCase().includes('month')) {
-      const monthNum = parseInt(dateStr.match(/\d+/)?.[0] || '1')
-      const targetDate = new Date(now.getFullYear(), monthNum - 1, 15)
+    } else if (date.toLowerCase().includes('month')) {
+      const monthNum = parseInt(date.match(/\d+/)?.[0] || '1')
+      const targetDate = new Date(baseDate.getFullYear(), monthNum - 1, 15)
       return targetDate.toISOString().split('T')[0]
     }
     
-    return '2024-01-01'
+    return baseDate.toISOString().split('T')[0]
   }
 }

@@ -48,6 +48,11 @@ export interface SanitizedProjectData {
   methodology: 'agile' | 'prince2' | 'hybrid'
   companyWebsite: string
   sector: string
+  budget?: string
+  timeline?: string
+  startDate?: string
+  endDate?: string
+  expectedTimeline?: string // Alias for compatibility
   stakeholders: Array<{
     role: string
     placeholder: string

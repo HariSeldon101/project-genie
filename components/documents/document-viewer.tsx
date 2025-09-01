@@ -77,6 +77,36 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
   const router = useRouter()
   const contentRef = useRef<HTMLDivElement>(null)
   const [mermaidInitialized, setMermaidInitialized] = useState(false)
+  
+  // Helper function to extract company name from project
+  const getCompanyName = () => {
+    if (document.project?.company_info && typeof document.project.company_info === 'object') {
+      const companyInfo = document.project.company_info as any
+      return companyInfo.name || companyInfo.companyName || 'Your Company'
+    }
+    return 'Your Company'
+  }
+  
+  // Helper function to create metadata with project context
+  const createMetadata = () => {
+    const project = document.project as any
+    return {
+      projectName: project?.name || 'Project',
+      companyName: getCompanyName(),
+      version: document.version?.toString() || '1.0',
+      date: new Date(document.created_at).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      }),
+      author: 'User',
+      // Add project dates and budget
+      startDate: project?.start_date || undefined,
+      endDate: project?.end_date || undefined,
+      budget: project?.budget || undefined,
+      timeline: project?.timeline || undefined
+    }
+  }
 
 
   // Initialize Mermaid for HTML content
@@ -241,16 +271,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'project initiation document (pid)':
             // Use unified PID formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company',
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                })
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedPIDFormatter(enrichedContent, metadata)
@@ -274,16 +295,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'business case':
             // Use unified Business Case formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                })
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedBusinessCaseFormatter(enrichedContent, metadata)
@@ -307,17 +319,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'risk register':
             // Use unified Risk Register formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }),
-                author: 'User'
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedRiskRegisterFormatter(enrichedContent, metadata)
@@ -341,17 +343,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'project plan':
             // Use unified Project Plan formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }),
-                author: 'User'
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedProjectPlanFormatter(enrichedContent, metadata)
@@ -375,17 +367,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'project charter':
             // Use unified Charter formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }),
-                author: 'User'
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedCharterFormatter(enrichedContent, metadata)
@@ -409,17 +391,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'product backlog':
             // Use unified Backlog formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }),
-                author: 'User'
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedBacklogFormatter(enrichedContent, metadata)
@@ -443,17 +415,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'technical landscape analysis':
             // Use unified Technical Landscape formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }),
-                author: 'User'
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedTechnicalLandscapeFormatter(enrichedContent, metadata)
@@ -477,17 +439,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'comparable projects analysis':
             // Use unified Comparable Projects formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }),
-                author: 'User'
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedComparableProjectsFormatter(enrichedContent, metadata)
@@ -511,17 +463,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'quality management strategy':
             // Use unified Quality Management formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }),
-                author: 'User'
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedQualityManagementFormatter(enrichedContent, metadata)
@@ -545,17 +487,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           case 'communication management approach':
             // Use unified Communication Plan formatter
             if (typeof enrichedContent === 'object' && enrichedContent !== null) {
-              const metadata = {
-                projectName: document.project?.name || 'Project',
-                companyName: 'Your Company', 
-                version: document.version?.toString() || '1.0',
-                date: new Date(document.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }),
-                author: 'User'
-              }
+              const metadata = createMetadata()
               
               try {
                 const formatter = new UnifiedCommunicationPlanFormatter(enrichedContent, metadata)
