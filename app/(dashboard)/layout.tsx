@@ -69,16 +69,23 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  console.log('[Dashboard Layout] Starting layout render')
+  
   try {
+    console.log('[Dashboard Layout] Getting user...')
     const user = await getUser()
+    console.log('[Dashboard Layout] User retrieved:', user ? `${user.email} (${user.id})` : 'null')
 
     if (!user) {
+      console.log('[Dashboard Layout] No user found, redirecting to login')
       redirect('/login')
     }
 
     // Ensure profile exists for the authenticated user
     if (user.email) {
+      console.log('[Dashboard Layout] Ensuring profile exists for user:', user.id)
       await ensureProfileExists(user.id, user.email)
+      console.log('[Dashboard Layout] Profile check complete')
     }
 
     return (
@@ -104,7 +111,12 @@ export default async function DashboardLayout({
     </div>
   )
   } catch (error) {
-    console.error('[Dashboard Layout] Error in layout:', error)
+    console.error('[Dashboard Layout] Critical error in layout:', error)
+    console.error('[Dashboard Layout] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      type: typeof error
+    })
     // If there's an error, redirect to login
     redirect('/login')
   }

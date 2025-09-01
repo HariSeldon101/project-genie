@@ -1,16 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
-import type { cookies as cookiesType } from 'next/headers'
+import { cookies } from 'next/headers'
 
 export async function createClient() {
-  // Dynamic import to avoid webpack issues in Next.js 15.5.0
-  let cookieStore: Awaited<ReturnType<typeof cookiesType>>
-  try {
-    const nextHeaders = await import('next/headers')
-    cookieStore = await nextHeaders.cookies()
-  } catch (error) {
-    console.error('[createClient] Failed to import cookies:', error)
-    throw error
-  }
+  const cookieStore = await cookies()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
