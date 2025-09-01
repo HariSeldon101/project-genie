@@ -93,10 +93,11 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
   const [selectedDocInfo, setSelectedDocInfo] = useState<string | null>(null)
   
   // Project details for better document generation
-  const [budget, setBudget] = useState<string>('')
-  const [timeline, setTimeline] = useState<string>('')
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
+  // Budget and timeline now come from projectData
+  const budget = (projectData.budget as string) || ''
+  const timeline = (projectData.timeline as string) || ''
+  const startDate = (projectData.startDate as string) || ''
+  const endDate = (projectData.endDate as string) || ''
   
   // Document selection state - all selected by default
   const allDocuments = getMethodologyDocuments(projectData.methodology as string)
@@ -201,11 +202,8 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
           body: JSON.stringify({
             projectId,
             projectData: {
-              ...projectData,
-              budget: budget || undefined,
-              timeline: timeline || undefined,
-              startDate: startDate || undefined,
-              endDate: endDate || undefined
+              ...projectData
+              // Budget, timeline, startDate, endDate are already in projectData
             },
             selectedDocuments: Array.from(selectedDocuments)
           }),
@@ -529,71 +527,6 @@ export function DocumentGenerator({ projectId, projectData, onComplete }: Docume
       <CardContent className="space-y-4">
         {status === 'idle' && (
           <>
-            {/* Project Budget and Timeline Inputs */}
-            <div className="bg-purple-500/10 rounded-lg p-4 border border-purple-500/20 space-y-4">
-              <h4 className="font-medium flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Project Details for Enhanced Generation
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="budget" className="block text-sm font-medium mb-1">
-                    Project Budget (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    id="budget"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    placeholder="e.g., $500,000 or £2.5M"
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Helps generate realistic cost estimates and resource plans
-                  </p>
-                </div>
-                <div>
-                  <label htmlFor="timeline" className="block text-sm font-medium mb-1">
-                    Project Timeline (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    id="timeline"
-                    value={timeline}
-                    onChange={(e) => setTimeline(e.target.value)}
-                    placeholder="e.g., 6 months, Q2 2025 - Q1 2026"
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Improves milestone planning and phase definitions
-                  </p>
-                </div>
-                <div>
-                  <label htmlFor="startDate" className="block text-sm font-medium mb-1">
-                    Start Date (Optional)
-                  </label>
-                  <input
-                    type="date"
-                    id="startDate"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="endDate" className="block text-sm font-medium mb-1">
-                    Target End Date (Optional)
-                  </label>
-                  <input
-                    type="date"
-                    id="endDate"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </div>
 
             <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
               <div className="flex items-center justify-between mb-3">

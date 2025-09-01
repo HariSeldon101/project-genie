@@ -53,14 +53,21 @@ export default function GenerateDocumentsPage() {
           .select('*')
           .eq('project_id', projectId)
 
+        // Extract company_info fields
+        const companyInfo = projectRecord.company_info || {}
+        
         const reconstructedData = {
           name: projectRecord.name,
           description: projectRecord.description,
           vision: projectRecord.vision,
           businessCase: projectRecord.business_case,
           methodology: projectRecord.methodology_type,
-          companyWebsite: '', // Would need to be stored in project table
-          sector: '', // Would need to be stored in project table
+          companyWebsite: companyInfo.website || '',
+          sector: companyInfo.sector || '',
+          budget: companyInfo.budget || '',
+          timeline: companyInfo.timeline || '',
+          startDate: companyInfo.startDate || '',
+          endDate: companyInfo.endDate || '',
           stakeholders: stakeholders?.map(s => ({
             name: s.name,
             email: s.email || '',
