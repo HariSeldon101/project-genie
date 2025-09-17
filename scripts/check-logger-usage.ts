@@ -49,7 +49,9 @@ async function checkLoggerUsage(): Promise<void> {
           !line.trim().startsWith('*') &&
           !line.includes('permanentLogger.error()')) { // Allow references to error() in documentation
         errors.push({
-          file, new Error(new Error(line: lineNum), content: line.trim()),
+          file,
+          line: lineNum,
+          content: line.trim(),
           issue: 'Uses permanentLogger.captureError() - should be captureError()'
         })
       }
@@ -57,8 +59,9 @@ async function checkLoggerUsage(): Promise<void> {
       // Check for logger.error() usage (incorrect import name)
       if (line.match(/\blogger\.error\(/)) {
         errors.push({
-          file, new Error(line: lineNum,
-          content: line.trim()),
+          file,
+          line: lineNum,
+          content: line.trim(),
           issue: 'Uses logger.error() - should import as permanentLogger and use captureError()'
         })
       }
@@ -103,7 +106,7 @@ async function checkLoggerUsage(): Promise<void> {
     console.log(chalk.red(`❌ Found ${errors.length} logger usage issues:\n`))
 
     // Group errors by file
-    const errorsByFile = errors.reduce((acc, new Error(err)) => {
+    const errorsByFile = errors.reduce((acc, err) => {
       if (!acc[err.file]) acc[err.file] = []
       acc[err.file].push(err)
       return acc
