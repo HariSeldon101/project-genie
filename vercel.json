@@ -1,4 +1,14 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "ignoreCommand": "git branch --show-current | grep -q ^main$ || exit 0",
+  "github": {
+    "enabled": true,
+    "autoAlias": false
+  },
   "functions": {
     "app/api/auth/callback/route.ts": {
       "maxDuration": 10
