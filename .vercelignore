@@ -1,0 +1,66 @@
+# Vercel ignore file to reduce deployment size
+
+# Development and test files
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+test-*.ts
+test-*.js
+aaa-*.ts
+
+# Archives and backups
+archive/
+.logger-fix-backups/
+*.backup
+*.backup-*
+*.bak
+*.old
+
+# Documentation and non-essential files
+docs/
+*.md
+!README.md
+TODOWRITE_STATE.json
+SESSION_STATE.json
+CI-Audit-*.md
+CLAUDE-*.md
+START_OF_SESSION.md
+END_OF_SESSION.md
+FINAL-*.md
+
+# Development scripts and tests
+scripts/test-*.ts
+scripts/test-*.js
+check-locks.ts
+
+# Large test data files
+**/comprehensive-test-data.ts
+**/kanban-test-data.ts
+
+# Git and CI
+.git/
+.github/
+.husky/
+
+# Node modules (already ignored by default but being explicit)
+node_modules/
+.next/
+
+# Environment files
+.env.local
+.env.development
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
+tmp/
+temp/
