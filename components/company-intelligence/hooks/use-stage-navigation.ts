@@ -1,0 +1,327 @@
+import { useState, useCallback } from 'react'
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { persistentToast } from '@/lib/hooks/use-persistent-toast'
+
+export type Stage = 'site-analysis' | 'sitemap' | 'scraping' | 'extraction' | 'data-review' | 'enrichment' | 'generation'
+
+export interface StageInfo {
+  id: Stage
+  label: string
+  shortLabel: string
+  description: string
+  icon: string
+  estimatedCost: string
+}
+
+// Map UI stages to database-compatible stages
+export const UI_TO_DB_STAGE_MAP: Record<Stage, string> = {
+  'site-analysis': 'discovery',
+  'sitemap': 'discovery',
+  'scraping': 'scraping',
+  'extraction': 'review',
+  'data-review': 'review',
+  'enrichment': 'enrichment',
+  'generation': 'export'
+}
+
+// Map stages to their database field names - FIXED to use actual DB columns
+export const STAGE_TO_FIELD_MAP: Record<Stage, string> = {
+  'site-analysis': 'merged_data',    // ✅ Use actual column
+  'sitemap': 'discovered_urls',      // ✅ Special case for URLs
+  'scraping': 'merged_data',         // ✅ Use actual column
+  'extraction': 'merged_data',       // ✅ Use actual column
+  'data-review': 'merged_data',      // ✅ Use actual column
+  'enrichment': 'merged_data',       // ✅ Use actual column
+  'generation': 'merged_data'        // ✅ Use actual column
+}
+
+// NEW: Helper to get nested path within merged_data
+export const STAGE_TO_NESTED_PATH: Record<Stage, string> = {
+  'site-analysis': 'site_analysis',
+  'sitemap': '',  // Special case - goes to discovered_urls
+  'scraping': 'pages',
+  'extraction': 'extractedData',
+  'data-review': 'reviewData',
+  'enrichment': 'enrichmentData',
+  'generation': 'generationData'
+}
+
+export const STAGES: StageInfo[] = [
+  {
+    id: 'site-analysis',
+    label: 'Site Analysis',
+    shortLabel: 'Analysis',
+    description: 'Analyze website structure and technology',
+    icon: '🔍',
+    estimatedCost: 'Free'
+  },
+  {
+    id: 'sitemap',
+    label: 'Sitemap Discovery',
+    shortLabel: 'Sitemap',
+    description: 'Discover and map website pages',
+    icon: '🗺️',
+    estimatedCost: 'Free'
+  },
+  {
+    id: 'scraping',
+    label: 'Web Scraping',
+    shortLabel: 'Scraping',
+    description: 'Extract content from selected pages',
+    icon: '🕸️',
+    estimatedCost: 'Free'
+  },
+  {
+    id: 'extraction',
+    label: 'Data Extraction',
+    shortLabel: 'Extract',
+    description: 'Structure and organize scraped data',
+    icon: '📊',
+    estimatedCost: 'Free'
+  },
+  {
+    id: 'data-review',
+    label: 'Data Review',
+    shortLabel: 'Review',
+    description: 'Review and select data for enrichment',
+    icon: '👁️',
+    estimatedCost: 'Free'
+  },
+  {
+    id: 'enrichment',
+    label: 'AI Enrichment',
+    shortLabel: 'Enrich',
+    description: 'Enhance data with AI analysis',
+    icon: '✨',
+    estimatedCost: '$0.05'
+  },
+  {
+    id: 'generation',
+    label: 'Document Generation',
+    shortLabel: 'Generate',
+    description: 'Generate project documents',
+    icon: '📄',
+    estimatedCost: '$0.10'
+  }
+]
+
+export function useStageNavigation() {
+  const [currentStage, setCurrentStage] = useState<Stage>(STAGES[0].id)
+  const [completedStages, setCompletedStages] = useState<Set<Stage>>(new Set())
+  const [isTransitioning, setIsTransitioning] = useState(false)
+
+  const currentStageIndex = STAGES.findIndex(s => s.id === currentStage)
+  const currentStageInfo = STAGES[currentStageIndex]
+
+  /**
+   * Mark a stage as completed
+   */
+  const markStageCompleted = useCallback((stage: Stage) => {
+    permanentLogger.info('STAGE_NAV', 'Marking stage as completed', { stage})
+    setCompletedStages(prev => {
+      const newSet = new Set(prev)
+      newSet.add(stage)
+      permanentLogger.info('Updated completed stages', {
+        category: 'STAGE_NAV',
+        previousCount: prev.size,
+        newCount: newSet.size,
+        stages: Array.from(newSet)
+      })
+      return newSet
+    })
+  }, [])
+
+  /**
+   * Proceed to the next stage with optional auto-start callback
+   */
+  const proceedToNextStage = useCallback((autoStartCallback?: () => Promise<void> | void) => {
+    if (isTransitioning) {
+      permanentLogger.info('STAGE_NAV', 'Already transitioning, ignoring proceedToNextStage call')
+      return
+    }
+
+    const nextIndex = currentStageIndex + 1
+    
+    permanentLogger.info('Attempting to proceed to next stage', { category: 'STAGE_NAV', currentStage,
+      currentIndex: currentStageIndex,
+      nextIndex,
+      hasNextStage: nextIndex < STAGES.length,
+      hasAutoStart: !!autoStartCallback })
+
+    if (nextIndex >= STAGES.length) {
+      permanentLogger.info('STAGE_NAV', 'No more stages available')
+      persistentToast.info('All stages completed!')
+      return
+    }
+
+    setIsTransitioning(true)
+    const nextStage = STAGES[nextIndex].id
+    
+    permanentLogger.info('Transitioning to next stage', { category: 'STAGE_NAV', from: currentStage,
+      to: nextStage })
+
+    // Transition to next stage with phase labels
+    const currentLabel = currentStage.toUpperCase().replace('-', '_')
+    const nextLabel = nextStage.toUpperCase().replace('-', '_')
+    setCurrentStage(nextStage)
+    // Use high priority for navigation transitions to ensure they appear in order
+    persistentToast.info(`[${currentLabel} → ${nextLabel}] Moving to ${STAGES[nextIndex].label}`, {
+      phase: nextStage,
+      priority: 'high'
+    })
+
+    // Execute auto-start callback if provided
+    if (autoStartCallback) {
+      permanentLogger.info('STAGE_NAV', 'Executing auto-start callback for', { nextStage})
+      Promise.resolve(autoStartCallback()).catch(error => {
+        permanentLogger.captureError('STAGE_NAV', new Error('Auto-start callback failed'), { error, nextStage })
+      })
+    }
+
+    // Reset transition flag after animation
+    setTimeout(() => {
+      setIsTransitioning(false)
+      permanentLogger.info('STAGE_NAV', 'Transition completed')
+    }, 500)
+  }, [currentStage, currentStageIndex, isTransitioning])
+
+  /**
+   * Go back to the previous stage
+   */
+  const goToPreviousStage = useCallback(() => {
+    const prevIndex = currentStageIndex - 1
+    
+    permanentLogger.info('Attempting to go to previous stage', { category: 'STAGE_NAV', currentStage,
+      currentIndex: currentStageIndex,
+      prevIndex,
+      hasPrevStage: prevIndex >= 0 })
+
+    if (prevIndex < 0) {
+      permanentLogger.info('STAGE_NAV', 'No previous stage available')
+      return
+    }
+
+    const prevStage = STAGES[prevIndex]
+    permanentLogger.info('Going back to previous stage', { category: 'STAGE_NAV', from: currentStage,
+      to: prevStage.id })
+
+    const currentLabel = currentStage.toUpperCase().replace('-', '_')
+    const prevLabel = prevStage.id.toUpperCase().replace('-', '_')
+    setCurrentStage(prevStage.id)
+    // Use high priority for navigation transitions
+    persistentToast.info(`[${currentLabel} ← ${prevLabel}] Returned to ${prevStage.label}`, {
+      phase: prevStage.id,
+      priority: 'high'
+    })
+  }, [currentStage, currentStageIndex])
+
+  /**
+   * Jump to a specific stage (only if allowed)
+   */
+  const jumpToStage = useCallback((targetStage: Stage) => {
+    const targetIndex = STAGES.findIndex(s => s.id === targetStage)
+    
+    permanentLogger.info('Attempting to jump to stage', {
+      category: 'STAGE_NAV',
+      currentStage,
+      targetStage,
+      targetIndex,
+      isCompleted: completedStages.has(targetStage)
+    })
+
+    // Only allow jumping to completed stages or the immediate next stage
+    const canJump = completedStages.has(targetStage) || 
+                   targetIndex === currentStageIndex + 1 ||
+                   targetIndex < currentStageIndex
+
+    if (!canJump) {
+      permanentLogger.warn('STAGE_NAV', 'Cannot jump to stage', {
+        targetStage,
+        reason: 'Stage not yet accessible'
+      })
+      persistentToast.error('Please complete previous stages first')
+      return false
+    }
+
+    permanentLogger.info('Jumping to stage', { category: 'STAGE_NAV', from: currentStage,
+      to: targetStage })
+
+    setCurrentStage(targetStage)
+    return true
+  }, [currentStage, currentStageIndex, completedStages])
+
+  /**
+   * Reset navigation to initial state
+   */
+  const resetNavigation = useCallback(() => {
+    permanentLogger.info('STAGE_NAV', 'Resetting navigation to initial state')
+    
+    setCurrentStage(STAGES[0].id)
+    setCompletedStages(new Set())
+    setIsTransitioning(false)
+    
+    permanentLogger.info('STAGE_NAV', 'Navigation reset complete')
+    persistentToast.info('Reset to initial stage')
+  }, [])
+
+  /**
+   * Check if a stage is accessible
+   */
+  const isStageAccessible = useCallback((stage: Stage) => {
+    const stageIndex = STAGES.findIndex(s => s.id === stage)
+    
+    // A stage is accessible if:
+    // 1. It's completed
+    // 2. It's the current stage
+    // 3. It's the immediate next stage after current
+    // 4. All previous stages are completed
+    const accessible = completedStages.has(stage) ||
+                      stage === currentStage ||
+                      stageIndex === currentStageIndex + 1 ||
+                      STAGES.slice(0, stageIndex).every(s => completedStages.has(s.id))
+    
+    permanentLogger.info('Checking stage accessibility', {
+      category: 'STAGE_NAV',
+      stage,
+      accessible,
+      isCompleted: completedStages.has(stage),
+      isCurrent: stage === currentStage
+    })
+    
+    return accessible
+  }, [currentStage, currentStageIndex, completedStages])
+
+  /**
+   * Get progress percentage
+   */
+  const getProgressPercentage = useCallback(() => {
+    const percentage = Math.round((completedStages.size / STAGES.length) * 100)
+    permanentLogger.info('Calculated progress', { category: 'STAGE_NAV', completedCount: completedStages.size,
+      totalStages: STAGES.length,
+      percentage })
+    return percentage
+  }, [completedStages])
+
+  return {
+    // State
+    currentStage,
+    currentStageIndex,
+    currentStageInfo,
+    completedStages,
+    isTransitioning,
+    
+    // Actions
+    markStageCompleted,
+    proceedToNextStage,
+    goToPreviousStage,
+    jumpToStage,
+    resetNavigation,
+    
+    // Utilities
+    isStageAccessible,
+    getProgressPercentage,
+    
+    // Constants
+    STAGES
+  }
+}

@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# development logs
+/logs/
+claude-code-dev-log.md
+claude-code-dev-log-*.md
+
+# test outputs
+/tests/test-outputs/
+/tests/*.log
+/tests/*.json
+/tests/scripts/output/
+.claude-model-config.json

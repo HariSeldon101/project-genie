@@ -1,0 +1,670 @@
+/**
+ * Phase-Based Company Research Orchestrator
+ * CRITICAL: Each phase must be executed separately with explicit approval gates
+ * NO automatic progression between phases without user consent
+ */
+
+import { randomUUID } from 'crypto'
+import { EventEmitter } from 'events'
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { LLMLogger } from '@/lib/utils/llm-logger'
+import { rateLimiter } from './rate-limiter'
+import { addProgressEvent } from '@/lib/company-intelligence/services/progress-manager'
+import type {
+  CompanyResearchRequest,
+  CompanyInformationPack,
+  WebsiteData,
+  ResearchPhase,
+  PhaseControl,
+  ResearchSession,
+  PhaseResult
+} from '../types'
+
+// Import existing components
+import { EnrichmentEngine } from './enrichment-engine'
+import { PackGenerator } from '../processors/pack-generator'
+import { PackStore } from '../storage/pack-store'
+import { CacheManager } from '../storage/cache-manager'
+import { SmartExtractor } from '../extractors/smart-extractor'
+import { getCompanyContext } from './context-manager'
+import { StrategyManager } from '../scrapers/strategies/strategy-manager'
+
+export class PhaseOrchestrator extends EventEmitter {
+  private enrichmentEngine: EnrichmentEngine
+  private packGenerator: PackGenerator
+  private packStore: PackStore
+  private cacheManager: CacheManager
+  private smartExtractor: SmartExtractor
+  private strategyManager: StrategyManager
+  private sessions: Map<string, ResearchSession> = new Map()
+  
+  constructor() {
+    super()
+    permanentLogger.info('Initializing Phase-Based Orchestrator', { category: 'PHASE_ORCHESTRATOR', ...{
+      timestamp: new Date( }).toISOString(),
+      features: [
+        'Phase Separation',
+        'Approval Gates',
+        'NO Automatic Progression',
+        'Prominent LLM Logging',
+        'Rate Limiting'
+      ]
+    })
+    
+    this.enrichmentEngine = new EnrichmentEngine()
+    this.packGenerator = new PackGenerator()
+    this.packStore = new PackStore()
+    this.cacheManager = new CacheManager()
+    this.smartExtractor = new SmartExtractor()
+  }
+  
+  /**
+   * Initialize a research session
+   */
+  async initializeSession(request: CompanyResearchRequest): Promise<ResearchSession> {
+    const sessionId = request.sessionId || randomUUID()
+    
+    permanentLogger.info('Creating new research session', { category: 'SESSION_INIT', sessionId,
+      domain: request.domain,
+      phaseControl: request.phaseControl })
+    
+    const session: ResearchSession = {
+      id: sessionId,
+      domain: request.domain,
+      status: 'active',
+      currentPhase: null,
+      completedPhases: [],
+      phaseResults: {},
+      config: request,
+      metrics: {
+        startedAt: new Date(),
+        updatedAt: new Date(),
+        phaseDurations: {} as Record<ResearchPhase, number>,
+        totalCost: 0,
+        llmCalls: 0,
+        errors: []
+      },
+      userId: (request as any).userId || 'anonymous',
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+    }
+    
+    this.sessions.set(sessionId, session)
+    
+    // Emit session creation event
+    this.emit('sessionCreated', session)
+    addProgressEvent(sessionId, 'session_created', {
+      domain: request.domain,
+      phases: request.phaseControl?.phases || Object.values(ResearchPhase)
+    })
+    
+    return session
+  }
+  
+  /**
+   * Execute a single phase - CRITICAL: Must be called explicitly for each phase
+   */
+  async executePhase(
+    sessionId: string,
+    phase: ResearchPhase,
+    autoApprove: boolean = false
+  ): Promise<PhaseResult> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+    
+    permanentLogger.log('PHASE_EXECUTION', `Starting phase: ${phase}`, {
+      sessionId,
+      phase,
+      autoApprove,
+      previousPhases: session.completedPhases
+    })
+    
+    // Update session status
+    session.currentPhase = phase
+    session.status = 'active'
+    session.metrics.updatedAt = new Date()
+    
+    const phaseStartTime = Date.now()
+    let result: PhaseResult
+    
+    try {
+      switch (phase) {
+        case ResearchPhase.SCRAPING:
+          result = await this.executeScraping(session)
+          break
+          
+        case ResearchPhase.EXTRACTION:
+          result = await this.executeExtraction(session)
+          break
+          
+        case ResearchPhase.ENRICHMENT:
+          // CRITICAL: This is where LLM calls happen
+          LLMLogger.logLLMOperationStarting({
+            phase: 'enrichment',
+            operation: 'External data enrichment with LLM',
+            estimatedCost: 0.50,
+            willUseLLM: true
+          })
+          result = await this.executeEnrichment(session)
+          break
+          
+        case ResearchPhase.GENERATION:
+          // CRITICAL: This also uses LLM
+          LLMLogger.logLLMOperationStarting({
+            phase: 'generation',
+            operation: 'Generate final information pack',
+            estimatedCost: 0.25,
+            willUseLLM: true
+          })
+          result = await this.executeGeneration(session)
+          break
+          
+        default:
+          throw new Error(`Unknown phase: ${phase}`)
+      }
+      
+      // Record phase completion
+      const phaseDuration = Date.now() - phaseStartTime
+      session.phaseResults[phase] = result
+      session.completedPhases.push(phase)
+      session.metrics.phaseDurations[phase] = phaseDuration
+      
+      permanentLogger.log('PHASE_COMPLETE', `Phase ${phase} completed`, {
+        sessionId,
+        duration: phaseDuration,
+        status: result.status,
+        qualityScore: result.qualityScore
+      })
+      
+      // Check if we should stop or need approval
+      const phaseControl = session.config.phaseControl
+      
+      if (phaseControl?.stopAfter === phase) {
+        session.status = 'completed'
+        permanentLogger.log('SESSION_STOP', `Stopping after ${phase} as configured`, {
+          sessionId
+        })
+      } else if (!autoApprove && phaseControl?.requireApproval) {
+        session.status = 'awaiting_review'
+        permanentLogger.log('APPROVAL_REQUIRED', `Phase ${phase} requires approval`, {
+          sessionId,
+          nextPhase: this.getNextPhase(phase)
+        })
+        
+        // Emit approval needed event
+        this.emit('approvalNeeded', {
+          sessionId,
+          completedPhase: phase,
+          nextPhase: this.getNextPhase(phase),
+          result
+        })
+      }
+      
+      return result
+      
+    } catch (error) {
+      session.status = 'failed'
+      session.metrics.errors.push({
+        phase,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date()
+      })
+      
+      permanentLogger.log('PHASE_ERROR', `Phase ${phase} failed`, {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      
+      throw error
+    }
+  }
+  
+  /**
+   * Execute scraping phase - NO LLM CALLS
+   */
+  private async executeScraping(session: ResearchSession): Promise<PhaseResult> {
+    permanentLogger.info('=== STARTING MULTI-PHASE SCRAPING ===', { category: 'SCRAPING_PHASE', sessionId: session.id,
+      domain: session.domain,
+      phases: ['Phase 1: Rapid Scrape', 'Phase 2: Content Validation', 'Phase 3: Selective Enhancement'] })
+    
+    // Initialize strategy manager if needed
+    if (!this.strategyManager) {
+      this.strategyManager = new StrategyManager()
+    }
+    
+    const startTime = Date.now()
+    const scrapedPages = []
+    
+    try {
+      const baseUrl = `https://${session.domain}`
+      const pagesToScrape = session.config.pages || []
+      
+      permanentLogger.info('Pages to scrape', { category: 'SCRAPING_PHASE', ...{
+        count: pagesToScrape.length,
+        urls: pagesToScrape.slice(0, 5 })
+      })
+      
+      // Emit progress for Phase 1
+      addProgressEvent(session.id, 'scraping_phase_1', {
+        phase: 'Phase 1: Rapid Scrape (Cheerio)',
+        message: 'Starting rapid HTML extraction...'
+      })
+      
+      // PHASE 1: Rapid Scrape with Cheerio
+      permanentLogger.info('📋 Phase 1: Rapid Scrape starting', { category: 'SCRAPING_PHASE', scraper: 'Cheerio',
+        pageCount: pagesToScrape.length })
+      
+      // Use strategy manager for scraping
+      const strategyManager = this.strategyManager
+      const phase1Results = new Map()
+      
+      for (let i = 0; i < pagesToScrape.length; i++) {
+        const url = pagesToScrape[i]
+        try {
+          // Use static strategy for rapid phase (similar to Cheerio)
+          const scrapedData = await strategyManager.scrapeUrl(url, 'static')
+          
+          phase1Results.set(url, {
+            data: scrapedData,
+            needsEnhancement: false
+          })
+          
+          permanentLogger.log('SCRAPING_PHASE', `Phase 1: Scraped ${i + 1}/${pagesToScrape.length}`, { url })
+        } catch (error) {
+          permanentLogger.log('SCRAPING_ERROR', `Phase 1 failed for ${url}`, {
+            error: error instanceof Error ? error.message : String(error)
+          })
+          phase1Results.set(url, {
+            data: null,
+            needsEnhancement: true
+          })
+        }
+      }
+      
+      // Emit progress for Phase 2
+      addProgressEvent(session.id, 'scraping_phase_2', {
+        phase: 'Phase 2: Content Validation',
+        message: 'Validating extracted content...'
+      })
+      
+      // PHASE 2: Content Validation
+      permanentLogger.info('✅ Phase 2: Content Validation starting', { category: 'SCRAPING_PHASE', totalPages: phase1Results.size })
+      
+      const pagesNeedingEnhancement = []
+      for (const [url, result] of phase1Results) {
+        if (!result.data || !result.data.content || result.data.content.length < 100) {
+          pagesNeedingEnhancement.push(url)
+          permanentLogger.info('Page needs enhancement', { category: 'SCRAPING_PHASE', url,
+            reason: !result.data ? 'No data' : 'Insufficient content' })
+        } else {
+          // Page scraped successfully with Cheerio
+          scrapedPages.push({
+            url,
+            data: result.data,
+            scrapedAt: new Date(),
+            method: 'cheerio'
+          })
+        }
+      }
+      
+      permanentLogger.info('Phase 2 complete', { category: 'SCRAPING_PHASE', successfulPages: scrapedPages.length,
+        needsEnhancement: pagesNeedingEnhancement.length })
+      
+      // Emit progress for Phase 3
+      if (pagesNeedingEnhancement.length > 0) {
+        addProgressEvent(session.id, 'scraping_phase_3', {
+          phase: 'Phase 3: Selective Enhancement (Playwright)',
+          message: `Enhancing ${pagesNeedingEnhancement.length} pages with JavaScript rendering...`
+        })
+        
+        // PHASE 3: Selective Enhancement with Playwright
+        permanentLogger.info('🚀 Phase 3: Selective Enhancement starting', { category: 'SCRAPING_PHASE', scraper: 'Playwright',
+          pageCount: pagesNeedingEnhancement.length })
+        
+        // Use dynamic strategy for enhancement (similar to Playwright)
+        
+        for (const url of pagesNeedingEnhancement) {
+          try {
+            // Use dynamic strategy for JavaScript-heavy pages
+            const enhancedData = await strategyManager.scrapeUrl(url, 'dynamic')
+            
+            scrapedPages.push({
+              url,
+              data: enhancedData,
+              scrapedAt: new Date(),
+              method: 'playwright'
+            })
+            
+            permanentLogger.info('Phase 3: Enhanced page', { category: 'SCRAPING_PHASE', url })
+          } catch (error) {
+            permanentLogger.log('SCRAPING_ERROR', `Phase 3 failed for ${url}`, {
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
+        }
+      }
+      
+      const duration = Date.now() - startTime
+      
+      permanentLogger.info('✨ All phases complete!', { category: 'SCRAPING_PHASE', ...{
+        totalDuration: duration,
+        totalPages: scrapedPages.length,
+        phase1Pages: scrapedPages.filter(p => p.method === 'cheerio' }).length,
+        phase3Pages: scrapedPages.filter(p => p.method === 'playwright').length
+      })
+      
+      return {
+        phase: ResearchPhase.SCRAPING,
+        status: 'success',
+        data: {
+          domain: session.domain,
+          pages: scrapedPages,
+          phaseSummary: {
+            phase1: { method: 'cheerio', count: scrapedPages.filter(p => p.method === 'cheerio').length },
+            phase3: { method: 'playwright', count: scrapedPages.filter(p => p.method === 'playwright').length }
+          }
+        },
+        metrics: {
+          duration,
+          itemsProcessed: scrapedPages.length
+        },
+        qualityScore: scrapedPages.length > 0 ? 0.9 : 0.2
+      }
+      
+    } catch (error) {
+      return {
+        phase: ResearchPhase.SCRAPING,
+        status: 'failed',
+        data: null,
+        metrics: {
+          duration: Date.now() - startTime
+        },
+        errors: [error instanceof Error ? error.message : String(error)]
+      }
+    }
+  }
+  
+  /**
+   * Execute extraction phase - NO LLM CALLS
+   */
+  private async executeExtraction(session: ResearchSession): Promise<PhaseResult> {
+    permanentLogger.info('Starting extraction (NO LLM)', { category: 'EXTRACTION_PHASE', sessionId: session.id })
+    
+    const scrapingResult = session.phaseResults[ResearchPhase.SCRAPING]
+    if (!scrapingResult || scrapingResult.status !== 'success') {
+      throw new Error('Scraping phase must be completed first')
+    }
+    
+    const startTime = Date.now()
+    
+    try {
+      // Extract data using pattern matching only - NO LLM
+      const extractedData: any = {
+        basics: {},
+        business: {},
+        products: [],
+        team: []
+      }
+      
+      for (const page of scrapingResult.data.pages) {
+        // Use smart extractor for pattern-based extraction
+        if (page.data.content) {
+          const extracted = this.smartExtractor.extractFromText(
+            page.data.content,
+            { url: page.url }
+          )
+          
+          // Merge extracted data
+          Object.assign(extractedData.basics, extracted.basics || {})
+          Object.assign(extractedData.business, extracted.business || {})
+          extractedData.products.push(...(extracted.products || []))
+          extractedData.team.push(...(extracted.team || []))
+        }
+      }
+      
+      const duration = Date.now() - startTime
+      
+      return {
+        phase: ResearchPhase.EXTRACTION,
+        status: 'success',
+        data: extractedData,
+        metrics: {
+          duration,
+          itemsProcessed: scrapingResult.data.pages.length
+        },
+        qualityScore: 0.7
+      }
+      
+    } catch (error) {
+      return {
+        phase: ResearchPhase.EXTRACTION,
+        status: 'failed',
+        data: null,
+        metrics: {
+          duration: Date.now() - startTime
+        },
+        errors: [error instanceof Error ? error.message : String(error)]
+      }
+    }
+  }
+  
+  /**
+   * Execute enrichment phase - USES LLM WITH RATE LIMITING
+   */
+  private async executeEnrichment(session: ResearchSession): Promise<PhaseResult> {
+    permanentLogger.info('🔴 WARNING: Starting enrichment WITH LLM CALLS', { category: 'ENRICHMENT_PHASE', sessionId: session.id })
+    
+    const extractionResult = session.phaseResults[ResearchPhase.EXTRACTION]
+    if (!extractionResult || extractionResult.status !== 'success') {
+      throw new Error('Extraction phase must be completed first')
+    }
+    
+    const startTime = Date.now()
+    let llmCalls = 0
+    let totalCost = 0
+    
+    try {
+      // CRITICAL: Use rate-limited sequential enrichment
+      const enrichedData = await this.enrichmentEngine.enrichSequentially(
+        extractionResult.data,
+        session.config,
+        async (taskName: string, fn: () => Promise<any>) => {
+          // Wrap each enrichment task with rate limiting
+          llmCalls++
+          
+          LLMLogger.logCall({
+            model: 'gpt-5-nano',
+            phase: 'enrichment',
+            purpose: taskName,
+            tokens: { input: 500, output: 1000 },
+            cost: 0.05,
+            sessionId: session.id
+          })
+          
+          // Execute with rate limiting
+          return await rateLimiter.executeWithRateLimit('gpt-5-nano', fn)
+        }
+      )
+      
+      const duration = Date.now() - startTime
+      totalCost = llmCalls * 0.05 // Rough estimate
+      
+      // Update session metrics
+      session.metrics.llmCalls += llmCalls
+      session.metrics.totalCost += totalCost
+      
+      LLMLogger.logPhaseComplete('enrichment', {
+        duration,
+        llmCalls,
+        cost: totalCost,
+        success: true
+      })
+      
+      return {
+        phase: ResearchPhase.ENRICHMENT,
+        status: 'success',
+        data: enrichedData,
+        metrics: {
+          duration,
+          llmCalls,
+          cost: totalCost
+        },
+        qualityScore: 0.85
+      }
+      
+    } catch (error) {
+      LLMLogger.logPhaseComplete('enrichment', {
+        duration: Date.now() - startTime,
+        llmCalls,
+        cost: totalCost,
+        success: false
+      })
+      
+      return {
+        phase: ResearchPhase.ENRICHMENT,
+        status: 'failed',
+        data: extractionResult.data, // Fall back to extraction data
+        metrics: {
+          duration: Date.now() - startTime,
+          llmCalls,
+          cost: totalCost
+        },
+        errors: [error instanceof Error ? error.message : String(error)]
+      }
+    }
+  }
+  
+  /**
+   * Execute generation phase - USES LLM
+   */
+  private async executeGeneration(session: ResearchSession): Promise<PhaseResult> {
+    permanentLogger.info('🔴 WARNING: Starting generation WITH LLM', { category: 'GENERATION_PHASE', sessionId: session.id })
+    
+    const enrichmentResult = session.phaseResults[ResearchPhase.ENRICHMENT] ||
+                            session.phaseResults[ResearchPhase.EXTRACTION]
+    
+    if (!enrichmentResult || enrichmentResult.status !== 'success') {
+      throw new Error('Previous phases must be completed first')
+    }
+    
+    const startTime = Date.now()
+    
+    try {
+      // Generate pack with LLM
+      LLMLogger.logCall({
+        model: 'gpt-5-mini',
+        phase: 'generation',
+        purpose: 'Generate information pack',
+        tokens: { input: 2000, output: 3000 },
+        cost: 0.25,
+        sessionId: session.id
+      })
+      
+      const pack = await rateLimiter.executeWithRateLimit(
+        'gpt-5-mini',
+        () => this.packGenerator.generate(enrichmentResult.data)
+      )
+      
+      const duration = Date.now() - startTime
+      
+      // Update session metrics
+      session.metrics.llmCalls += 1
+      session.metrics.totalCost += 0.25
+      
+      LLMLogger.logPhaseComplete('generation', {
+        duration,
+        llmCalls: 1,
+        cost: 0.25,
+        success: true
+      })
+      
+      return {
+        phase: ResearchPhase.GENERATION,
+        status: 'success',
+        data: pack,
+        metrics: {
+          duration,
+          llmCalls: 1,
+          cost: 0.25
+        },
+        qualityScore: 0.9
+      }
+      
+    } catch (error) {
+      return {
+        phase: ResearchPhase.GENERATION,
+        status: 'failed',
+        data: null,
+        metrics: {
+          duration: Date.now() - startTime
+        },
+        errors: [error instanceof Error ? error.message : String(error)]
+      }
+    }
+  }
+  
+  /**
+   * Get the next phase in sequence
+   */
+  private getNextPhase(currentPhase: ResearchPhase): ResearchPhase | null {
+    const phases = Object.values(ResearchPhase)
+    const currentIndex = phases.indexOf(currentPhase)
+    return currentIndex < phases.length - 1 ? phases[currentIndex + 1] : null
+  }
+  
+  /**
+   * Approve and continue to next phase
+   */
+  async approveAndContinue(sessionId: string): Promise<PhaseResult | null> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+    
+    if (session.status !== 'awaiting_review') {
+      throw new Error('Session is not awaiting review')
+    }
+    
+    const nextPhase = this.getNextPhase(session.currentPhase!)
+    if (!nextPhase) {
+      session.status = 'completed'
+      return null
+    }
+    
+    permanentLogger.info('Continuing to next phase', { category: 'APPROVAL_GRANTED', sessionId,
+      currentPhase: session.currentPhase,
+      nextPhase })
+    
+    return this.executePhase(sessionId, nextPhase)
+  }
+  
+  /**
+   * Get session status
+   */
+  getSession(sessionId: string): ResearchSession | undefined {
+    return this.sessions.get(sessionId)
+  }
+  
+  /**
+   * Abort a session
+   */
+  abortSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId)
+    if (session) {
+      session.status = 'aborted'
+      permanentLogger.info('Session aborted by user', { category: 'SESSION_ABORTED', sessionId,
+        completedPhases: session.completedPhases })
+    }
+  }
+}
+
+// Singleton instance
+let phaseOrchestratorInstance: PhaseOrchestrator | null = null
+
+export function getPhaseOrchestrator(): PhaseOrchestrator {
+  if (!phaseOrchestratorInstance) {
+    phaseOrchestratorInstance = new PhaseOrchestrator()
+  }
+  return phaseOrchestratorInstance
+}

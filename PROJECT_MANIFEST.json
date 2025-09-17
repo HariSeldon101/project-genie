@@ -1,0 +1,1349 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-09-17T09:26:55.155Z",
+  "projectName": "project-genie",
+  "description": "AI-powered project documentation generator with company intelligence features",
+  "cleanupRecommendations": {
+    "priority": "high",
+    "dateIdentified": "2025-09-07",
+    "note": "⚠️ CRITICAL: ~40% of features are dormant/unintegrated. Regular audit needed.",
+    "duplicateFiles": {
+      "count": "15-20 files",
+      "examples": [
+        "sitemap-selector-simple.tsx (legacy)",
+        "sitemap-tree.tsx (legacy)",
+        "3 unused background components"
+      ]
+    },
+    "unusedDatabaseTables": {
+      "count": 22,
+      "potentialFeatures": [
+        "activity_log - User activity tracking",
+        "corporate_entities - Corporate structure",
+        "decisions - Decision tracking",
+        "sprints - Sprint management",
+        "stakeholders - Stakeholder management"
+      ]
+    },
+    "disabledEnrichers": {
+      "count": 9,
+      "quickWins": [
+        "financialEnricher - Stock data & IR info",
+        "linkedInEnricher - Professional profiles",
+        "googleBusinessEnricher - Business details",
+        "socialMediaEnricher - Social presence"
+      ]
+    },
+    "actionItems": [
+      "Remove ~15-20 duplicate/legacy files",
+      "Drop unused database tables or implement their features",
+      "Consolidate multiple versions of similar components",
+      "Enable the 9 disabled enrichers for immediate value"
+    ]
+  },
+  "architecture": {
+    "framework": "Next.js 14 (App Router)",
+    "language": "TypeScript",
+    "styling": "Tailwind CSS",
+    "database": "Supabase",
+    "ai": "OpenAI via Vercel AI Gateway"
+  },
+  "configuration": {
+    "featureFlags": {},
+    "environment": {
+      "required": [
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "OPENAI_API_KEY",
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET"
+      ],
+      "optional": [
+        "RESEND_API_KEY",
+        "LINKEDIN_API_KEY",
+        "GOOGLE_PLACES_API_KEY"
+      ]
+    }
+  },
+  "pipeline": {
+    "companyIntelligence": {
+      "description": "Multi-phase company intelligence gathering pipeline",
+      "phases": [
+        {
+          "name": "discovery",
+          "stage": 1,
+          "status": "active",
+          "description": "Discover and map website structure",
+          "inputs": [
+            "domain"
+          ],
+          "outputs": [
+            "sitemapData",
+            "pageList",
+            "siteStructure"
+          ],
+          "handlers": {
+            "api": "/app/api/company-intelligence/phases/discovery/route.ts",
+            "components": [
+              "/components/company-intelligence/site-analyzer.tsx",
+              "/components/company-intelligence/sitemap-selector.tsx"
+            ]
+          },
+          "connected": true
+        },
+        {
+          "name": "scraping",
+          "stage": 2,
+          "status": "active",
+          "description": "Scrape content from selected pages",
+          "inputs": [
+            "pageList"
+          ],
+          "outputs": [
+            "scrapedContent",
+            "pageIntelligence"
+          ],
+          "handlers": {
+            "api": "/app/api/company-intelligence/phases/scraping/route.ts",
+            "strategyManager": {
+              "path": "/lib/company-intelligence/scrapers/strategies/strategy-manager.ts",
+              "enabled": true,
+              "description": "Intelligent strategy-based scraping system",
+              "strategies": [
+                {
+                  "name": "StaticStrategy",
+                  "path": "/lib/company-intelligence/scrapers/strategies/static-strategy.ts",
+                  "technology": "Cheerio + Axios",
+                  "capabilities": [
+                    "Fast HTML extraction",
+                    "No browser overhead",
+                    "Caching support",
+                    "Retry logic"
+                  ],
+                  "bestFor": [
+                    "Static sites",
+                    "Blogs",
+                    "Documentation"
+                  ]
+                },
+                {
+                  "name": "DynamicStrategy",
+                  "path": "/lib/company-intelligence/scrapers/strategies/dynamic-strategy.ts",
+                  "technology": "Playwright",
+                  "capabilities": [
+                    "JavaScript execution",
+                    "AJAX handling",
+                    "Dynamic content",
+                    "Screenshot capture"
+                  ],
+                  "bestFor": [
+                    "Interactive sites",
+                    "AJAX-heavy pages"
+                  ]
+                },
+                {
+                  "name": "SPAStrategy",
+                  "path": "/lib/company-intelligence/scrapers/strategies/spa-strategy.ts",
+                  "technology": "Playwright",
+                  "capabilities": [
+                    "Client-side routing",
+                    "Framework detection",
+                    "Virtual DOM awareness",
+                    "Route exploration"
+                  ],
+                  "bestFor": [
+                    "React",
+                    "Vue",
+                    "Angular",
+                    "Single-page apps"
+                  ]
+                }
+              ]
+            }
+          },
+          "connected": true
+        },
+        {
+          "name": "extraction",
+          "stage": 3,
+          "status": "active",
+          "description": "Extract structured data from scraped content",
+          "inputs": [
+            "scrapedContent"
+          ],
+          "outputs": [
+            "extractedData",
+            "entities",
+            "relationships"
+          ],
+          "handlers": {
+            "api": "/app/api/company-intelligence/phases/extraction/route.ts",
+            "extractors": [
+              {
+                "name": "SmartExtractor",
+                "path": "/lib/company-intelligence/extractors/smart-extractor.ts",
+                "enabled": true,
+                "dataTypes": [
+                  "email",
+                  "phone",
+                  "address",
+                  "financial",
+                  "social"
+                ]
+              },
+              {
+                "name": "BlogContentExtractor",
+                "path": "/lib/company-intelligence/extractors/blog-content-extractor.ts",
+                "enabled": false,
+                "dataTypes": []
+              },
+              {
+                "name": "SocialMediaExtractor",
+                "path": "/lib/company-intelligence/scrapers/extractors/social-media-extractor.ts",
+                "enabled": false,
+                "dataTypes": [
+                  "social"
+                ]
+              },
+              {
+                "name": "SocialExtractor",
+                "path": "/lib/company-intelligence/scrapers/extractors/social-extractor.ts",
+                "enabled": true,
+                "dataTypes": [
+                  "social"
+                ]
+              },
+              {
+                "name": "MetadataExtractor",
+                "path": "/lib/company-intelligence/scrapers/extractors/metadata-extractor.ts",
+                "enabled": true,
+                "dataTypes": []
+              },
+              {
+                "name": "ExtractorPipeline",
+                "path": "/lib/company-intelligence/scrapers/extractors/extractor-pipeline.ts",
+                "enabled": true,
+                "dataTypes": [
+                  "email",
+                  "phone",
+                  "address",
+                  "social"
+                ]
+              },
+              {
+                "name": "ContentExtractor",
+                "path": "/lib/company-intelligence/scrapers/extractors/content-extractor.ts",
+                "enabled": true,
+                "dataTypes": []
+              },
+              {
+                "name": "ContactExtractor",
+                "path": "/lib/company-intelligence/scrapers/extractors/contact-extractor.ts",
+                "enabled": true,
+                "dataTypes": [
+                  "email",
+                  "phone",
+                  "address"
+                ]
+              }
+            ]
+          },
+          "connected": true
+        },
+        {
+          "name": "data-review",
+          "stage": 4,
+          "status": "active",
+          "description": "Review and select data for enrichment",
+          "inputs": [
+            "extractedData"
+          ],
+          "outputs": [
+            "selectedData"
+          ],
+          "handlers": {
+            "components": [
+              "/components/company-intelligence/data-review/DataReviewPanel.tsx",
+              "/components/company-intelligence/data-review/DataTreeExplorer.tsx",
+              "/components/company-intelligence/data-review/DataPreviewPane.tsx",
+              "/components/company-intelligence/data-review/CostCalculator.tsx",
+              "/components/company-intelligence/data-review/SelectionToolbar.tsx"
+            ]
+          },
+          "connected": true
+        },
+        {
+          "name": "enrichment",
+          "stage": 5,
+          "status": "partial",
+          "description": "Enrich data with external sources",
+          "inputs": [
+            "selectedData"
+          ],
+          "outputs": [
+            "enrichedData"
+          ],
+          "handlers": {
+            "api": "/app/api/company-intelligence/phases/enrichment/route.ts",
+            "enrichers": [
+              {
+                "name": "SocialMediaEnricher",
+                "path": "/lib/company-intelligence/enrichers/social-media-enricher.ts",
+                "enabled": false,
+                "connected": false,
+                "dataTypes": [
+                  "social"
+                ],
+                "requiredKeys": [],
+                "tables": []
+              },
+              {
+                "name": "SocialEnricher",
+                "path": "/lib/company-intelligence/enrichers/social-enricher.ts",
+                "enabled": false,
+                "connected": false,
+                "dataTypes": [
+                  "social"
+                ],
+                "requiredKeys": [],
+                "tables": []
+              },
+              {
+                "name": "NewsRegulatoryEnricher",
+                "path": "/lib/company-intelligence/enrichers/news-regulatory-enricher.ts",
+                "enabled": false,
+                "connected": false,
+                "dataTypes": [
+                  "financial",
+                  "social"
+                ],
+                "requiredKeys": [],
+                "tables": []
+              },
+              {
+                "name": "NewsEnricher",
+                "path": "/lib/company-intelligence/enrichers/news-enricher.ts",
+                "enabled": false,
+                "connected": false,
+                "dataTypes": [],
+                "requiredKeys": [
+                  "NEWSDATA_API_KEY",
+                  "NEWS_API_KEY"
+                ],
+                "tables": []
+              },
+              {
+                "name": "LinkedInCompanyEnricher",
+                "path": "/lib/company-intelligence/enrichers/linkedin-company-enricher.ts",
+                "enabled": false,
+                "connected": false,
+                "dataTypes": [],
+                "requiredKeys": [],
+                "tables": []
+              },
+              {
+                "name": "IndustryEnricher",
+                "path": "/lib/company-intelligence/enrichers/industry-enricher.ts",
+                "enabled": false,
+                "connected": false,
+                "dataTypes": [],
+                "requiredKeys": [
+                  "GROWJO_API_KEY"
+                ],
+                "tables": []
+              },
+              {
+                "name": "GoogleBusinessEnricher",
+                "path": "/lib/company-intelligence/enrichers/google-business-enricher.ts",
+                "enabled": false,
+                "connected": false,
+                "dataTypes": [
+                  "phone",
+                  "address"
+                ],
+                "requiredKeys": [],
+                "tables": []
+              },
+              {
+                "name": "FinancialEnricher",
+                "path": "/lib/company-intelligence/enrichers/financial-enricher.ts",
+                "enabled": true,
+                "connected": true,
+                "dataTypes": [
+                  "financial"
+                ],
+                "requiredKeys": [],
+                "tables": []
+              },
+              {
+                "name": "CompetitorEnricher",
+                "path": "/lib/company-intelligence/enrichers/competitor-enricher.ts",
+                "enabled": false,
+                "connected": false,
+                "dataTypes": [],
+                "requiredKeys": [],
+                "tables": []
+              }
+            ]
+          },
+          "connected": true
+        },
+        {
+          "name": "generation",
+          "stage": 6,
+          "status": "active",
+          "description": "Generate intelligence pack",
+          "inputs": [
+            "enrichedData"
+          ],
+          "outputs": [
+            "intelligencePack"
+          ],
+          "handlers": {
+            "api": "/app/api/company-intelligence/phases/generation/route.ts",
+            "formatters": [
+              "/lib/documents/formatters/unified-pack-formatter.ts"
+            ]
+          },
+          "connected": true
+        }
+      ],
+      "dataFlow": {
+        "discovery": [
+          "scraping"
+        ],
+        "scraping": [
+          "extraction"
+        ],
+        "extraction": [
+          "data-review"
+        ],
+        "data-review": [
+          "enrichment"
+        ],
+        "enrichment": [
+          "generation"
+        ]
+      }
+    },
+    "documentGeneration": {
+      "description": "Project document generation pipeline",
+      "documentTypes": [
+        {
+          "name": "PID",
+          "generator": "/lib/documents/generators/pid-generator.ts",
+          "model": "gpt-4.1-mini",
+          "structuredOutput": true
+        },
+        {
+          "name": "Business Case",
+          "generator": "/lib/documents/generators/business-case-generator.ts",
+          "model": "gpt-4.1-mini",
+          "structuredOutput": true
+        },
+        {
+          "name": "Risk Register",
+          "generator": "/lib/documents/generators/risk-register-generator.ts",
+          "model": "gpt-5-mini",
+          "structuredOutput": false
+        }
+      ],
+      "webSearchTools": [
+        {
+          "name": "sector-risks",
+          "enabled": false,
+          "path": "/lib/documents/tool-config.ts:73"
+        },
+        {
+          "name": "industry-practices",
+          "enabled": false,
+          "path": "/lib/documents/tool-config.ts:88"
+        },
+        {
+          "name": "quality-standards",
+          "enabled": false,
+          "path": "/lib/documents/tool-config.ts:103"
+        }
+      ]
+    }
+  },
+  "components": {
+    "ui": {
+      "unused": [
+        {
+          "name": "real-time-logs",
+          "path": "/components/logs/real-time-logs.tsx",
+          "description": "Real-Time Logs Component",
+          "lastModified": "2025-09-16"
+        },
+        {
+          "name": "use-toast",
+          "path": "/components/ui/use-toast.tsx",
+          "description": "",
+          "lastModified": "2025-09-05"
+        },
+        {
+          "name": "comparison-table",
+          "path": "/components/ui/comparison-table.tsx",
+          "description": "",
+          "lastModified": "2025-08-26"
+        },
+        {
+          "name": "sitemap-discovery-progress",
+          "path": "/components/company-intelligence/sitemap-discovery-progress.tsx",
+          "description": "",
+          "lastModified": "2025-09-07"
+        },
+        {
+          "name": "site-structure-visualizer",
+          "path": "/components/company-intelligence/site-structure-visualizer.tsx",
+          "description": "",
+          "lastModified": "2025-09-04"
+        },
+        {
+          "name": "scraper-status",
+          "path": "/components/company-intelligence/scraper-status.tsx",
+          "description": "",
+          "lastModified": "2025-09-09"
+        },
+        {
+          "name": "research-controls",
+          "path": "/components/company-intelligence/research-controls.tsx",
+          "description": "Research Controls Component",
+          "lastModified": "2025-09-05"
+        },
+        {
+          "name": "phase-indicator",
+          "path": "/components/company-intelligence/phase-indicator.tsx",
+          "description": "",
+          "lastModified": "2025-09-07"
+        },
+        {
+          "name": "navigation-map",
+          "path": "/components/company-intelligence/navigation-map.tsx",
+          "description": "",
+          "lastModified": "2025-09-04"
+        },
+        {
+          "name": "image-gallery",
+          "path": "/components/company-intelligence/image-gallery.tsx",
+          "description": "",
+          "lastModified": "2025-09-15"
+        },
+        {
+          "name": "global-config-bar",
+          "path": "/components/company-intelligence/global-config-bar.tsx",
+          "description": "Global Configuration Bar",
+          "lastModified": "2025-09-05"
+        },
+        {
+          "name": "debug-panel",
+          "path": "/components/company-intelligence/debug-panel.tsx",
+          "description": "Debug Panel Component",
+          "lastModified": "2025-09-05"
+        },
+        {
+          "name": "cost-accumulator",
+          "path": "/components/company-intelligence/cost-accumulator.tsx",
+          "description": "",
+          "lastModified": "2025-09-05"
+        },
+        {
+          "name": "content-viewer",
+          "path": "/components/company-intelligence/content-viewer.tsx",
+          "description": "",
+          "lastModified": "2025-09-04"
+        },
+        {
+          "name": "brand-assets-panel",
+          "path": "/components/company-intelligence/brand-assets-panel.tsx",
+          "description": "",
+          "lastModified": "2025-09-04"
+        },
+        {
+          "name": "scraping-stats-card",
+          "path": "/components/company-intelligence/additive/scraping-stats-card.tsx",
+          "description": "ScrapingStatsCard - Pure presentational component for displaying scraping statistics",
+          "lastModified": "2025-09-12"
+        },
+        {
+          "name": "scraping-progress-card",
+          "path": "/components/company-intelligence/additive/scraping-progress-card.tsx",
+          "description": "ScrapingProgressCard - Displays active scraping progress",
+          "lastModified": "2025-09-12"
+        },
+        {
+          "name": "scraping-history-panel",
+          "path": "/components/company-intelligence/additive/scraping-history-panel.tsx",
+          "description": "ScrapingHistoryPanel - Displays scraper run history",
+          "lastModified": "2025-09-16"
+        }
+      ],
+      "active": [
+        "/components/starfield-background.tsx",
+        "/components/project-nav.tsx",
+        "/components/navigation.tsx",
+        "/components/markdown-renderer.tsx",
+        "/components/linkedin-modal.tsx",
+        "/components/generation-log-viewer.tsx",
+        "/components/footer.tsx",
+        "/components/document-viewer.tsx",
+        "/components/document-generator.tsx",
+        "/components/document-generator-stream.tsx",
+        "/components/demo-selector.tsx",
+        "/components/animated-background.tsx",
+        "/components/animated-background-subtle.tsx",
+        "/components/dashboard/user-menu.tsx",
+        "/components/dashboard/nav.tsx",
+        "/components/documents/risk-register-view.tsx",
+        "/components/documents/pdf-download-button.tsx",
+        "/components/documents/document-viewer.tsx",
+        "/components/documents/charter-view.tsx",
+        "/components/logs/timing-inline.tsx",
+        "/components/logs/log-stats.tsx",
+        "/components/logs/log-skeleton.tsx",
+        "/components/logs/log-pagination.tsx",
+        "/components/logs/log-filters.tsx",
+        "/components/logs/log-entry.tsx",
+        "/components/logs/log-controls.tsx",
+        "/components/logs/breadcrumb-inline.tsx",
+        "/components/ui/under-construction.tsx",
+        "/components/ui/tooltip.tsx",
+        "/components/ui/textarea.tsx",
+        "/components/ui/tabs.tsx",
+        "/components/ui/table.tsx",
+        "/components/ui/switch.tsx",
+        "/components/ui/slider.tsx",
+        "/components/ui/separator.tsx",
+        "/components/ui/select.tsx",
+        "/components/ui/scroll-area.tsx",
+        "/components/ui/resizable-modal.tsx",
+        "/components/ui/radio-group.tsx",
+        "/components/ui/progress.tsx",
+        "/components/ui/popover.tsx",
+        "/components/ui/notification-list-v2.tsx",
+        "/components/ui/multi-select.tsx",
+        "/components/ui/label.tsx",
+        "/components/ui/input.tsx",
+        "/components/ui/feature-comparison.tsx",
+        "/components/ui/faq.tsx",
+        "/components/ui/dropdown-menu.tsx",
+        "/components/ui/dialog.tsx",
+        "/components/ui/confirmation-dialog.tsx",
+        "/components/ui/collapsible.tsx",
+        "/components/ui/client-only-select.tsx",
+        "/components/ui/checkbox.tsx",
+        "/components/ui/card.tsx",
+        "/components/ui/button.tsx",
+        "/components/ui/badge.tsx",
+        "/components/ui/avatar.tsx",
+        "/components/ui/alert.tsx",
+        "/components/ui/alert-dialog.tsx",
+        "/components/ui/accordion.tsx",
+        "/components/admin/provider-config.tsx",
+        "/components/admin/prompt-editor.tsx",
+        "/components/admin/admin-stats.tsx",
+        "/components/bug-tracker/bug-report-form.tsx",
+        "/components/bug-tracker/bug-list.tsx",
+        "/components/bug-tracker/bug-detail-modal.tsx",
+        "/components/company-intelligence/tooltip-wrapper.tsx",
+        "/components/company-intelligence/stage-action-bar.tsx",
+        "/components/company-intelligence/site-analyzer.tsx",
+        "/components/company-intelligence/session-selector.tsx",
+        "/components/company-intelligence/results-viewer.tsx",
+        "/components/company-intelligence/rate-limit-indicator.tsx",
+        "/components/company-intelligence/phase-controls.tsx",
+        "/components/company-intelligence/persistent-action-bar.tsx",
+        "/components/company-intelligence/llm-monitor.tsx",
+        "/components/company-intelligence/debug-data-viewer.tsx",
+        "/components/company-intelligence/corporate-structure-detector.tsx",
+        "/components/company-intelligence/stages/stage-action-bar.tsx",
+        "/components/company-intelligence/stages/site-analysis-stage.tsx",
+        "/components/company-intelligence/stages/progress-indicator.tsx",
+        "/components/company-intelligence/stages/generation-stage.tsx",
+        "/components/company-intelligence/sitemap-selector/index.tsx",
+        "/components/company-intelligence/data-review/SelectionToolbar.tsx",
+        "/components/company-intelligence/data-review/DataTreeExplorer.tsx",
+        "/components/company-intelligence/data-review/DataReviewPanel.tsx",
+        "/components/company-intelligence/data-review/DataPreviewPane.tsx",
+        "/components/company-intelligence/data-review/CostCalculator.tsx",
+        "/components/company-intelligence/additive/scraping-suggestions.tsx",
+        "/components/company-intelligence/additive/scraping-control.tsx",
+        "/components/company-intelligence/additive/scraper-selector.tsx",
+        "/components/company-intelligence/additive/additive-results.tsx",
+        "/components/company-intelligence/sitemap-selector/components/selection-controls.tsx",
+        "/components/company-intelligence/sitemap-selector/components/page-list.tsx",
+        "/components/company-intelligence/sitemap-selector/components/page-item.tsx",
+        "/components/company-intelligence/sitemap-selector/components/discovery-phases.tsx",
+        "/components/company-intelligence/sitemap-selector/components/discovery-header.tsx"
+      ]
+    }
+  },
+  "database": {
+    "provider": "Supabase",
+    "projectRef": "vnuieavheezjxbkyfxea",
+    "tables": {
+      "populated": [
+        {
+          "name": "profiles",
+          "rowCount": 16,
+          "description": "User profiles",
+          "connected": true
+        },
+        {
+          "name": "projects",
+          "rowCount": 8,
+          "description": "Project records",
+          "connected": true
+        },
+        {
+          "name": "artifacts",
+          "rowCount": 12,
+          "description": "Generated documents",
+          "connected": true
+        },
+        {
+          "name": "tasks",
+          "rowCount": 24,
+          "description": "Project tasks",
+          "connected": true
+        },
+        {
+          "name": "risks",
+          "rowCount": 15,
+          "description": "Risk register entries",
+          "connected": true
+        }
+      ],
+      "empty": [
+        {
+          "name": "activity_log",
+          "schema": "created",
+          "purpose": "User activity tracking",
+          "connectedTo": []
+        },
+        {
+          "name": "company_financial_data",
+          "schema": "created",
+          "purpose": "Financial enrichment data",
+          "connectedTo": [
+            "FinancialEnricher"
+          ]
+        },
+        {
+          "name": "company_google_business",
+          "schema": "created",
+          "purpose": "Google Business data",
+          "connectedTo": [
+            "GoogleBusinessEnricher"
+          ]
+        },
+        {
+          "name": "company_investor_relations",
+          "schema": "created",
+          "purpose": "Investor relations data",
+          "connectedTo": [
+            "FinancialEnricher"
+          ]
+        },
+        {
+          "name": "company_linkedin_data",
+          "schema": "created",
+          "purpose": "LinkedIn company data",
+          "connectedTo": [
+            "LinkedInCompanyEnricher"
+          ]
+        },
+        {
+          "name": "company_news",
+          "schema": "created",
+          "purpose": "Company news aggregation",
+          "connectedTo": []
+        },
+        {
+          "name": "company_social_profiles",
+          "schema": "created",
+          "purpose": "Social media profiles",
+          "connectedTo": [
+            "SocialMediaEnricher"
+          ]
+        },
+        {
+          "name": "corporate_entities",
+          "schema": "created",
+          "purpose": "Corporate structure",
+          "connectedTo": []
+        },
+        {
+          "name": "decisions",
+          "schema": "created",
+          "purpose": "Decision tracking",
+          "connectedTo": []
+        },
+        {
+          "name": "entity_brand_assets",
+          "schema": "created",
+          "purpose": "Brand asset storage",
+          "connectedTo": []
+        },
+        {
+          "name": "entity_relationships",
+          "schema": "created",
+          "purpose": "Entity relationship mapping",
+          "connectedTo": []
+        },
+        {
+          "name": "external_intelligence_summary",
+          "schema": "created",
+          "purpose": "Intelligence summaries",
+          "connectedTo": []
+        },
+        {
+          "name": "generation_analytics",
+          "schema": "created",
+          "purpose": "Generation performance metrics",
+          "connectedTo": []
+        },
+        {
+          "name": "llm_call_logs",
+          "schema": "created",
+          "purpose": "LLM usage and cost tracking",
+          "connectedTo": []
+        },
+        {
+          "name": "page_intelligence",
+          "schema": "created",
+          "purpose": "Page-level analysis data",
+          "connectedTo": []
+        },
+        {
+          "name": "project_members",
+          "schema": "created",
+          "purpose": "Team collaboration",
+          "connectedTo": []
+        },
+        {
+          "name": "rate_limit_status",
+          "schema": "created",
+          "purpose": "API rate limiting",
+          "connectedTo": []
+        },
+        {
+          "name": "research_session_logs",
+          "schema": "created",
+          "purpose": "Session logging",
+          "connectedTo": []
+        },
+        {
+          "name": "research_sessions",
+          "schema": "created",
+          "purpose": "Research session tracking",
+          "connectedTo": []
+        },
+        {
+          "name": "sprints",
+          "schema": "created",
+          "purpose": "Sprint management",
+          "connectedTo": []
+        },
+        {
+          "name": "stages",
+          "schema": "created",
+          "purpose": "Project stages",
+          "connectedTo": []
+        },
+        {
+          "name": "stakeholders",
+          "schema": "created",
+          "purpose": "Stakeholder management",
+          "connectedTo": []
+        }
+      ]
+    },
+    "migrations": {
+      "path": "/supabase/migrations/",
+      "count": 12,
+      "latest": "20250906_fix_company_intelligence_rls.sql"
+    }
+  },
+  "apiEndpoints": {
+    "companyIntelligence": [
+      "/api/company-intelligence/validate-domain",
+      "/api/company-intelligence/stage-review",
+      "/api/company-intelligence/sessions",
+      "/api/company-intelligence/test",
+      "/api/company-intelligence/progress",
+      "/api/company-intelligence/phase-stream",
+      "/api/company-intelligence/phase",
+      "/api/company-intelligence/fetch-sitemap",
+      "/api/company-intelligence/analyze-site",
+      "/api/company-intelligence/sessions/recover",
+      "/api/company-intelligence/sessions/abort",
+      "/api/company-intelligence/sessions/[id]",
+      "/api/company-intelligence/scraping/execute",
+      "/api/company-intelligence/pack/[id]",
+      "/api/company-intelligence/phases/scraping",
+      "/api/company-intelligence/phases/generation",
+      "/api/company-intelligence/phases/extraction",
+      "/api/company-intelligence/phases/enrichment",
+      "/api/company-intelligence/sessions/[id]/logs",
+      "/api/company-intelligence/sessions/[id]/phase-data",
+      "/api/company-intelligence/approve"
+    ],
+    "documentGeneration": [
+      "/api/pdf",
+      "/api/generate",
+      "/api/generate-stream",
+      "/api/generate-retry",
+      "/api/pdf/generate"
+    ],
+    "other": [
+      "/api/test-log",
+      "/api/test-generation",
+      "/api/test-sse",
+      "/api/test-basic",
+      "/api/team",
+      "/api/stakeholders",
+      "/api/settings",
+      "/api/projects",
+      "/api/profile",
+      "/api/ping",
+      "/api/health",
+      "/api/logs",
+      "/api/fix-profile",
+      "/api/debug-full",
+      "/api/debug",
+      "/api/bugs",
+      "/api/analytics",
+      "/api/artifacts",
+      "/api/stripe/webhook",
+      "/api/stripe/checkout",
+      "/api/team/[id]",
+      "/api/profiles/current",
+      "/api/projects/[id]",
+      "/api/profile/avatar",
+      "/api/logs/stream",
+      "/api/logs/stats",
+      "/api/logs/rotate",
+      "/api/export/[format]",
+      "/api/bugs/[id]",
+      "/api/auth/user",
+      "/api/auth/callback",
+      "/api/admin/test-llm",
+      "/api/admin/stats",
+      "/api/projects/[id]/full",
+      "/api/admin/ollama/models"
+    ]
+  },
+  "uiStandards": {
+    "tooltips": {
+      "requirement": "MANDATORY",
+      "dateImplemented": "2025-01-07",
+      "description": "ALL interactive UI elements MUST have descriptive tooltips",
+      "implementation": "Use /components/company-intelligence/tooltip-wrapper.tsx",
+      "coverage": {
+        "buttons": "Action description - what happens when clicked",
+        "icons": "Icon meaning - what the icon represents",
+        "badges": "Additional context - extra information about the value",
+        "inputs": "Help text - how to use the input correctly",
+        "complexElements": "Usage instructions - how to interact with the element"
+      },
+      "examples": [
+        "Button: 'Click to approve and continue to next phase'",
+        "Icon: 'Indicates successful validation of website structure'",
+        "Badge: '18 pages discovered from sitemap.xml and homepage crawl'",
+        "Input: 'Enter the company domain without http:// or www'",
+        "TreeView: 'Select pages to include in research using checkboxes'"
+      ],
+      "testingRequirements": [
+        "Verify all interactive elements have tooltips",
+        "Check tooltip content is helpful and accurate",
+        "Ensure tooltips don't interfere with interactions",
+        "Test on mobile devices for proper positioning"
+      ]
+    }
+  },
+  "testing": {
+    "framework": "Vitest + Playwright",
+    "mandatory": true,
+    "frequency": "continuous",
+    "dateImplemented": "2025-09-07",
+    "CRITICAL_RULES": [
+      "⛔ NEVER CREATE AD-HOC TEST FILES - Only enhance existing test files",
+      "⛔ NEVER CREATE NEW TEST FILES - Update existing ones to match UI evolution",
+      "⛔ NEVER SKIP TESTING - Tests must run before EVERY commit",
+      "⛔ NEVER DECREASE COVERAGE - Only increase or maintain at 100%",
+      "✅ ONLY USE test-company-intelligence-comprehensive.ts for Company Intelligence",
+      "✅ ENHANCE EXISTING TESTS when UI changes - don't create new test files",
+      "✅ MANDATORY: Run tests before EVERY commit without exception",
+      "✅ MANDATORY: Maintain 100% UI component test coverage"
+    ],
+    "requirements": [
+      "All new UI elements MUST have corresponding tests",
+      "Run tests before each commit (pre-commit hook)",
+      "Run comprehensive tests before push (pre-push hook)",
+      "Test coverage must not decrease below current level",
+      "All interactive elements must have tooltip tests",
+      "SSE streaming functionality must be tested",
+      "Filter button functionality must be tested",
+      "Notification persistence must be verified"
+    ],
+    "testFiles": [
+      "/test-company-intelligence-comprehensive.ts",
+      "/tests/unit/company-intelligence-components.test.tsx",
+      "/tests/e2e/company-intelligence.spec.ts",
+      "/automated-ui-testing.md"
+    ],
+    "commands": {
+      "ui": "npm run test:ui",
+      "uiManual": "npm run test:ui:manual",
+      "e2e": "npm run test:e2e",
+      "e2eUI": "npm run test:e2e:ui",
+      "all": "npm run test:all",
+      "watch": "npm run test:watch"
+    },
+    "recentUpdates": [
+      "Added SSE streaming tests for incremental updates",
+      "Added filter button functionality tests",
+      "Added validation phase visual feedback tests",
+      "Added persistentToast notification tests",
+      "Added tooltip presence verification"
+    ],
+    "coverage": {
+      "enabled": true,
+      "threshold": 80,
+      "current": {
+        "authentication": 100,
+        "scraper": 100,
+        "ui": 100,
+        "api": 100,
+        "sse": 100,
+        "filterButtons": 100,
+        "validation": 100,
+        "tooltips": 100,
+        "notifications": 100
+      }
+    }
+  },
+  "dependencies": {
+    "core": {
+      "next": "14.x",
+      "react": "18.x",
+      "typescript": "5.x",
+      "@supabase/supabase-js": "2.x",
+      "openai": "4.x",
+      "@vercel/ai": "5.x"
+    },
+    "ui": {
+      "@radix-ui/react-*": "various",
+      "tailwindcss": "3.x",
+      "framer-motion": "10.x",
+      "@tanstack/react-table": "8.x"
+    },
+    "utilities": {
+      "zod": "3.x",
+      "date-fns": "2.x",
+      "clsx": "2.x",
+      "tailwind-merge": "2.x"
+    }
+  },
+  "integrations": {
+    "automatic": {
+      "description": "Rules for automatic feature discovery and integration",
+      "rules": [
+        {
+          "pattern": "*/enrichers/*.ts",
+          "action": "register in enrichment phase",
+          "validation": "must export class extending BaseEnricher or have enrich() method",
+          "registration": "auto-import in /api/company-intelligence/phases/enrichment/route.ts"
+        },
+        {
+          "pattern": "*/extractors/*.ts",
+          "action": "register in extraction phase",
+          "validation": "must export class with extract() method",
+          "registration": "auto-import in /api/company-intelligence/phases/extraction/route.ts"
+        },
+        {
+          "pattern": "*/scrapers/*.ts",
+          "action": "register in scraping phase",
+          "validation": "must export class with scrape() method",
+          "registration": "auto-import in /api/company-intelligence/phases/scraping/route.ts"
+        },
+        {
+          "pattern": "*/formatters/*.ts",
+          "action": "register in generation phase",
+          "validation": "must export format() function",
+          "registration": "auto-import in document generators"
+        }
+      ]
+    }
+  },
+  "quickWins": {
+    "immediate": [
+      {
+        "action": "Enable 8 enrichers",
+        "effort": "2 hours",
+        "impact": "Very High",
+        "location": "/api/company-intelligence/phases/enrichment/route.ts",
+        "changes": "Import and register: SocialMediaEnricher, SocialEnricher, NewsRegulatoryEnricher, NewsEnricher, LinkedInCompanyEnricher, IndustryEnricher, GoogleBusinessEnricher, CompetitorEnricher"
+      },
+      {
+        "action": "Use unused UI components",
+        "effort": "30 minutes per component",
+        "impact": "Medium",
+        "location": "Various pages",
+        "changes": "18 components available: real-time-logs, use-toast, comparison-table, sitemap-discovery-progress, site-structure-visualizer, scraper-status, research-controls, phase-indicator, navigation-map, image-gallery, global-config-bar, debug-panel, cost-accumulator, content-viewer, brand-assets-panel, scraping-stats-card, scraping-progress-card, scraping-history-panel"
+      },
+      {
+        "action": "Populate empty database tables",
+        "effort": "1-2 hours",
+        "impact": "High",
+        "location": "Database integration points",
+        "changes": "22 tables ready for data"
+      }
+    ]
+  },
+  "developmentProcess": {
+    "mandatory": [
+      {
+        "step": "Testing",
+        "when": "Before every commit and push",
+        "commands": [
+          "npm run test:ui",
+          "npm run test:e2e"
+        ],
+        "documentation": "/automated-ui-testing.md"
+      },
+      {
+        "step": "Tooltip Implementation",
+        "when": "When adding any interactive UI element",
+        "requirement": "All buttons, chips, icons must have descriptive tooltips",
+        "verification": "Run tooltip tests: included in test:ui"
+      },
+      {
+        "step": "Notification Testing",
+        "when": "When adding phase transitions or status updates",
+        "requirement": "Use persistentToast for user feedback",
+        "verification": "Check notification persistence in tests"
+      },
+      {
+        "step": "SSE Streaming Verification",
+        "when": "When implementing real-time updates",
+        "requirement": "Use SSE for incremental data loading",
+        "verification": "Monitor network tab for text/event-stream"
+      }
+    ]
+  },
+  "metadata": {
+    "totalFiles": 567,
+    "linesOfCode": 166590,
+    "testCoverage": "100% (UI Components)",
+    "lastAudit": "2025-09-17",
+    "nextAudit": "2025-09-24",
+    "lastTestUpdate": "2025-09-07"
+  },
+  "sessionManagement": {
+    "enabled": true,
+    "description": "Automated session state management for context preservation",
+    "scripts": {
+      "end": "npm run session:end",
+      "start": "npm run session:start"
+    },
+    "files": {
+      "state": "SESSION_STATE.json",
+      "endSummary": "END_OF_SESSION.md",
+      "startSummary": "START_OF_SESSION.md"
+    },
+    "autoTriggers": {
+      "onDevStart": true,
+      "description": "Automatically loads context when starting dev server"
+    },
+    "features": [
+      "Git status capture and comparison",
+      "Todo and task tracking",
+      "Active feature identification",
+      "Environment state monitoring",
+      "Next steps generation",
+      "Critical notes preservation",
+      "Automatic manifest update on session end"
+    ],
+    "benefits": [
+      "Zero context loss between sessions",
+      "Instant session recovery",
+      "Automated progress tracking",
+      "Clear handoff between work sessions"
+    ],
+    "usage": {
+      "endSession": "Type 'end of session' or run 'npm run session:end'",
+      "startSession": "Automatically runs with 'npm run dev' or manually with 'npm run session:start'",
+      "viewState": "cat SESSION_STATE.json for machine-readable state",
+      "viewSummary": "cat END_OF_SESSION.md for human-readable summary"
+    }
+  },
+  "interfaces": {
+    "description": "API and component interface definitions",
+    "lastUpdated": "2025-09-08T11:08:20.202Z",
+    "sourceDocumentation": "/docs/api-interface-documentation.md",
+    "api": {
+      "analyzeSite": {
+        "endpoint": "/api/company-intelligence/analyze-site",
+        "method": "POST",
+        "description": "Analyze a website to determine its technology stack and metadata",
+        "path": "/app/api/company-intelligence/analyze-site/route.ts",
+        "input": {
+          "domain": "string (required)",
+          "includeOg": "boolean (optional, default: true)"
+        },
+        "output": {
+          "success": "boolean",
+          "data": {
+            "url": "string",
+            "domain": "string",
+            "siteType": "static | react | nextjs | vue | angular | svelte | unknown",
+            "metadata": "object",
+            "technologies": "string[]",
+            "performance": "object"
+          },
+          "error": "string (optional)"
+        }
+      },
+      "scraping": {
+        "endpoint": "/api/company-intelligence/phases/scraping",
+        "method": "POST",
+        "description": "Scrape selected pages from a website using intelligent strategy selection",
+        "path": "/app/api/company-intelligence/phases/scraping/route.ts",
+        "input": {
+          "sessionId": "string (required)",
+          "domain": "string (required)",
+          "pages": "string[] (required)",
+          "options": {
+            "mode": "multi-phase | single | auto-detect (optional)",
+            "maxPages": "number (optional)",
+            "timeout": "number (optional, default: 60000ms)",
+            "stream": "boolean (optional, default: false)"
+          }
+        },
+        "output": {
+          "streaming": {
+            "progress": {
+              "type": "progress",
+              "phase": "string",
+              "completedPages": "number",
+              "totalPages": "number",
+              "phases": "PhaseInfo[]",
+              "validationScore": "number (optional)",
+              "enhancementCount": "number (optional)",
+              "scraperType": "string (optional)"
+            },
+            "complete": {
+              "type": "complete",
+              "result": {
+                "pages": "PageData[]",
+                "brandAssets": "any",
+                "contactInfo": "any",
+                "socialLinks": "string[]",
+                "teamMembers": "any[]",
+                "testimonials": "any[]",
+                "products": "any[]",
+                "llmUsage": "object"
+              }
+            }
+          }
+        }
+      },
+      "enrichment": {
+        "endpoint": "/api/company-intelligence/phases/enrichment",
+        "method": "POST",
+        "description": "Enrich scraped data using AI/LLM analysis",
+        "path": "/app/api/company-intelligence/phases/enrichment/route.ts",
+        "input": {
+          "sessionId": "string (required)",
+          "domain": "string (required)",
+          "scrapedData": "any (required)",
+          "options": {
+            "enrichers": "string[] (optional)",
+            "llmModel": "string (optional)"
+          }
+        },
+        "output": {
+          "success": "boolean",
+          "data": {
+            "enrichedData": "any",
+            "enrichmentMetrics": {
+              "enrichersUsed": "string[]",
+              "llmCalls": "number",
+              "totalCost": "number",
+              "duration": "number"
+            }
+          },
+          "error": "string (optional)"
+        }
+      }
+    },
+    "components": {
+      "PhaseControls": {
+        "path": "/components/company-intelligence/phase-controls.tsx",
+        "description": "Main phase orchestration component",
+        "functions": {
+          "handleStageComplete": {
+            "input": {
+              "stage": "Stage",
+              "data": "any"
+            },
+            "processing": [
+              "Store data in stageData state",
+              "Update completedStages set",
+              "Create/update database session",
+              "Trigger next stage if appropriate"
+            ],
+            "output": "void (calls onPhaseComplete callback)"
+          },
+          "startScraping": {
+            "input": {
+              "sitemapPages": "string[] (optional, falls back to stageData.sitemap)"
+            },
+            "processing": [
+              "Validate session exists",
+              "Check pages available",
+              "Initialize progress tracking",
+              "Call scraping API with streaming",
+              "Handle progress updates",
+              "Process final results"
+            ],
+            "output": [
+              "Updates scrapingProgress state",
+              "Calls handleStageComplete on success",
+              "Shows error toast on failure"
+            ]
+          }
+        },
+        "state": {
+          "sessionId": "string | null",
+          "currentStage": "Stage",
+          "completedStages": "Set<Stage>",
+          "stageData": "Record<Stage, any>",
+          "isProcessing": "boolean",
+          "scrapingProgress": "ScrapingProgress"
+        }
+      }
+    },
+    "dataFlow": {
+      "scraping": {
+        "strategy": "StrategyManager pattern",
+        "deprecated": [
+          "scraperFactory",
+          "scraperName"
+        ],
+        "current": "strategyManager with Static/Dynamic/SPA strategies"
+      }
+    },
+    "loggingStandards": {
+      "entry": "Log all function entries with input parameters",
+      "exit": "Log all function exits with output/metrics",
+      "errors": "Log all errors with full context",
+      "transformations": "Log before/after for data transformations"
+    }
+  }
+}

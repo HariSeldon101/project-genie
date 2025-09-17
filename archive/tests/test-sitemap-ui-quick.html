@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Sitemap UI Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f4f4f4; padding: 10px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <h1>Quick Sitemap UI Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Analyze Site API</h2>
+        <button onclick="testAnalyzeSite()">Test Analyze Site</button>
+        <div id="analyze-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Test Fetch Sitemap API (SSE)</h2>
+        <button onclick="testFetchSitemap()">Test Fetch Sitemap</button>
+        <div id="sitemap-result"></div>
+    </div>
+    
+    <script>
+        async function testAnalyzeSite() {
+            const resultDiv = document.getElementById('analyze-result');
+            resultDiv.innerHTML = '<p class="info">Testing...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/company-intelligence/analyze-site', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain: 'bigfluffy.ai' })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ SUCCESS - Status: ${response.status}</p>
+                        <p>Domain: ${data.domain}</p>
+                        <p>Site Type: ${data.siteType}</p>
+                        <p>Confidence: ${data.confidence}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<p class="error">❌ ERROR - Status: ${response.status}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ ERROR: ${error.message}</p>`;
+            }
+        }
+        
+        async function testFetchSitemap() {
+            const resultDiv = document.getElementById('sitemap-result');
+            resultDiv.innerHTML = '<p class="info">Connecting to SSE...</p>';
+            
+            const events = [];
+            let pageCount = 0;
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/company-intelligence/fetch-sitemap', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
+                    },
+                    body: JSON.stringify({ domain: 'bigfluffy.ai', enableIntelligence: true })
+                });
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                events.push(data);
+                                
+                                if (data.type === 'pages-update') {
+                                    pageCount = data.totalCount;
+                                }
+                                
+                                // Update display
+                                resultDiv.innerHTML = `
+                                    <p class="success">✅ Receiving SSE Events</p>
+                                    <p>Total Events: ${events.length}</p>
+                                    <p>Pages Found: ${pageCount}</p>
+                                    <p>Last Event: ${data.type}</p>
+                                    ${data.message ? `<p>Message: ${data.message}</p>` : ''}
+                                `;
+                            } catch (e) {
+                                console.error('Parse error:', e);
+                            }
+                        }
+                    }
+                }
+                
+                // Final result
+                const finalData = events.find(e => e.type === 'discovery-complete');
+                if (finalData) {
+                    resultDiv.innerHTML += `
+                        <hr>
+                        <p class="success">✅ DISCOVERY COMPLETE</p>
+                        <p>Total Pages: ${finalData.pages?.length || 0}</p>
+                        <details>
+                            <summary>View All Events</summary>
+                            <pre>${JSON.stringify(events, null, 2)}</pre>
+                        </details>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ ERROR: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

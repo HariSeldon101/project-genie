@@ -1,56 +1,178 @@
-import { getUser } from '@/lib/auth/auth-helpers'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, FolderOpen, Users, AlertCircle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Plus, FolderOpen, Users, AlertCircle, TrendingUp, Clock, Target, Shield } from 'lucide-react'
 import Link from 'next/link'
 
-async function getProjects(userId: string) {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('*')
-    .or(`owner_id.eq.${userId},id.in.(select project_id from project_members where user_id='${userId}')`)
-    .order('created_at', { ascending: false })
-
-  return projects || []
+interface Project {
+  id: string
+  name: string
+  description: string
+  methodology_type: string
+  status: string
+  progress: number
+  created_at: string
+  updated_at: string
 }
 
-export default async function DashboardPage() {
-  const user = await getUser()
-  if (!user) return null
+export default function DashboardPage() {
+  const router = useRouter()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
-  const projects = await getProjects(user.id)
+  useEffect(() => {
+    loadDashboardData()
+  }, [])
+
+  const loadDashboardData = async () => {
+    try {
+      // Check authentication status via API
+      const authResponse = await fetch('/api/auth/user')
+      if (!authResponse.ok) {
+        router.push('/login')
+        return
+      }
+
+      const currentUser = await authResponse.json()
+      setUser({
+        id: currentUser.id,
+        email: currentUser.email || ''
+      })
+
+      // Check if user is admin via profile API
+      const profileResponse = await fetch('/api/profiles/current')
+      if (profileResponse.ok) {
+        const profile = await profileResponse.json()
+        setIsAdmin(profile?.is_admin || false)
+      }
+
+      // Load projects via API
+      const projectsResponse = await fetch('/api/projects')
+      if (projectsResponse.ok) {
+        const projectsData = await projectsResponse.json()
+        console.log(`Dashboard: Loaded ${projectsData?.length || 0} projects`)
+        setProjects(projectsData || [])
+      } else {
+        console.error('Error loading projects')
+      }
+    } catch (error) {
+      console.error('Error loading dashboard:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'on_track':
+        return 'text-green-600 bg-green-50'
+      case 'at_risk':
+        return 'text-amber-600 bg-amber-50'
+      case 'delayed':
+        return 'text-red-600 bg-red-50'
+      default:
+        return 'text-gray-600 bg-gray-50'
+    }
+  }
+
+  const getMethodologyColor = (methodology: string) => {
+    switch (methodology) {
+      case 'agile':
+        return 'bg-blue-100 text-blue-800'
+      case 'waterfall':
+        return 'bg-purple-100 text-purple-800'
+      case 'hybrid':
+        return 'bg-indigo-100 text-indigo-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  // Calculate statistics
+  const stats = {
+    total: projects.length,
+    onTrack: projects.filter(p => p.status === 'on_track').length,
+    atRisk: projects.filter(p => p.status === 'at_risk').length,
+    delayed: projects.filter(p => p.status === 'delayed').length,
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
+      {/* Welcome Section */}
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Welcome back!
+          Welcome back{user?.email ? `, ${user.email.split('@')[0]}` : ''}!
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
           Manage your projects and documentation with AI-powered assistance
         </p>
       </div>
 
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
+            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">Active projects</p>
+          </CardContent>
+        </Card>
+
+        <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">On Track</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.onTrack}</div>
+            <p className="text-xs text-muted-foreground">Projects on schedule</p>
+          </CardContent>
+        </Card>
+
+        <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">At Risk</CardTitle>
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">{stats.atRisk}</div>
+            <p className="text-xs text-muted-foreground">Need attention</p>
+          </CardContent>
+        </Card>
+
+        <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Delayed</CardTitle>
+            <Clock className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats.delayed}</div>
+            <p className="text-xs text-muted-foreground">Behind schedule</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Projects Section */}
       {projects.length === 0 ? (
         <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
           <CardHeader className="text-center py-12">
@@ -58,8 +180,9 @@ export default async function DashboardPage() {
               <FolderOpen className="h-full w-full" />
             </div>
             <CardTitle>No projects yet</CardTitle>
-            <CardDescription>
-              Create your first project to get started with automated documentation
+            <CardDescription className="max-w-md mx-auto">
+              Create your first project to get started with AI-powered documentation generation. 
+              Projects help you manage requirements, track progress, and generate professional documents.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center pb-12">
@@ -75,42 +198,70 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Your Projects
+              Recent Projects
             </h3>
-            <Link href="/projects/new">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Project
-              </Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/projects">
+                <Button variant="outline">
+                  View All
+                </Button>
+              </Link>
+              <Link href="/projects/new">
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Project
+                </Button>
+              </Link>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
+            {projects.slice(0, 6).map((project) => (
               <Link key={project.id} href={`/projects/${project.id}`}>
-                <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20 hover:shadow-lg transition-shadow cursor-pointer">
+                <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20 hover:shadow-lg transition-all cursor-pointer h-full">
                   <CardHeader>
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-1">
                         <CardTitle className="text-lg">{project.name}</CardTitle>
-                        <CardDescription className="mt-1">
-                          {project.methodology_type.charAt(0).toUpperCase() + project.methodology_type.slice(1)}
+                        <CardDescription className="mt-1 line-clamp-2">
+                          {project.description || 'No description provided'}
                         </CardDescription>
                       </div>
-                      <div className={`h-3 w-3 rounded-full ${
-                        project.rag_status === 'green' ? 'bg-green-500' :
-                        project.rag_status === 'amber' ? 'bg-amber-500' :
-                        'bg-red-500'
-                      }`} />
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Badge className={getMethodologyColor(project.methodology_type)}>
+                        {project.methodology_type}
+                      </Badge>
+                      <Badge className={getStatusColor(project.status)}>
+                        {project.status?.replace('_', ' ')}
+                      </Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                      {project.description || 'No description provided'}
-                    </p>
-                    <div className="mt-4 flex items-center text-xs text-gray-500">
-                      <Users className="mr-1 h-3 w-3" />
-                      <span>Team Project</span>
+                    {project.progress !== undefined && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Progress</span>
+                          <span className="font-medium">{project.progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all"
+                            style={{ width: `${project.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-4 flex items-center text-sm text-gray-600">
+                      <Clock className="h-4 w-4 mr-1" />
+                      Updated {new Date(project.updated_at).toLocaleString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
                     </div>
                   </CardContent>
                 </Card>
@@ -120,41 +271,49 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
-          <CardHeader>
-            <CardTitle className="text-base font-medium">Quick Stats</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{projects.length}</div>
-            <p className="text-xs text-gray-500">Active Projects</p>
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
-          <CardHeader>
-            <CardTitle className="text-base font-medium">At Risk</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">
-              {projects.filter(p => p.rag_status === 'amber').length}
-            </div>
-            <p className="text-xs text-gray-500">Projects need attention</p>
-          </CardContent>
-        </Card>
-
-        <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
-          <CardHeader>
-            <CardTitle className="text-base font-medium">On Track</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {projects.filter(p => p.rag_status === 'green').length}
-            </div>
-            <p className="text-xs text-gray-500">Projects running smoothly</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Quick Actions */}
+      <Card className="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-white/20">
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common tasks and shortcuts</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Link href="/projects/new">
+              <Button variant="outline" className="w-full justify-start">
+                <Plus className="mr-2 h-4 w-4" />
+                New Project
+              </Button>
+            </Link>
+            {isAdmin && (
+              <Link href="/admin">
+                <Button variant="outline" className="w-full justify-start text-purple-600 border-purple-200 hover:bg-purple-50">
+                  <Shield className="mr-2 h-4 w-4" />
+                  Admin Panel
+                </Button>
+              </Link>
+            )}
+            <Link href="/documents">
+              <Button variant="outline" className="w-full justify-start">
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Documents
+              </Button>
+            </Link>
+            <Link href="/team">
+              <Button variant="outline" className="w-full justify-start">
+                <Users className="mr-2 h-4 w-4" />
+                Team
+              </Button>
+            </Link>
+            <Link href="/analytics">
+              <Button variant="outline" className="w-full justify-start">
+                <Target className="mr-2 h-4 w-4" />
+                Analytics
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

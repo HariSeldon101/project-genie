@@ -1,0 +1,461 @@
+/**
+ * Enterprise Event Bus Implementation
+ * Singleton pattern with priority queue for event processing
+ */
+
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { EventFactory } from '@/lib/realtime-events'
+import {
+  Event,
+  EventHandler,
+  EventSubscription,
+  EventPriority,
+  EventBusConfig,
+  QueueStats,
+  EventFilter,
+  EmitOptions,
+  EventSource,
+  NotificationType
+} from './types'
+
+/**
+ * Priority Queue implementation using min-heap
+ */
+class PriorityQueue<T> {
+  private heap: Array<{ item: T; priority: number; timestamp: number }> = []
+
+  enqueue(item: T, priority: number): void {
+    const element = { item, priority, timestamp: Date.now() }
+    this.heap.push(element)
+    this.bubbleUp(this.heap.length - 1)
+  }
+
+  dequeue(): T | undefined {
+    if (this.heap.length === 0) return undefined
+    if (this.heap.length === 1) return this.heap.pop()!.item
+
+    const result = this.heap[0].item
+    const end = this.heap.pop()!
+    this.heap[0] = end
+    this.bubbleDown(0)
+    return result
+  }
+
+  private bubbleUp(index: number): void {
+    while (index > 0) {
+      const parentIndex = Math.floor((index - 1) / 2)
+      if (this.compare(index, parentIndex) >= 0) break
+      this.swap(index, parentIndex)
+      index = parentIndex
+    }
+  }
+
+  private bubbleDown(index: number): void {
+    while (true) {
+      const leftChild = 2 * index + 1
+      const rightChild = 2 * index + 2
+      let smallest = index
+
+      if (leftChild < this.heap.length && this.compare(leftChild, smallest) < 0) {
+        smallest = leftChild
+      }
+      if (rightChild < this.heap.length && this.compare(rightChild, smallest) < 0) {
+        smallest = rightChild
+      }
+      if (smallest === index) break
+      this.swap(index, smallest)
+      index = smallest
+    }
+  }
+
+  private compare(i: number, j: number): number {
+    const a = this.heap[i]
+    const b = this.heap[j]
+    // Higher priority first (reverse comparison)
+    if (a.priority !== b.priority) {
+      return b.priority - a.priority
+    }
+    // Earlier timestamp first for same priority (FIFO)
+    return a.timestamp - b.timestamp
+  }
+
+  private swap(i: number, j: number): void {
+    [this.heap[i], this.heap[j]] = [this.heap[j], this.heap[i]]
+  }
+
+  get size(): number {
+    return this.heap.length
+  }
+
+  clear(): void {
+    this.heap = []
+  }
+
+  peek(): T | undefined {
+    return this.heap[0]?.item
+  }
+}
+
+/**
+ * Event Bus Singleton
+ */
+class EventBus {
+  private static instance: EventBus
+  private queue: PriorityQueue<Event>
+  private subscriptions: Map<string, EventSubscription>
+  private deduplicationCache: Map<string, number>
+  private processingTimer: NodeJS.Timeout | null = null
+  private config: Required<EventBusConfig>
+  private stats: QueueStats
+  private isProcessing: boolean = false
+  private processingEventIds: Set<string> = new Set() // Track events being processed to prevent recursion
+
+  private constructor(config?: EventBusConfig) {
+    this.queue = new PriorityQueue<Event>()
+    this.subscriptions = new Map()
+    this.deduplicationCache = new Map()
+    
+    this.config = {
+      maxQueueSize: config?.maxQueueSize ?? 1000,
+      processingInterval: config?.processingInterval ?? 50,
+      deduplicationWindow: config?.deduplicationWindow ?? 2000,
+      enableLogging: config?.enableLogging ?? true,
+      enableMetrics: config?.enableMetrics ?? true
+    }
+
+    this.stats = {
+      size: 0,
+      processing: false,
+      eventsProcessed: 0,
+      averageProcessingTime: 0,
+      errors: 0
+    }
+
+    this.startProcessing()
+    this.startDeduplicationCleanup()
+    
+    permanentLogger.info('EVENT_BUS', 'Event bus initialized', { config: this.config })
+  }
+
+  static getInstance(config?: EventBusConfig): EventBus {
+    if (!EventBus.instance) {
+      EventBus.instance = new EventBus(config)
+    }
+    return EventBus.instance
+  }
+
+  /**
+   * Emit an event to the bus
+   */
+  emit(event: Event, options?: EmitOptions): void {
+    try {
+      // Apply correlation ID if provided
+      if (options?.correlationId) {
+        event.correlationId = options.correlationId
+      }
+
+      // Check for deduplication
+      if (options?.deduplicationKey) {
+        const lastEmitted = this.deduplicationCache.get(options.deduplicationKey)
+        if (lastEmitted && Date.now() - lastEmitted < this.config.deduplicationWindow) {
+          if (this.config.enableLogging) {
+            permanentLogger.info('EVENT_BUS', 'Event deduplicated', { type: event.type, 
+              key: options.deduplicationKey })
+          }
+          return
+        }
+        this.deduplicationCache.set(options.deduplicationKey, Date.now())
+      }
+
+      // Check queue size limit
+      if (this.queue.size >= this.config.maxQueueSize) {
+        permanentLogger.captureError('EVENT_BUS', new Error('Queue size limit exceeded'), {
+          size: this.queue.size,
+          maxSize: this.config.maxQueueSize
+        })
+        this.stats.errors++
+        return
+      }
+
+      // Add to queue or process immediately
+      if (options?.skipQueue) {
+        this.processEvent(event)
+      } else {
+        this.queue.enqueue(event, event.metadata?.priority || EventPriority.NORMAL)
+        this.stats.size = this.queue.size
+      }
+
+      if (this.config.enableLogging) {
+        permanentLogger.info('EVENT_BUS', 'Event emitted', { type: event.type,
+          source: event.source,
+          priority: event.metadata?.priority || EventPriority.NORMAL,
+          queueSize: this.queue.size })
+      }
+    } catch (error) {
+      permanentLogger.captureError('EVENT_BUS', error, { message: 'Failed to emit event', event })
+      this.stats.errors++
+    }
+  }
+
+  /**
+   * Subscribe to events with optional filtering
+   */
+  subscribe(handler: EventHandler, filter?: EventFilter): string {
+    const id = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    
+    const subscription: EventSubscription = {
+      id,
+      handler,
+      filter: filter ? this.createFilterFunction(filter) : undefined
+    }
+
+    this.subscriptions.set(id, subscription)
+    
+    permanentLogger.info('EVENT_BUS', 'Subscription added', { id, hasFilter: !!filter })
+    
+    return id
+  }
+
+  /**
+   * Unsubscribe from events
+   */
+  unsubscribe(subscriptionId: string): void {
+    if (this.subscriptions.delete(subscriptionId)) {
+      permanentLogger.info('EVENT_BUS', 'Subscription removed', { id: subscriptionId })
+    }
+  }
+
+  /**
+   * Process events from the queue
+   */
+  private startProcessing(): void {
+    this.processingTimer = setInterval(() => {
+      if (!this.isProcessing && this.queue.size > 0) {
+        this.processNextBatch()
+      }
+    }, this.config.processingInterval)
+  }
+
+  /**
+   * Process a batch of events
+   */
+  private async processNextBatch(): Promise<void> {
+    this.isProcessing = true
+    this.stats.processing = true
+    
+    const batchSize = Math.min(10, this.queue.size)
+    const startTime = Date.now()
+
+    for (let i = 0; i < batchSize; i++) {
+      const event = this.queue.dequeue()
+      if (!event) break
+      
+      await this.processEvent(event)
+      this.stats.eventsProcessed++
+    }
+
+    const processingTime = Date.now() - startTime
+    this.updateAverageProcessingTime(processingTime)
+    
+    this.stats.size = this.queue.size
+    this.stats.lastProcessedAt = Date.now()
+    this.isProcessing = false
+    this.stats.processing = false
+  }
+
+  /**
+   * Process a single event
+   */
+  private async processEvent(event: Event): Promise<void> {
+    // CRITICAL: Skip if already processing this exact event to prevent recursion
+    if (this.processingEventIds.has(event.id)) {
+      permanentLogger.breadcrumb('EVENT_BUS', 'Skipped duplicate event processing', {
+        eventId: event.id,
+        eventType: event.type
+      })
+      return
+    }
+
+    // Mark event as being processed
+    this.processingEventIds.add(event.id)
+
+    try {
+      // Add timing measurement for performance profiling
+      const timingHandle = permanentLogger.timing(`eventbus_process_${event.type}`, {
+        eventId: event.id
+      })
+
+      const handlers: EventHandler[] = []
+
+      // Collect matching handlers
+      for (const subscription of this.subscriptions.values()) {
+        if (!subscription.filter || subscription.filter(event)) {
+          handlers.push(subscription.handler)
+        }
+      }
+
+      // Execute handlers
+      for (const handler of handlers) {
+        try {
+          await Promise.resolve(handler(event))
+        } catch (error) {
+          // ✅ FIXED: Pass category as first parameter, error as second
+          permanentLogger.captureError('EVENT_BUS', error as Error, {
+            context: 'Handler execution failed',
+            eventType: event.type,
+            eventId: event.id
+          })
+          this.stats.errors++
+        }
+      }
+
+      // Stop timing - call the stop() method on the timing handle
+      timingHandle.stop()
+
+      if (this.config.enableMetrics && handlers.length > 0) {
+        permanentLogger.info('EVENT_BUS', 'Event processed', { type: event.type,
+          handlersInvoked: handlers.length })
+      }
+    } finally {
+      // ALWAYS remove event ID from processing set to prevent memory leak
+      this.processingEventIds.delete(event.id)
+    }
+  }
+
+  /**
+   * Create a filter function from filter options
+   */
+  private createFilterFunction(filter: EventFilter): (event: Event) => boolean {
+    return (event: Event) => {
+      if (filter.types && !filter.types.includes(event.type)) {
+        return false
+      }
+      if (filter.sources && !filter.sources.includes(event.source)) {
+        return false
+      }
+      const eventPriority = event.metadata?.priority || EventPriority.NORMAL
+      if (filter.priorities && !filter.priorities.includes(eventPriority)) {
+        return false
+      }
+      if (filter.correlationId && event.correlationId !== filter.correlationId) {
+        return false
+      }
+      return true
+    }
+  }
+
+  /**
+   * Clean up old deduplication cache entries
+   */
+  private startDeduplicationCleanup(): void {
+    setInterval(() => {
+      const now = Date.now()
+      const expiredKeys: string[] = []
+      
+      for (const [key, timestamp] of this.deduplicationCache.entries()) {
+        if (now - timestamp > this.config.deduplicationWindow * 2) {
+          expiredKeys.push(key)
+        }
+      }
+      
+      for (const key of expiredKeys) {
+        this.deduplicationCache.delete(key)
+      }
+      
+      if (expiredKeys.length > 0 && this.config.enableLogging) {
+        permanentLogger.info('EVENT_BUS', 'Deduplication cache cleaned', { removedKeys: expiredKeys.length })
+      }
+    }, 60000) // Clean every minute
+  }
+
+  /**
+   * Update average processing time metric
+   */
+  private updateAverageProcessingTime(newTime: number): void {
+    const alpha = 0.1 // Exponential moving average factor
+    this.stats.averageProcessingTime = 
+      this.stats.averageProcessingTime * (1 - alpha) + newTime * alpha
+  }
+
+  /**
+   * Get current queue statistics
+   */
+  getStats(): QueueStats {
+    return { ...this.stats, size: this.queue.size }
+  }
+
+  /**
+   * Clear all events from the queue
+   */
+  clearQueue(): void {
+    this.queue.clear()
+    this.stats.size = 0
+    permanentLogger.info('EVENT_BUS', 'Queue cleared')
+  }
+
+  /**
+   * Destroy the event bus (for cleanup)
+   */
+  destroy(): void {
+    if (this.processingTimer) {
+      clearInterval(this.processingTimer)
+      this.processingTimer = null
+    }
+    this.clearQueue()
+    this.subscriptions.clear()
+    this.deduplicationCache.clear()
+    permanentLogger.info('EVENT_BUS', 'Event bus destroyed')
+  }
+}
+
+// Export singleton instance getter
+export const eventBus = EventBus.getInstance()
+
+// Export helper functions for common operations
+export function emitNotification(
+  message: string,
+  type: 'info' | 'success' | 'warning' | 'error' = 'info',
+  options?: {
+    priority?: EventPriority
+    persistent?: boolean
+    correlationId?: string
+    source?: EventSource
+  }
+): void {
+  // Use EventFactory to create properly structured event
+  const event = EventFactory.notification(message, type, {
+    source: options?.source ?? EventSource.CLIENT,
+    correlationId: options?.correlationId,
+    metadata: {
+      priority: options?.priority ?? EventPriority.NORMAL,
+      persistent: options?.persistent ?? true
+    }
+  })
+
+  eventBus.emit(event)
+}
+
+export function emitPhaseTransition(
+  phase: string,
+  status: 'started' | 'completed' | 'failed',
+  options?: {
+    previousPhase?: string
+    message?: string
+    progress?: number
+    correlationId?: string
+  }
+): void {
+  // Use EventFactory to create properly structured event
+  const event = EventFactory.phase(phase, status as any, {
+    message: options?.message,
+    progress: options?.progress,
+    source: EventSource.CLIENT,
+    correlationId: options?.correlationId,
+    metadata: {
+      priority: EventPriority.HIGH,
+      previousPhase: options?.previousPhase
+    }
+  })
+
+  eventBus.emit(event)
+}

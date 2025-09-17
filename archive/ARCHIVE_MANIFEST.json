@@ -1,0 +1,182 @@
+{
+  "version": "1.0.0",
+  "created": "2025-01-08",
+  "lastUpdated": "2025-01-08",
+  "description": "Manifest of archived files for restoration capability",
+  "statistics": {
+    "totalFiles": 95,
+    "components": 3,
+    "tests": 85,
+    "docs": 2,
+    "scripts": 6
+  },
+  "files": {
+    "components": [
+      {
+        "originalPath": "./components/particle-network.tsx",
+        "archivePath": "./archive/components/particle-network.tsx",
+        "archivedDate": "2025-01-08",
+        "reason": "Unused background component",
+        "category": "component"
+      },
+      {
+        "originalPath": "./components/floating-orbs.tsx",
+        "archivePath": "./archive/components/floating-orbs.tsx",
+        "archivedDate": "2025-01-08",
+        "reason": "Unused background component",
+        "category": "component"
+      },
+      {
+        "originalPath": "./components/aurora-background.tsx",
+        "archivePath": "./archive/components/aurora-background.tsx",
+        "archivedDate": "2025-01-08",
+        "reason": "Unused background component",
+        "category": "component"
+      }
+    ],
+    "tests": [
+      {
+        "originalPath": "./test-company-intelligence-api.ts",
+        "archivePath": "./archive/tests/test-company-intelligence-api.ts",
+        "archivedDate": "2025-01-08",
+        "reason": "Legacy test file - replaced by comprehensive test",
+        "category": "test"
+      },
+      {
+        "originalPath": "./test-company-intelligence-ui.js",
+        "archivePath": "./archive/tests/test-company-intelligence-ui.js",
+        "archivedDate": "2025-01-08",
+        "reason": "Legacy test file - replaced by comprehensive test",
+        "category": "test"
+      },
+      {
+        "originalPath": "./test-gpt5-responses.js",
+        "archivePath": "./archive/tests/test-gpt5-responses.js",
+        "archivedDate": "2025-01-08",
+        "reason": "Old GPT5 test file",
+        "category": "test"
+      },
+      {
+        "originalPath": "./test-html-decoder.js",
+        "archivePath": "./archive/tests/test-html-decoder.js",
+        "archivedDate": "2025-01-08",
+        "reason": "Utility test no longer needed",
+        "category": "test"
+      },
+      {
+        "originalPath": "./test-openai-api.js",
+        "archivePath": "./archive/tests/test-openai-api.js",
+        "archivedDate": "2025-01-08",
+        "reason": "Old API test",
+        "category": "test"
+      },
+      {
+        "originalPath": "./test-pattern-discovery.ts",
+        "archivePath": "./archive/tests/test-pattern-discovery.ts",
+        "archivedDate": "2025-01-08",
+        "reason": "Specific test replaced by comprehensive",
+        "category": "test"
+      },
+      {
+        "originalPath": "./test-sitemap-discovery.ts",
+        "archivePath": "./archive/tests/test-sitemap-discovery.ts",
+        "archivedDate": "2025-01-08",
+        "reason": "Specific test replaced by comprehensive",
+        "category": "test"
+      },
+      {
+        "originalPath": "./test-sitemap-ui.ts",
+        "archivePath": "./archive/tests/test-sitemap-ui.ts",
+        "archivedDate": "2025-01-08",
+        "reason": "UI test replaced by comprehensive",
+        "category": "test"
+      },
+      {
+        "originalPath": "./setup-test-accounts.ts",
+        "archivePath": "./archive/tests/setup-test-accounts.ts",
+        "archivedDate": "2025-01-08",
+        "reason": "Old test setup file",
+        "category": "test"
+      },
+      {
+        "originalPath": "./tests/",
+        "archivePath": "./archive/tests/old-tests/",
+        "archivedDate": "2025-01-08",
+        "reason": "Old test folder with 75+ test files",
+        "category": "test",
+        "note": "Contains unit, integration, e2e, and manual test files"
+      }
+    ],
+    "docs": [
+      {
+        "originalPath": "./development-progress-implementation-log.md.old",
+        "archivePath": "./archive/docs/development-progress-implementation-log.md.old",
+        "archivedDate": "2025-01-08",
+        "reason": "Old version of implementation log",
+        "category": "doc"
+      },
+      {
+        "originalPath": "./docs/intelligent-multi-phase-scraping-strategy.md.old",
+        "archivePath": "./archive/docs/intelligent-multi-phase-scraping-strategy.md.old",
+        "archivedDate": "2025-01-08",
+        "reason": "Outdated scraping strategy document",
+        "category": "doc"
+      }
+    ],
+    "scripts": [
+      {
+        "originalPath": "./scripts/test-bug-fetch.js",
+        "archivePath": "./archive/scripts/test-bug-fetch.js",
+        "archivedDate": "2025-01-08",
+        "reason": "Old test script",
+        "category": "script"
+      },
+      {
+        "originalPath": "./scripts/test-consistency.ts",
+        "archivePath": "./archive/scripts/test-consistency.ts",
+        "archivedDate": "2025-01-08",
+        "reason": "Old consistency test",
+        "category": "script"
+      },
+      {
+        "originalPath": "./scripts/test-document-consistency.js",
+        "archivePath": "./archive/scripts/test-document-consistency.js",
+        "archivedDate": "2025-01-08",
+        "reason": "Old document test",
+        "category": "script"
+      },
+      {
+        "originalPath": "./scripts/test-document-generation.ts",
+        "archivePath": "./archive/scripts/test-document-generation.ts",
+        "archivedDate": "2025-01-08",
+        "reason": "Old generation test",
+        "category": "script"
+      },
+      {
+        "originalPath": "./scripts/test-documents-query.js",
+        "archivePath": "./archive/scripts/test-documents-query.js",
+        "archivedDate": "2025-01-08",
+        "reason": "Old query test",
+        "category": "script"
+      },
+      {
+        "originalPath": "./scripts/test-simple-generation.ts",
+        "archivePath": "./archive/scripts/test-simple-generation.ts",
+        "archivedDate": "2025-01-08",
+        "reason": "Old simple generation test",
+        "category": "script"
+      }
+    ]
+  },
+  "restorationCommands": {
+    "single": "cp archive/<category>/<filename> <original-path>",
+    "category": "for f in archive/<category>/*; do cp $f .; done",
+    "all": "Run the restore script: npm run archive:restore --all"
+  },
+  "notes": [
+    "All files can be restored to their original locations",
+    "The comprehensive test file (test-company-intelligence-comprehensive.ts) was kept",
+    "Test pages in /app/test-* were not moved as they may be used for manual testing",
+    "Archive is version controlled - files are not lost"
+  ]
+}

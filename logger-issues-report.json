@@ -1,0 +1,98 @@
+{
+  "timestamp": "2025-09-16T10:37:08.581Z",
+  "summary": {
+    "filesWithIssues": 5,
+    "totalIssues": 10,
+    "wrongSignature": 10,
+    "categoryInData": 0
+  },
+  "filesList": [
+    "scripts/fix-logger-signatures.ts",
+    "scripts/fix-logger-parameter-order.ts",
+    "scripts/fix-all-logger-signatures.ts",
+    "lib/notifications/migration-hooks.tsx",
+    "components/company-intelligence/additive/scraping-control.tsx"
+  ],
+  "detailedIssues": {
+    "scripts/fix-logger-signatures.ts": [
+      {
+        "file": "scripts/fix-logger-signatures.ts",
+        "line": 6,
+        "type": "wrong-signature",
+        "originalCode": "* Wrong: permanentLogger.info('message', { category: 'CATEGORY', ...data })",
+        "fixedCode": "* Wrong: permanentLogger.info('CATEGORY', 'message', { ...data })"
+      }
+    ],
+    "scripts/fix-logger-parameter-order.ts": [
+      {
+        "file": "scripts/fix-logger-parameter-order.ts",
+        "line": 5,
+        "type": "wrong-signature",
+        "originalCode": "* Changes from: permanentLogger.info('message', { category: 'CATEGORY', ...data })",
+        "fixedCode": "* Changes from: permanentLogger.info('CATEGORY', 'message', { ...data })"
+      }
+    ],
+    "scripts/fix-all-logger-signatures.ts": [
+      {
+        "file": "scripts/fix-all-logger-signatures.ts",
+        "line": 6,
+        "type": "wrong-signature",
+        "originalCode": "* Wrong: permanentLogger.info('message', { category: 'CATEGORY', ...data })",
+        "fixedCode": "* Wrong: permanentLogger.info('CATEGORY', 'message', { ...data })"
+      }
+    ],
+    "lib/notifications/migration-hooks.tsx": [
+      {
+        "file": "lib/notifications/migration-hooks.tsx",
+        "line": 43,
+        "type": "wrong-signature",
+        "originalCode": "permanentLogger.info('removeNotification called (no-op in new system)', { category: 'MIGRATION', id })",
+        "fixedCode": "permanentLogger.info('MIGRATION', 'removeNotification called (no-op in new system)', { id })', { category: 'MIGRATION', id })"
+      },
+      {
+        "file": "lib/notifications/migration-hooks.tsx",
+        "line": 51,
+        "type": "wrong-signature",
+        "originalCode": "permanentLogger.info('clearAllNotifications called (handled by context)', { category: 'MIGRATION' })",
+        "fixedCode": "permanentLogger.info('MIGRATION', 'clearAllNotifications called (handled by context)')', { category: 'MIGRATION' })"
+      },
+      {
+        "file": "lib/notifications/migration-hooks.tsx",
+        "line": 79,
+        "type": "wrong-signature",
+        "originalCode": "permanentLogger.info('Success with data', { category: 'PHASE_TOAST', phase: this.phase, data })",
+        "fixedCode": "permanentLogger.info('PHASE_TOAST', 'Success with data', { phase: this.phase, data })"
+      }
+    ],
+    "components/company-intelligence/additive/scraping-control.tsx": [
+      {
+        "file": "components/company-intelligence/additive/scraping-control.tsx",
+        "line": 524,
+        "type": "wrong-signature",
+        "originalCode": "permanentLogger.info('Stream complete', { category: 'SCRAPING_CONTROL', correlationId })",
+        "fixedCode": "permanentLogger.info('SCRAPING_CONTROL', 'Stream complete', { correlationId })"
+      },
+      {
+        "file": "components/company-intelligence/additive/scraping-control.tsx",
+        "line": 692,
+        "type": "wrong-signature",
+        "originalCode": "permanentLogger.info('Status update', { category: 'SCRAPING_CONTROL', message: data.message })",
+        "fixedCode": "permanentLogger.info('SCRAPING_CONTROL', 'Status update', { message: data.message })"
+      },
+      {
+        "file": "components/company-intelligence/additive/scraping-control.tsx",
+        "line": 847,
+        "type": "wrong-signature",
+        "originalCode": "permanentLogger.info('Streaming update error', { category: 'CRITICAL', error, data })",
+        "fixedCode": "permanentLogger.info('CRITICAL', 'Streaming update error', { error, data })"
+      },
+      {
+        "file": "components/company-intelligence/additive/scraping-control.tsx",
+        "line": 971,
+        "type": "wrong-signature",
+        "originalCode": "permanentLogger.info('Viewing run details', { category: 'SCRAPING_CONTROL', run })",
+        "fixedCode": "permanentLogger.info('SCRAPING_CONTROL', 'Viewing run details', { run })"
+      }
+    ]
+  }
+}

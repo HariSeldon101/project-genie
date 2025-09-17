@@ -1,0 +1,973 @@
+'use client'
+
+import React, { useState } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TooltipWrapper } from '@/components/company-intelligence/tooltip-wrapper'
+import {
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  Eye,
+  FileText,
+  Globe,
+  Image as ImageIcon,
+  Palette,
+  Type,
+  Users,
+  ShoppingBag,
+  Newspaper,
+  MessageSquare,
+  Mail,
+  Phone,
+  Share2,
+  Menu,
+  Grid3x3,
+  Navigation,
+  Link,
+  Home,
+  ChevronRight
+} from 'lucide-react'
+
+interface ScrapedData {
+  pages: Array<{
+    url: string
+    type: string
+    title?: string
+    h1?: string
+    heroText?: string
+    content?: string
+    images?: string[]
+    metadata?: any
+    contactInfo?: any
+    socialLinks?: any[]
+    navigationItems?: any[]
+    teamMembers?: any[]
+    testimonials?: any[]
+    products?: any[]
+  }>
+  brandAssets?: {
+    logo?: string
+    colors?: string[]
+    fonts?: string[]
+    favicon?: string
+  }
+  contactInfo?: {
+    emails?: string[]
+    phones?: string[]
+    addresses?: string[]
+    contactPageUrl?: string
+  }
+  socialLinks?: Array<{
+    platform: string
+    url: string
+  }>
+  navigationItems?: Array<{
+    text: string
+    href?: string
+    url?: string
+    category?: string
+    depth?: number
+  }>
+  navigationStructure?: {
+    main?: any[]
+    footer?: any[]
+    sidebar?: any[]
+    breadcrumbs?: any[]
+  }
+  teamMembers?: Array<{
+    name: string
+    role?: string
+    bio?: string
+    image?: string
+    linkedin?: string
+  }>
+  testimonials?: Array<{
+    author: string
+    role?: string
+    company?: string
+    content: string
+    rating?: number
+  }>
+  products?: Array<{
+    name: string
+    description?: string
+    price?: string
+    image?: string
+    url?: string
+  }>
+  blogPosts?: Array<{
+    title: string
+    excerpt: string
+    content?: string
+    url: string
+    date?: string
+  }>
+  screenshot?: string
+  metrics?: {
+    pagesDiscovered?: number
+    pagesScraped?: number
+    completeness?: number
+    quality?: number
+    diversity?: number
+    confidence?: number
+    hasLogo?: boolean
+    hasContactInfo?: boolean
+    hasSocialLinks?: boolean
+    hasTeamInfo?: boolean
+    hasProducts?: boolean
+  }
+}
+
+interface StageReviewPanelProps {
+  stage: 'sitemap' | 'scraping' | 'extraction' | 'enrichment' | 'generation'
+  data: any
+  onApprove: () => void
+  onReject: (reason: string) => void
+  isProcessing?: boolean
+}
+
+export function StageReviewPanel({
+  stage,
+  data,
+  onApprove,
+  onReject,
+  isProcessing = false
+}: StageReviewPanelProps) {
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [showRejectionDialog, setShowRejectionDialog] = useState(false)
+
+  const getStageInfo = () => {
+    switch (stage) {
+      case 'sitemap':
+        return {
+          title: 'Sitemap Review',
+          description: 'Review the discovered pages before proceeding to scraping',
+          icon: <Navigation className="h-5 w-5" />
+        }
+      case 'scraping':
+        return {
+          title: 'Website Scraping Review',
+          description: 'Review the scraped website data before proceeding to extraction',
+          icon: <Globe className="h-5 w-5" />
+        }
+      case 'extraction':
+        return {
+          title: 'Data Extraction Review',
+          description: 'Review the extracted company information',
+          icon: <FileText className="h-5 w-5" />
+        }
+      case 'enrichment':
+        return {
+          title: 'Enrichment Review',
+          description: 'Review the enriched data from external sources',
+          icon: <Users className="h-5 w-5" />
+        }
+      case 'generation':
+        return {
+          title: 'Final Generation Review',
+          description: 'Review the complete intelligence pack',
+          icon: <CheckCircle2 className="h-5 w-5" />
+        }
+      default:
+        return {
+          title: 'Review',
+          description: 'Review the data before proceeding',
+          icon: <CheckCircle2 className="h-5 w-5" />
+        }
+    }
+  }
+
+  const renderScrapingData = (scrapedData: ScrapedData) => {
+    return (
+      <Tabs defaultValue="pages" className="w-full">
+        <TabsList className="grid w-full grid-cols-10">
+          <TabsTrigger value="structure">Structure</TabsTrigger>
+          <TabsTrigger value="pages">Pages</TabsTrigger>
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="navigation">Navigation</TabsTrigger>
+          <TabsTrigger value="images">Images</TabsTrigger>
+          <TabsTrigger value="brand">Brand</TabsTrigger>
+          <TabsTrigger value="contact">Contact</TabsTrigger>
+          <TabsTrigger value="team">Team</TabsTrigger>
+          <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="raw">Raw</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="structure" className="space-y-4">
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">Site Structure</h4>
+            <div className="border rounded-lg p-4">
+              <div className="space-y-3">
+                {/* Scraper Info */}
+                {scrapedData.metadata && (
+                  <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Scraping Engine</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Engine Used</span>
+                      <Badge variant={scrapedData.metadata.scraperUsed === 'playwright' ? 'default' : 'secondary'}>
+                        {scrapedData.metadata.scraperUsed === 'playwright' ? '🎭 Playwright' : '⚡ Cheerio'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Mode</span>
+                      <Badge variant="outline">
+                        {scrapedData.metadata.mode === 'dynamic' ? 'Dynamic (JS Rendered)' : 'Static (HTML)'}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {scrapedData.metadata.scraperUsed === 'playwright' 
+                        ? 'Full browser rendering for JavaScript-heavy sites'
+                        : 'Fast HTML parsing for server-rendered content'}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Discovery Stats */}
+                {scrapedData.metrics && (
+                  <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Discovery Status</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Pages Discovered</span>
+                      <Badge variant="outline">
+                        {scrapedData.metrics.pagesDiscovered || scrapedData.navigationItems?.length || 0}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Pages Scraped</span>
+                      <Badge variant="default">
+                        {scrapedData.metrics.pagesScraped || scrapedData.pages?.length || 0}
+                      </Badge>
+                    </div>
+                    {scrapedData.metrics.pagesDiscovered && scrapedData.metrics.pagesScraped && (
+                      <div className="mt-2">
+                        <Progress 
+                          value={(scrapedData.metrics.pagesScraped / scrapedData.metrics.pagesDiscovered) * 100} 
+                          className="h-2"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {Math.round((scrapedData.metrics.pagesScraped / scrapedData.metrics.pagesDiscovered) * 100)}% of discovered pages scraped
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Site Hierarchy */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Total Pages</span>
+                  <Badge>{scrapedData.pages?.length || 0}</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Page Types</span>
+                  <div className="flex gap-1">
+                    {Array.from(new Set(scrapedData.pages?.map(p => p.type) || [])).map(type => (
+                      <Badge key={type} variant="secondary">{type}</Badge>
+                    ))}
+                  </div>
+                </div>
+                {/* Simple Tree View */}
+                <div className="mt-4">
+                  <ScrollArea className="h-[300px]">
+                    {scrapedData.pages?.map((page, idx) => (
+                      <div key={idx} className="flex items-center gap-2 py-1">
+                        <Globe className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-sm">{page.url}</span>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="navigation" className="space-y-4">
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">Navigation Structure</h4>
+            
+            {/* Check both navigationItems and navigationStructure */}
+            {(scrapedData.navigationItems?.length > 0 || 
+              scrapedData.navigationStructure?.main?.length > 0 ||
+              scrapedData.navigationStructure?.footer?.length > 0) ? (
+              <div className="space-y-4">
+                {/* Main Navigation */}
+                {scrapedData.navigationStructure?.main?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold mb-2 flex items-center gap-1">
+                      <Menu className="h-3 w-3" /> Main Navigation
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {scrapedData.navigationStructure.main.slice(0, 10).map((item: any, idx: number) => (
+                        <Card key={idx} className="p-2">
+                          <div className="flex items-center gap-2">
+                            <Globe className="h-3 w-3" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{item.text}</p>
+                              <p className="text-xs text-muted-foreground">{item.href || item.url}</p>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Footer Navigation */}
+                {scrapedData.navigationStructure?.footer?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold mb-2 flex items-center gap-1">
+                      <Grid3x3 className="h-3 w-3" /> Footer Navigation
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {scrapedData.navigationStructure.footer.slice(0, 10).map((item: any, idx: number) => (
+                        <Card key={idx} className="p-2">
+                          <div className="flex items-center gap-2">
+                            <Globe className="h-3 w-3" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{item.text}</p>
+                              <p className="text-xs text-muted-foreground">{item.href || item.url}</p>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* All Navigation Items (categorized) */}
+                {scrapedData.navigationItems?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold mb-2 flex items-center gap-1">
+                      <Navigation className="h-3 w-3" /> 
+                      Discovered Pages ({scrapedData.navigationItems.length} total)
+                    </p>
+                    {/* Group by category if categories exist */}
+                    {scrapedData.navigationItems[0]?.category ? (
+                      <div className="space-y-3">
+                        {Object.entries(
+                          scrapedData.navigationItems.reduce((acc: any, item) => {
+                            const cat = item.category || 'uncategorized'
+                            if (!acc[cat]) acc[cat] = []
+                            acc[cat].push(item)
+                            return acc
+                          }, {})
+                        ).map(([category, items]: [string, any]) => (
+                          <div key={category}>
+                            <p className="text-xs font-medium mb-1 capitalize flex items-center gap-1">
+                              {category === 'main' && <Home className="h-3 w-3" />}
+                              {category === 'blog' && <Newspaper className="h-3 w-3" />}
+                              {category === 'company' && <Users className="h-3 w-3" />}
+                              {category === 'offerings' && <ShoppingBag className="h-3 w-3" />}
+                              {category === 'contact' && <Mail className="h-3 w-3" />}
+                              {category === 'work' && <FileText className="h-3 w-3" />}
+                              {category}
+                            </p>
+                            <div className="grid grid-cols-2 gap-1">
+                              {items.slice(0, 6).map((item: any, idx: number) => (
+                                <Card key={idx} className="p-1.5">
+                                  <div className="flex items-center gap-1">
+                                    {item.depth === 0 && <Home className="h-3 w-3 text-muted-foreground" />}
+                                    {item.depth > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium truncate">{item.text}</p>
+                                      <p className="text-xs text-muted-foreground truncate">
+                                        {item.href || item.url}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </Card>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <ScrollArea className="h-[200px]">
+                        <div className="grid grid-cols-2 gap-2">
+                          {scrapedData.navigationItems.slice(0, 30).map((item, idx) => (
+                            <Card key={idx} className="p-2">
+                              <div className="flex items-center gap-2">
+                                <Link className="h-3 w-3 text-muted-foreground" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium">{item.text}</p>
+                                  <p className="text-xs text-muted-foreground">{item.href || item.url}</p>
+                                </div>
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>No navigation items found</AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="images" className="space-y-4">
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">Images & Media</h4>
+            <div className="space-y-4">
+              {/* Logo & Favicon */}
+              <div className="grid grid-cols-2 gap-4">
+                {scrapedData.brandAssets?.logo && (
+                  <div className="border rounded-lg p-3">
+                    <p className="text-xs font-semibold mb-2">Logo</p>
+                    <img src={scrapedData.brandAssets.logo} alt="Logo" className="h-16 object-contain" />
+                  </div>
+                )}
+                {scrapedData.brandAssets?.favicon && (
+                  <div className="border rounded-lg p-3">
+                    <p className="text-xs font-semibold mb-2">Favicon</p>
+                    <img src={scrapedData.brandAssets.favicon} alt="Favicon" className="h-16 object-contain" />
+                  </div>
+                )}
+              </div>
+              
+              {/* All Images */}
+              <div>
+                {(() => {
+                  // Get all images and remove duplicates
+                  const allImages = scrapedData.pages?.flatMap(p => p.images || []) || []
+                  const uniqueImages = Array.from(new Set(allImages))
+                  return (
+                    <>
+                      <p className="text-xs font-semibold mb-2">
+                        Page Images ({uniqueImages.length} unique, {allImages.length} total)
+                      </p>
+                      <ScrollArea className="h-[400px]">
+                        <div className="grid grid-cols-4 gap-2">
+                          {uniqueImages.map((img, idx) => (
+                            <div key={idx} className="border rounded p-2 bg-gray-50 dark:bg-gray-900">
+                              <img src={img} alt="" className="w-full h-20 object-contain" />
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="pages" className="space-y-4">
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">Scraped Pages ({scrapedData.pages?.length || 0})</h4>
+            {scrapedData.pages?.map((page, idx) => (
+              <Card key={idx} className="p-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline">{page.type}</Badge>
+                      <span className="text-xs text-muted-foreground">{page.url}</span>
+                    </div>
+                    {page.title && (
+                      <div className="mt-2">
+                        <span className="text-xs font-semibold">Title:</span>
+                        <p className="text-sm font-medium">{page.title}</p>
+                      </div>
+                    )}
+                    {page.h1 && page.h1 !== page.title && (
+                      <div className="mt-2">
+                        <span className="text-xs font-semibold">H1:</span>
+                        <p className="text-sm">{page.h1}</p>
+                      </div>
+                    )}
+                    {page.heroText && (
+                      <div className="mt-2">
+                        <span className="text-xs font-semibold">Hero Text:</span>
+                        <p className="text-sm text-muted-foreground">{page.heroText}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="content" className="space-y-4">
+          <h4 className="text-sm font-semibold">Page Content ({scrapedData.pages?.length || 0} pages)</h4>
+          <ScrollArea className="h-[400px] w-full">
+            {scrapedData.pages?.map((page, idx) => (
+              <div key={idx} className="mb-4 p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="secondary">{page.type}</Badge>
+                  <h5 className="font-semibold">{page.title || page.h1 || page.url}</h5>
+                </div>
+                {page.content ? (
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {page.content.substring(0, 500)}
+                    {page.content.length > 500 && '...'}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No content extracted</p>
+                )}
+                {page.metadata && Object.keys(page.metadata).length > 0 && (
+                  <div className="mt-2 pt-2 border-t">
+                    <span className="text-xs font-semibold">Metadata:</span>
+                    <div className="text-xs text-muted-foreground">
+                      {Object.entries(page.metadata).slice(0, 3).map(([key, value]) => (
+                        <div key={key}>{key}: {String(value)}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="brand" className="space-y-4">
+          <div className="space-y-4">
+            {scrapedData.brandAssets?.logo ? (
+              <div>
+                <h5 className="text-sm font-semibold mb-2">Logo</h5>
+                <img 
+                  src={scrapedData.brandAssets.logo} 
+                  alt="Company logo" 
+                  className="h-16 object-contain border rounded p-2"
+                />
+                <p className="text-xs text-muted-foreground mt-1">{scrapedData.brandAssets.logo}</p>
+              </div>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>No logo detected</AlertDescription>
+              </Alert>
+            )}
+            
+            {scrapedData.brandAssets?.colors && scrapedData.brandAssets.colors.length > 0 ? (
+              <div>
+                <h5 className="text-sm font-semibold mb-2">Brand Colors ({scrapedData.brandAssets.colors.length})</h5>
+                <div className="flex flex-wrap gap-2">
+                  {scrapedData.brandAssets.colors.map((color, idx) => (
+                    <div key={idx} className="flex items-center gap-2 border rounded p-2">
+                      <div 
+                        className="w-8 h-8 rounded border-2"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className="text-xs font-mono">{color}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No brand colors detected</p>
+            )}
+
+            {scrapedData.brandAssets?.fonts && scrapedData.brandAssets.fonts.length > 0 ? (
+              <div>
+                <h5 className="text-sm font-semibold mb-2">Typography ({scrapedData.brandAssets.fonts.length})</h5>
+                <div className="flex flex-wrap gap-2">
+                  {scrapedData.brandAssets.fonts.map((font, idx) => (
+                    <Badge key={idx} variant="secondary" className="font-mono">
+                      {font}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No fonts detected</p>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="contact" className="space-y-4">
+          <div className="space-y-4">
+            {scrapedData.contactInfo?.emails && scrapedData.contactInfo.emails.length > 0 && (
+              <div>
+                <h5 className="text-sm font-semibold mb-2">Email Addresses</h5>
+                <div className="space-y-1">
+                  {scrapedData.contactInfo.emails.map((email, idx) => (
+                    <Badge key={idx} variant="outline" className="mr-2">
+                      <Mail className="h-3 w-3 mr-1" />
+                      {email}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {scrapedData.contactInfo?.phones && scrapedData.contactInfo.phones.length > 0 && (
+              <div>
+                <h5 className="text-sm font-semibold mb-2">Phone Numbers</h5>
+                <div className="space-y-1">
+                  {scrapedData.contactInfo.phones.map((phone, idx) => (
+                    <Badge key={idx} variant="outline" className="mr-2">
+                      <Phone className="h-3 w-3 mr-1" />
+                      {phone}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {scrapedData.contactInfo?.addresses && scrapedData.contactInfo.addresses.length > 0 && (
+              <div>
+                <h5 className="text-sm font-semibold mb-2">Addresses</h5>
+                <div className="space-y-2">
+                  {scrapedData.contactInfo.addresses.map((addr, idx) => (
+                    <Card key={idx} className="p-2">
+                      <p className="text-sm">{addr}</p>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {(!scrapedData.contactInfo?.emails?.length && 
+              !scrapedData.contactInfo?.phones?.length && 
+              !scrapedData.contactInfo?.addresses?.length) && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>No contact information found</AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="team" className="space-y-4">
+          <h4 className="text-sm font-semibold">Team Members ({scrapedData.teamMembers?.length || 0})</h4>
+          {scrapedData.teamMembers && scrapedData.teamMembers.length > 0 ? (
+            <ScrollArea className="h-[400px]">
+              <div className="space-y-2">
+                {scrapedData.teamMembers.map((member, idx) => (
+                  <Card key={idx} className="p-3">
+                    <div className="flex items-start gap-3">
+                      {member.image && (
+                        <img src={member.image} alt={member.name} className="w-12 h-12 rounded-full" />
+                      )}
+                      <div className="flex-1">
+                        <h5 className="font-semibold text-sm">{member.name}</h5>
+                        {member.role && (
+                          <p className="text-xs text-muted-foreground">{member.role}</p>
+                        )}
+                        {member.bio && (
+                          <p className="text-xs mt-1">{member.bio}</p>
+                        )}
+                        {member.linkedin && (
+                          <Badge variant="outline" className="mt-1">
+                            <Users className="h-3 w-3 mr-1" />
+                            LinkedIn
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          ) : (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>No team members found</AlertDescription>
+            </Alert>
+          )}
+        </TabsContent>
+
+        <TabsContent value="products" className="space-y-4">
+          <h4 className="text-sm font-semibold">Products & Services ({scrapedData.products?.length || 0})</h4>
+          {scrapedData.products && scrapedData.products.length > 0 ? (
+            <ScrollArea className="h-[400px]">
+              <div className="grid grid-cols-2 gap-2">
+                {scrapedData.products.map((product, idx) => (
+                  <Card key={idx} className="p-3">
+                    {product.image && (
+                      <img src={product.image} alt={product.name} className="w-full h-32 object-cover rounded mb-2" />
+                    )}
+                    <h5 className="font-semibold text-sm">{product.name}</h5>
+                    {product.description && (
+                      <p className="text-xs text-muted-foreground mt-1">{product.description}</p>
+                    )}
+                    {product.price && (
+                      <Badge variant="outline" className="mt-2">{product.price}</Badge>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          ) : (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>No products or services found</AlertDescription>
+            </Alert>
+          )}
+        </TabsContent>
+
+        <TabsContent value="social" className="space-y-4">
+          <h4 className="text-sm font-semibold">Social Media ({scrapedData.socialLinks?.length || 0})</h4>
+          {scrapedData.socialLinks && scrapedData.socialLinks.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2">
+              {scrapedData.socialLinks.map((link, idx) => (
+                <Card key={idx} className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Share2 className="h-4 w-4" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold">{link.platform}</p>
+                      <a href={link.url} target="_blank" rel="noopener noreferrer" 
+                         className="text-xs text-primary hover:underline">
+                        {link.url}
+                      </a>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>No social media links found</AlertDescription>
+            </Alert>
+          )}
+        </TabsContent>
+
+        <TabsContent value="blog" className="space-y-4">
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">Blog Posts ({scrapedData.blogPosts?.length || 0})</h4>
+            <ScrollArea className="h-[400px]">
+              {scrapedData.blogPosts?.map((post, idx) => (
+                <Card key={idx} className="p-3 mb-2">
+                  <h5 className="font-semibold text-sm">{post.title}</h5>
+                  {post.date && (
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(post.date).toLocaleDateString()}
+                    </p>
+                  )}
+                  <p className="text-sm mt-2">{post.excerpt}</p>
+                  {post.content && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-primary cursor-pointer">
+                        Read more
+                      </summary>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {post.content.substring(0, 500)}...
+                      </div>
+                    </details>
+                  )}
+                </Card>
+              ))}
+            </ScrollArea>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="raw" className="space-y-4">
+          <ScrollArea className="h-[400px] w-full">
+            <pre className="text-xs font-mono">
+              {JSON.stringify(scrapedData, null, 2)}
+            </pre>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
+    )
+  }
+
+  const renderDataByStage = () => {
+    switch (stage) {
+      case 'sitemap':
+        // Render sitemap/page selection data
+        if (Array.isArray(data)) {
+          return (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold">Selected Pages ({data.length})</h4>
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-1">
+                  {data.map((url: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 border rounded">
+                      <Badge variant="outline">{idx + 1}</Badge>
+                      <Globe className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-sm font-mono">{url}</span>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )
+        }
+        return (
+          <ScrollArea className="h-[400px] w-full">
+            <pre className="text-xs font-mono">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </ScrollArea>
+        )
+      case 'scraping':
+        return renderScrapingData(data as ScrapedData)
+      case 'extraction':
+      case 'enrichment':
+      case 'generation':
+        return (
+          <ScrollArea className="h-[400px] w-full">
+            <pre className="text-xs font-mono">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </ScrollArea>
+        )
+    }
+  }
+
+  const handleReject = () => {
+    if (rejectionReason.trim()) {
+      onReject(rejectionReason)
+      setShowRejectionDialog(false)
+      setRejectionReason('')
+    }
+  }
+
+  const stageInfo = getStageInfo()
+
+  return (
+    <Card className="w-full stage-review-panel mb-20" data-testid="stage-review-panel">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {stageInfo.icon}
+          {stageInfo.title}
+        </CardTitle>
+        <CardDescription>{stageInfo.description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Data Display */}
+        <div className="border rounded-lg p-4">
+          {renderDataByStage()}
+        </div>
+
+        {/* Quality Metrics */}
+        {data.metrics && (
+          <div className="grid grid-cols-4 gap-4">
+            <div className="text-center">
+              <p className="text-sm font-medium">Completeness</p>
+              <Progress value={data.metrics.completeness || 0} className="mt-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {data.metrics.completeness || 0}%
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium">Quality</p>
+              <Progress value={data.metrics.quality || 0} className="mt-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {data.metrics.quality || 0}%
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium">Diversity</p>
+              <Progress value={data.metrics.diversity || 0} className="mt-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {data.metrics.diversity || 0}%
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium">Confidence</p>
+              <Progress value={data.metrics.confidence || 0} className="mt-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {data.metrics.confidence || 0}%
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Issues/Warnings */}
+        {data.issues && data.issues.length > 0 && (
+          <Alert variant="warning">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Issues Detected</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                {data.issues.map((issue: any, idx: number) => (
+                  <li key={idx} className="text-sm">
+                    {issue.message || issue}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Action Buttons - Fixed at bottom of viewport */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-gray-950 border-t shadow-xl z-[9999]">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                Review the results above and choose an action
+              </p>
+              <div className="flex gap-2">
+                <TooltipWrapper content="Reject the current selection and stop the process">
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowRejectionDialog(true)}
+                    disabled={isProcessing}
+                    className="px-6 py-2"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Reject & Stop
+                  </Button>
+                </TooltipWrapper>
+                <TooltipWrapper content={`Approve the ${stage === 'sitemap' ? 'selected pages' : stage === 'scraping' ? 'scraped data' : 'results'} and proceed to the next phase`}>
+                  <Button
+                    onClick={onApprove}
+                    disabled={isProcessing}
+                    className="px-6 py-2 bg-green-600 hover:bg-green-700"
+                    data-testid={`approve-${stage}`}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Approve & Continue
+                  </Button>
+                </TooltipWrapper>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Rejection Dialog */}
+        {showRejectionDialog && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-[500px]">
+              <CardHeader>
+                <CardTitle>Reject and Stop Processing</CardTitle>
+                <CardDescription>
+                  Please provide a reason for rejection
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <textarea
+                  className="w-full p-2 border rounded-lg"
+                  rows={4}
+                  placeholder="Enter reason for rejection..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowRejectionDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleReject}
+                    disabled={!rejectionReason.trim()}
+                  >
+                    Confirm Rejection
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}

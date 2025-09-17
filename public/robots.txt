@@ -1,0 +1,13 @@
+# *
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /_next/
+Disallow: /404
+Disallow: /500
+
+# Host
+Host: https://project-genie.vercel.app
+
+# Sitemaps
+Sitemap: https://project-genie.vercel.app/sitemap.xml

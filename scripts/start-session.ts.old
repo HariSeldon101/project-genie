@@ -1,0 +1,393 @@
+#!/usr/bin/env node
+
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import chalk from 'chalk';
+
+interface SessionState {
+  timestamp: string;
+  lastUpdated: string;
+  gitStatus: {
+    branch: string;
+    uncommittedFiles: string[];
+    modifiedFiles: string[];
+    untrackedFiles: string[];
+    lastCommit: string;
+  };
+  activeTasks: {
+    inProgress: string[];
+    pending: string[];
+    blockers: string[];
+  };
+  currentContext: {
+    activeFeature: string;
+    lastWorkingFiles: string[];
+    openIssues: string[];
+    testResults?: {
+      passing: number;
+      failing: number;
+      lastRun: string;
+    };
+  };
+  environmentState: {
+    runningServers: string[];
+    openPorts: number[];
+    backgroundProcesses: string[];
+  };
+  nextSteps: string[];
+  criticalNotes: string[];
+}
+
+class SessionStarter {
+  private projectRoot: string;
+  private sessionState: SessionState | null = null;
+  private hasSessionFile: boolean = false;
+
+  constructor() {
+    this.projectRoot = process.cwd();
+  }
+
+  private loadSessionState(): boolean {
+    const sessionPath = path.join(this.projectRoot, 'SESSION_STATE.json');
+    
+    if (!fs.existsSync(sessionPath)) {
+      console.log(chalk.yellow('⚠️  No SESSION_STATE.json found. Starting fresh session.'));
+      return false;
+    }
+
+    try {
+      const content = fs.readFileSync(sessionPath, 'utf8');
+      this.sessionState = JSON.parse(content);
+      this.hasSessionFile = true;
+      return true;
+    } catch (error) {
+      console.error(chalk.red('❌ Error loading session state:'), error);
+      return false;
+    }
+  }
+
+  private runCommand(command: string): string {
+    try {
+      return execSync(command, { encoding: 'utf8', cwd: this.projectRoot }).trim();
+    } catch (error) {
+      return '';
+    }
+  }
+
+  private displaySessionInfo() {
+    if (!this.sessionState) return;
+
+    console.log(chalk.blue('\n📊 Previous Session Information'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    console.log(chalk.cyan('\n🕐 Last Session:'), new Date(this.sessionState.timestamp).toLocaleString());
+    console.log(chalk.cyan('🎯 Active Feature:'), this.sessionState.currentContext.activeFeature);
+    console.log(chalk.cyan('🌿 Branch:'), this.sessionState.gitStatus.branch);
+    console.log(chalk.cyan('📝 Last Commit:'), this.sessionState.gitStatus.lastCommit);
+  }
+
+  private checkGitStatus() {
+    console.log(chalk.blue('\n🔍 Current Git Status'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    const currentBranch = this.runCommand('git branch --show-current');
+    const status = this.runCommand('git status --short');
+    
+    console.log(chalk.cyan('Current Branch:'), currentBranch);
+    
+    if (this.sessionState && currentBranch !== this.sessionState.gitStatus.branch) {
+      console.log(chalk.yellow(`⚠️  Branch changed from ${this.sessionState.gitStatus.branch} to ${currentBranch}`));
+    }
+    
+    if (status) {
+      console.log(chalk.cyan('\nUncommitted Changes:'));
+      console.log(status);
+    } else {
+      console.log(chalk.green('✅ Working directory clean'));
+    }
+  }
+
+  private displayTasks() {
+    if (!this.sessionState) return;
+
+    console.log(chalk.blue('\n📋 Active Tasks'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    if (this.sessionState.activeTasks.blockers.length > 0) {
+      console.log(chalk.red('\n⚠️  Blockers:'));
+      this.sessionState.activeTasks.blockers.forEach(blocker => {
+        console.log(chalk.red(`  • ${blocker}`));
+      });
+    }
+    
+    if (this.sessionState.activeTasks.inProgress.length > 0) {
+      console.log(chalk.yellow('\n🔄 In Progress:'));
+      this.sessionState.activeTasks.inProgress.forEach(task => {
+        console.log(chalk.yellow(`  • ${task}`));
+      });
+    }
+    
+    if (this.sessionState.activeTasks.pending.length > 0) {
+      console.log(chalk.cyan('\n📝 Pending (top 5):'));
+      this.sessionState.activeTasks.pending.slice(0, 5).forEach(task => {
+        console.log(chalk.cyan(`  • ${task}`));
+      });
+    }
+  }
+
+  private displayAgentTodos() {
+    if (!this.sessionState || !this.sessionState.agentTodos) return;
+
+    console.log(chalk.blue('\n🤖 Agent TodoWrite Tasks'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    // Priority tasks for this session
+    if (this.sessionState.agentTodos.priorityForNextSession && 
+        this.sessionState.agentTodos.priorityForNextSession.length > 0) {
+      console.log(chalk.magenta('\n🎯 Priority Tasks for This Session:'));
+      this.sessionState.agentTodos.priorityForNextSession.forEach(task => {
+        console.log(chalk.magenta(`  • ${task}`));
+      });
+    }
+    
+    // In-progress from last session
+    if (this.sessionState.agentTodos.inProgress && 
+        this.sessionState.agentTodos.inProgress.length > 0) {
+      console.log(chalk.yellow('\n🔄 In Progress from Last Session:'));
+      this.sessionState.agentTodos.inProgress.forEach(task => {
+        console.log(chalk.yellow(`  • ${task}`));
+      });
+    }
+    
+    // Pending tasks
+    if (this.sessionState.agentTodos.pending && 
+        this.sessionState.agentTodos.pending.length > 0) {
+      console.log(chalk.cyan('\n📋 Other Pending Tasks:'));
+      this.sessionState.agentTodos.pending.slice(0, 5).forEach(task => {
+        console.log(chalk.cyan(`  • ${task}`));
+      });
+    }
+    
+    // Completed in last session
+    if (this.sessionState.agentTodos.completed && 
+        this.sessionState.agentTodos.completed.length > 0) {
+      console.log(chalk.green('\n✅ Completed in Last Session:'));
+      this.sessionState.agentTodos.completed.slice(0, 3).forEach(task => {
+        console.log(chalk.green(`  • ${task}`));
+      });
+    }
+  }
+
+  private displayActiveAgents() {
+    if (!this.sessionState || !this.sessionState.activeAgents) return;
+
+    console.log(chalk.blue('\n🔧 Active Agents & Tools'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    this.sessionState.activeAgents.forEach(agent => {
+      console.log(chalk.cyan(`  • ${agent}`));
+    });
+    
+    // Check current MCP processes
+    const mcpProcesses = this.runCommand('ps aux | grep mcp-server | grep -v grep | wc -l');
+    if (mcpProcesses && parseInt(mcpProcesses) > 0) {
+      console.log(chalk.green(`  • ${mcpProcesses.trim()} MCP server(s) currently running`));
+    }
+  }
+
+  private initializeCurrentSessionTodos() {
+    console.log(chalk.blue('\n📋 Current Session TodoWrite Status'));
+    console.log(chalk.gray('═'.repeat(50)));
+    console.log(chalk.yellow('\nClaude: Please report your current TodoWrite task list:'));
+    console.log(chalk.gray('  - List any tasks currently in your TodoWrite'));
+    console.log(chalk.gray('  - List any active agents you are using'));
+    console.log(chalk.gray('  - Confirm priority tasks from last session (if any)\n'));
+  }
+
+  private displayNextSteps() {
+    if (!this.sessionState || this.sessionState.nextSteps.length === 0) return;
+
+    console.log(chalk.blue('\n🚀 Recommended Next Steps'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    this.sessionState.nextSteps.forEach((step, index) => {
+      console.log(chalk.green(`${index + 1}. ${step}`));
+    });
+  }
+
+  private displayCriticalNotes() {
+    if (!this.sessionState || this.sessionState.criticalNotes.length === 0) return;
+
+    console.log(chalk.blue('\n⚠️  Critical Notes'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    this.sessionState.criticalNotes.forEach(note => {
+      console.log(chalk.yellow(`• ${note}`));
+    });
+  }
+
+  private checkEnvironment() {
+    console.log(chalk.blue('\n🖥️  Environment Check'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    // Check if dev server is running
+    const devServerCheck = this.runCommand('lsof -i :3000 | grep LISTEN');
+    if (devServerCheck) {
+      console.log(chalk.green('✅ Dev server is running on port 3000'));
+    } else {
+      console.log(chalk.yellow('⚠️  Dev server not detected. Run: npm run dev'));
+    }
+    
+    // Check Supabase status
+    const supabaseStatus = this.runCommand('supabase status 2>/dev/null');
+    if (supabaseStatus.includes('Started')) {
+      console.log(chalk.green('✅ Local Supabase is running'));
+    } else {
+      console.log(chalk.yellow('ℹ️  Local Supabase not running. Run: supabase start if needed'));
+    }
+  }
+
+  private generateStartSummary() {
+    const summary = `# Session Started
+
+**Time**: ${new Date().toLocaleString()}
+**Branch**: ${this.runCommand('git branch --show-current')}
+${this.sessionState ? `**Resuming Feature**: ${this.sessionState.currentContext.activeFeature}` : '**New Session**'}
+
+## Quick Commands
+
+\`\`\`bash
+# Continue development
+npm run dev
+
+# Run tests
+npm test
+npx tsx test-company-intelligence-comprehensive.ts
+
+# Update manifest
+npm run manifest:update
+
+# Check for quick wins
+npm run manifest:check
+\`\`\`
+
+## Session Management
+
+- **End session**: \`npm run session:end\`
+- **View last session**: \`cat END_OF_SESSION.md\`
+- **View session state**: \`cat SESSION_STATE.json\`
+
+---
+*Session started successfully. Context loaded from previous session.*
+`;
+
+    const startPath = path.join(this.projectRoot, 'START_OF_SESSION.md');
+    fs.writeFileSync(startPath, summary);
+    console.log(chalk.gray(`\n📄 Session summary written to: ${startPath}`));
+  }
+
+  private displayRecentFiles() {
+    if (!this.sessionState || this.sessionState.currentContext.lastWorkingFiles.length === 0) return;
+
+    console.log(chalk.blue('\n📁 Recent Working Files'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    console.log(chalk.cyan('Last modified files:'));
+    this.sessionState.currentContext.lastWorkingFiles.slice(0, 5).forEach(file => {
+      console.log(chalk.gray(`  • ${file}`));
+    });
+  }
+
+  private runManifestCheck() {
+    console.log(chalk.blue('\n📦 Running Manifest Check'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    try {
+      // First update the manifest
+      console.log(chalk.cyan('Updating PROJECT_MANIFEST.json...'));
+      execSync('npm run manifest:update', { cwd: this.projectRoot, stdio: 'pipe' });
+      
+      // Then check for quick wins
+      console.log(chalk.cyan('Checking for quick wins...'));
+      const quickWins = execSync('npm run manifest:check 2>/dev/null', { 
+        cwd: this.projectRoot, 
+        encoding: 'utf8' 
+      });
+      
+      if (quickWins) {
+        console.log(quickWins);
+      }
+    } catch (error) {
+      console.log(chalk.yellow('ℹ️  Run `npm run manifest:check` manually to see quick wins'));
+    }
+  }
+
+  public async run() {
+    console.log(chalk.bold.green('\n🚀 Starting Session Recovery Process...'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    // Load previous session
+    const hasSession = this.loadSessionState();
+    
+    if (hasSession) {
+      console.log(chalk.green('✅ Previous session state loaded successfully'));
+      
+      // Display all session information
+      this.displaySessionInfo();
+      this.checkGitStatus();
+      this.displayTasks();
+      this.displayRecentFiles();
+      this.displayNextSteps();
+      this.displayCriticalNotes();
+    } else {
+      console.log(chalk.cyan('📝 Starting fresh session'));
+      this.checkGitStatus();
+    }
+    
+    // Display agent-specific information
+    if (hasSession) {
+      this.displayAgentTodos();
+      this.displayActiveAgents();
+    }
+    
+    // Always check environment and manifest
+    this.checkEnvironment();
+    this.runManifestCheck();
+    
+    // Initialize current session todos
+    this.initializeCurrentSessionTodos();
+    
+    // Generate start summary
+    this.generateStartSummary();
+    
+    console.log(chalk.bold.green('\n✨ Session Recovery Complete!'));
+    console.log(chalk.gray('═'.repeat(50)));
+    
+    if (hasSession && this.sessionState) {
+      console.log(chalk.cyan('\n💡 Quick Start:'));
+      console.log(chalk.gray(`   Continue working on: ${this.sessionState.currentContext.activeFeature}`));
+      if (this.sessionState.nextSteps.length > 0) {
+        console.log(chalk.gray(`   Next step: ${this.sessionState.nextSteps[0]}`));
+      }
+    }
+    
+    console.log(chalk.gray('\n📌 When ending this session, run: npm run session:end'));
+  }
+}
+
+// Run if called directly
+if (require.main === module) {
+  // Check if chalk is installed, if not install it
+  try {
+    require('chalk');
+  } catch {
+    console.log('Installing chalk for colored output...');
+    execSync('npm install chalk', { stdio: 'inherit' });
+  }
+  
+  const starter = new SessionStarter();
+  starter.run().catch(console.error);
+}
+
+export default SessionStarter;

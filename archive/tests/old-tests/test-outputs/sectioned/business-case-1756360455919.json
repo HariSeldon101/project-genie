@@ -1,0 +1,58 @@
+{
+  "executiveSummary": "Executive summary for Test Project for Sectioned Generation",
+  "reasons": "Business reasons for the project",
+  "businessOptions": [
+    {
+      "option": "Do Nothing",
+      "description": "Continue with current state",
+      "costs": "$0",
+      "benefits": "No disruption",
+      "risks": "Miss opportunities"
+    },
+    {
+      "option": "Minimal Solution",
+      "description": "Basic implementation",
+      "costs": "Half of budget",
+      "benefits": "Some improvement",
+      "risks": "May not meet all needs"
+    },
+    {
+      "option": "Recommended Solution",
+      "description": "Full implementation",
+      "benefits": "All objectives achieved",
+      "risks": "Implementation complexity"
+    }
+  ],
+  "expectedBenefits": [
+    {
+      "benefit": "Improved Efficiency",
+      "measurable": true,
+      "measurement": "Time saved",
+      "baseline": "Current state",
+      "target": "30% improvement"
+    },
+    {
+      "benefit": "Cost Reduction",
+      "measurable": true,
+      "measurement": "Dollar savings",
+      "baseline": "Current costs",
+      "target": "20% reduction"
+    }
+  ],
+  "expectedDisBenefits": [],
+  "timescale": "undefined timeline",
+  "costs": {
+    "operational": "$10,000",
+    "maintenance": "$5,000"
+  },
+  "investmentAppraisal": {
+    "roi": "150% over 3 years",
+    "paybackPeriod": "18 months",
+    "npv": "Positive NPV"
+  },
+  "majorRisks": [
+    "Implementation risk",
+    "Budget risk",
+    "Timeline risk"
+  ]
+}

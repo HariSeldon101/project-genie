@@ -1,0 +1,490 @@
+/**
+ * Base Scraper Executor Class
+ * 
+ * MANDATORY: All scrapers MUST extend this base class (DRY principle)
+ * Provides comprehensive logging, error handling, and SSE event propagation
+ * 
+ * Key Features:
+ * - 50+ logging points with breadcrumbs for debugging
+ * - SSEEventFactory integration for standardized events
+ * - Proper error propagation to UI (no silent failures)
+ * - Shared functionality to prevent code duplication
+ * - SOLID principles applied throughout
+ * 
+ * @module base-scraper-executor
+ */
+
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { SSEEventFactory, EventSource, EventType } from '@/lib/company-intelligence/utils/sse-event-factory'
+import type { ScraperExecutor, ScraperOptions, ScraperResult, PageResult, ScrapingStats } from '../additive/types'
+
+/**
+ * Progress callback function type for streaming updates
+ */
+export type ProgressCallback = (event: any) => Promise<void>
+
+/**
+ * Base class for all scraper executors
+ * Implements DRY principle - all common functionality here
+ */
+export abstract class BaseScraperExecutor implements ScraperExecutor {
+  /** Unique identifier for this scraper */
+  abstract id: string
+  
+  /** Human-readable name */
+  abstract name: string
+  
+  /** Scraping strategy type */
+  abstract strategy: 'static' | 'dynamic' | 'spa' | 'api'
+  
+  /** Description of what this scraper does */
+  abstract description: string
+  
+  /** Estimated speed */
+  abstract speed: 'fast' | 'medium' | 'slow'
+  
+  /** Session ID for tracking */
+  protected sessionId?: string
+  
+  /** Progress callback for streaming */
+  protected progressCallback?: ProgressCallback
+  
+  /** Correlation ID for event tracking */
+  protected correlationId?: string
+  
+  /** Statistics tracking */
+  protected stats: ScrapingStats = {
+    duration: 0,
+    pagesAttempted: 0,
+    pagesSucceeded: 0,
+    pagesFailed: 0,
+    bytesDownloaded: 0,
+    dataPointsExtracted: 0,
+    linksDiscovered: 0,
+    averageTimePerPage: 0,
+    successRate: 0
+  }
+
+  /**
+   * Initialize scraper session with comprehensive logging
+   */
+  protected async startScrapingSession(urls: string[], options?: ScraperOptions): Promise<void> {
+    this.sessionId = options?.sessionId
+    this.correlationId = SSEEventFactory.getCorrelationId(this.sessionId)
+    
+    // Reset statistics
+    this.stats = {
+      duration: 0,
+      pagesAttempted: 0,
+      pagesSucceeded: 0,
+      pagesFailed: 0,
+      bytesDownloaded: 0,
+      dataPointsExtracted: 0,
+      linksDiscovered: 0,
+      averageTimePerPage: 0,
+      successRate: 0
+    }
+    
+    permanentLogger.breadcrumb('scraper_start', `${this.name} scraper starting`, {
+      scraperId: this.id,
+      strategy: this.strategy,
+      urlCount: urls.length,
+      sessionId: this.sessionId,
+      correlationId: this.correlationId
+    })
+    
+    permanentLogger.log(`SCRAPER_${this.id.toUpperCase()}`, 'Scraping session initialized', {
+      scraperId: this.id,
+      name: this.name,
+      strategy: this.strategy,
+      speed: this.speed,
+      urlCount: urls.length,
+      maxPages: options?.maxPages,
+      timeout: options?.timeout,
+      extractTypes: options?.extractTypes,
+      sessionId: this.sessionId,
+      correlationId: this.correlationId,
+      userAgent: options?.userAgent,
+      hasHeaders: !!options?.headers,
+      waitForSelectors: options?.waitForSelectors
+    })
+    
+    // Send initial progress event
+    await this.sendProgressEvent(0, urls.length, `Starting ${this.name} scraper...`)
+  }
+
+  /**
+   * Log page scraping attempt with breadcrumb
+   */
+  protected logPageAttempt(url: string, index: number, total: number): void {
+    this.stats.pagesAttempted++
+    
+    permanentLogger.breadcrumb('page_attempt', `Attempting to scrape page ${index + 1}/${total}`, {
+      scraperId: this.id,
+      url,
+      index,
+      total,
+      sessionId: this.sessionId
+    })
+    
+    permanentLogger.log(`SCRAPER_${this.id.toUpperCase()}`, 'Scraping page', {
+      url,
+      pageNumber: index + 1,
+      totalPages: total,
+      pagesAttempted: this.stats.pagesAttempted,
+      sessionId: this.sessionId
+    })
+  }
+
+  /**
+   * Log successful page scrape with comprehensive details
+   */
+  protected async logPageSuccess(url: string, result: PageResult, duration: number): Promise<void> {
+    this.stats.pagesSucceeded++
+    this.stats.bytesDownloaded += result.bytesDownloaded || 0
+    
+    // Count data points extracted
+    let dataPoints = 0
+    if (result.title) dataPoints++
+    if (result.description) dataPoints++
+    if (result.textContent) dataPoints++
+    if (result.discoveredLinks?.length) dataPoints += result.discoveredLinks.length
+    if (result.structuredData) dataPoints += Object.keys(result.structuredData).length
+    if (result.technologies?.length) dataPoints += result.technologies.length
+    if (result.apiEndpoints?.length) dataPoints += result.apiEndpoints.length
+    if (result.contactInfo) dataPoints += Object.keys(result.contactInfo).length
+    if (result.socialLinks) dataPoints += Object.keys(result.socialLinks).length
+    if (result.forms?.length) dataPoints += result.forms.length
+    if (result.images?.length) dataPoints += result.images.length
+    
+    this.stats.dataPointsExtracted += dataPoints
+    this.stats.linksDiscovered += (result.discoveredLinks?.length || 0)
+    
+    permanentLogger.breadcrumb('page_success', `Successfully scraped ${url}`, {
+      scraperId: this.id,
+      url,
+      duration,
+      dataPoints,
+      linksFound: result.discoveredLinks?.length || 0,
+      sessionId: this.sessionId
+    })
+    
+    permanentLogger.log(`SCRAPER_${this.id.toUpperCase()}`, 'Page scraped successfully', {
+      url,
+      success: true,
+      duration,
+      statusCode: result.statusCode,
+      bytesDownloaded: result.bytesDownloaded,
+      dataPointsExtracted: dataPoints,
+      linksDiscovered: result.discoveredLinks?.length || 0,
+      technologies: result.technologies?.length || 0,
+      apiEndpoints: result.apiEndpoints?.length || 0,
+      forms: result.forms?.length || 0,
+      images: result.images?.length || 0,
+      hasStructuredData: !!result.structuredData,
+      hasContactInfo: !!result.contactInfo,
+      hasSocialLinks: !!result.socialLinks,
+      sessionId: this.sessionId,
+      pagesSucceeded: this.stats.pagesSucceeded,
+      totalDataPoints: this.stats.dataPointsExtracted
+    })
+    
+    // Send data event for successful page
+    await this.sendDataEvent({
+      type: 'page_complete',
+      url,
+      success: true,
+      dataPoints,
+      duration
+    })
+  }
+
+  /**
+   * Log page scraping error with full details
+   */
+  protected async logPageError(url: string, error: any, duration: number): Promise<void> {
+    this.stats.pagesFailed++
+    
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    const is404 = errorMessage.includes('404') || error?.status === 404
+    
+    permanentLogger.breadcrumb('page_error', `Failed to scrape ${url}`, {
+      scraperId: this.id,
+      url,
+      error: errorMessage,
+      is404,
+      duration,
+      sessionId: this.sessionId
+    })
+    
+    permanentLogger.captureError(`SCRAPER_${this.id.toUpperCase()}`, error, { message: 'Page scraping failed', ...{
+      url,
+      Message,
+      stack: errorStack,
+      is404,
+      duration,
+      pagesFailed: this.stats.pagesFailed,
+      sessionId: this.sessionId
+    } })
+    
+    // Send error event to UI (no silent failures!)
+    await this.sendErrorEvent(error, { url, is404 })
+  }
+
+  /**
+   * Complete scraping session with final statistics
+   */
+  protected async completeScrapingSession(result: ScraperResult, totalDuration: number): Promise<void> {
+    // Calculate final statistics
+    this.stats.duration = totalDuration
+    this.stats.averageTimePerPage = this.stats.pagesAttempted > 0 
+      ? Math.round(totalDuration / this.stats.pagesAttempted)
+      : 0
+    this.stats.successRate = this.stats.pagesAttempted > 0
+      ? Math.round((this.stats.pagesSucceeded / this.stats.pagesAttempted) * 100)
+      : 0
+    
+    permanentLogger.breadcrumb('scraper_complete', `${this.name} scraper completed`, {
+      scraperId: this.id,
+      duration: totalDuration,
+      pagesSucceeded: this.stats.pagesSucceeded,
+      pagesFailed: this.stats.pagesFailed,
+      successRate: this.stats.successRate,
+      sessionId: this.sessionId
+    })
+    
+    permanentLogger.log(`SCRAPER_${this.id.toUpperCase()}`, 'Scraping session completed', {
+      scraperId: this.id,
+      name: this.name,
+      totalDuration,
+      pagesAttempted: this.stats.pagesAttempted,
+      pagesSucceeded: this.stats.pagesSucceeded,
+      pagesFailed: this.stats.pagesFailed,
+      bytesDownloaded: this.stats.bytesDownloaded,
+      dataPointsExtracted: this.stats.dataPointsExtracted,
+      linksDiscovered: this.stats.linksDiscovered,
+      averageTimePerPage: this.stats.averageTimePerPage,
+      successRate: this.stats.successRate,
+      errorCount: result.errors.length,
+      suggestionCount: result.suggestions?.length || 0,
+      sessionId: this.sessionId,
+      correlationId: this.correlationId
+    })
+    
+    // Send completion event
+    await this.sendCompleteEvent(result)
+  }
+
+  /**
+   * Send progress event using SSEEventFactory (mandatory)
+   */
+  protected async sendProgressEvent(current: number, total: number, message: string): Promise<void> {
+    permanentLogger.log(' BASE_EXECUTOR.sendProgressEvent:', {
+      hasCallback: !!this.progressCallback,
+      current,
+      total,
+      message,
+      scraperId: this.id
+    })
+    
+    if (!this.progressCallback) {
+      permanentLogger.log(' BASE_EXECUTOR: NO progressCallback - skipping event')
+      return
+    }
+    
+    const event = SSEEventFactory.progress(current, total, message, {
+      source: EventSource.SCRAPER,
+      phase: 'scraping',
+      scraperId: this.id,
+      scraperName: this.name,
+      sessionId: this.sessionId,
+      correlationId: this.correlationId
+    })
+    
+    permanentLogger.breadcrumb('sse_progress', `Progress: ${current}/${total} - ${message}`, {
+      scraperId: this.id,
+      eventId: event.id,
+      sequence: event.sequence
+    })
+    
+    permanentLogger.log(' BASE_EXECUTOR: Invoking progressCallback with event')
+    await this.progressCallback(event)
+    permanentLogger.log(' BASE_EXECUTOR: progressCallback invoked successfully')
+  }
+
+  /**
+   * Send data event using SSEEventFactory
+   */
+  protected async sendDataEvent(data: any): Promise<void> {
+    if (!this.progressCallback) return
+    
+    const event = SSEEventFactory.data(data, {
+      source: EventSource.SCRAPER,
+      phase: 'scraping',
+      scraperId: this.id,
+      scraperName: this.name,
+      sessionId: this.sessionId,
+      correlationId: this.correlationId
+    })
+    
+    permanentLogger.breadcrumb('sse_data', 'Data event sent', {
+      scraperId: this.id,
+      eventId: event.id,
+      sequence: event.sequence,
+      dataType: data.type
+    })
+    
+    permanentLogger.log(' BASE_EXECUTOR: Invoking progressCallback with event')
+    await this.progressCallback(event)
+    permanentLogger.log(' BASE_EXECUTOR: progressCallback invoked successfully')
+  }
+
+  /**
+   * Send error event using SSEEventFactory (no silent failures!)
+   */
+  protected async sendErrorEvent(error: any, metadata?: any): Promise<void> {
+    if (!this.progressCallback) return
+    
+    const event = SSEEventFactory.error(error, {
+      source: EventSource.SCRAPER,
+      phase: 'scraping',
+      scraperId: this.id,
+      scraperName: this.name,
+      sessionId: this.sessionId,
+      correlationId: this.correlationId,
+      ...metadata
+    })
+    
+    permanentLogger.breadcrumb('sse_error', 'Error event sent', {
+      scraperId: this.id,
+      eventId: event.id,
+      sequence: event.sequence,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    
+    permanentLogger.log(' BASE_EXECUTOR: Invoking progressCallback with event')
+    await this.progressCallback(event)
+    permanentLogger.log(' BASE_EXECUTOR: progressCallback invoked successfully')
+  }
+
+  /**
+   * Send completion event using SSEEventFactory
+   */
+  protected async sendCompleteEvent(result: ScraperResult): Promise<void> {
+    if (!this.progressCallback) return
+    
+    const event = SSEEventFactory.complete(result, {
+      source: EventSource.SCRAPER,
+      phase: 'scraping',
+      scraperId: this.id,
+      scraperName: this.name,
+      sessionId: this.sessionId,
+      correlationId: this.correlationId
+    })
+    
+    permanentLogger.breadcrumb('sse_complete', 'Completion event sent', {
+      scraperId: this.id,
+      eventId: event.id,
+      sequence: event.sequence,
+      pagesScraped: result.pages.length
+    })
+    
+    permanentLogger.log(' BASE_EXECUTOR: Invoking progressCallback with event')
+    await this.progressCallback(event)
+    permanentLogger.log(' BASE_EXECUTOR: progressCallback invoked successfully')
+  }
+
+  /**
+   * Set progress callback for streaming updates
+   */
+  public setProgressCallback(callback: ProgressCallback): void {
+    this.progressCallback = callback
+    permanentLogger.breadcrumb('callback_set', 'Progress callback configured', {
+      scraperId: this.id,
+      hasCallback: true
+    })
+  }
+
+  /**
+   * Abstract methods that must be implemented by each scraper
+   */
+  abstract scrape(urls: string[], options?: ScraperOptions): Promise<ScraperResult>
+  abstract validate(result: ScraperResult): Promise<any>
+  abstract canHandle(url: string, existingData?: any): boolean
+  abstract estimateValue(urls: string[], existingData?: Map<string, any>): any
+
+  /**
+   * Helper method to create error result
+   */
+  protected createErrorResult(error: any, urls: string[]): ScraperResult {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    
+    permanentLogger.captureError(`SCRAPER_${this.id.toUpperCase()}`, error, { message: 'Creating error result', ...{
+      scraperId: this.id,
+      Message,
+      urlCount: urls.length,
+      sessionId: this.sessionId
+    } })
+    
+    return {
+      scraperId: this.id,
+      scraperName: this.name,
+      strategy: this.strategy,
+      timestamp: Date.now(),
+      pages: [],
+      discoveredLinks: [],
+      stats: this.stats,
+      errors: [{
+        code: 'SCRAPER_ERROR',
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: Date.now()
+      }],
+      suggestions: []
+    }
+  }
+
+  /**
+   * Helper method to validate URL
+   */
+  protected isValidUrl(url: string): boolean {
+    try {
+      new URL(url)
+      return true
+    } catch {
+      permanentLogger.warn(`SCRAPER_${this.id.toUpperCase()}`, 'Invalid URL detected', {
+        scraperId: this.id,
+        url,
+        sessionId: this.sessionId
+      })
+      return false
+    }
+  }
+
+  /**
+   * Helper method to clean URL
+   */
+  protected cleanUrl(url: string): string {
+    try {
+      const parsed = new URL(url)
+      // Remove hash and clean up
+      parsed.hash = ''
+      return parsed.toString()
+    } catch {
+      return url
+    }
+  }
+
+  /**
+   * Helper method to extract domain from URL
+   */
+  protected extractDomain(url: string): string {
+    try {
+      const parsed = new URL(url)
+      return parsed.hostname
+    } catch {
+      return ''
+    }
+  }
+}

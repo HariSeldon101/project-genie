@@ -1,0 +1,1363 @@
+'use client'
+
+import React, { useState, useRef, useEffect } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { 
+  Play, 
+  Pause, 
+  CheckCircle2, 
+  AlertCircle, 
+  Loader2, 
+  ChevronRight,
+  ChevronLeft,
+  Search,
+  Database,
+  Sparkles,
+  FileText,
+  Globe,
+  Map,
+  Info
+} from 'lucide-react'
+import { persistentToast } from '@/lib/hooks/use-persistent-toast'
+import { useToast } from '@/components/ui/use-toast'
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+
+// Import our new components
+import { SiteAnalyzer } from './site-analyzer'
+import { SitemapSelectorMUI } from './sitemap-selector-mui'  // Use the new MUI version
+import { StageActionBar } from './stage-action-bar'
+import { ContentViewer } from './content-viewer'
+import { ScrapingProgress } from './scraping-progress'
+import { PhaseIndicator } from './phase-indicator'
+import { CorporateStructureDetector } from './corporate-structure-detector'
+import { DataReviewPanel } from './data-review/DataReviewPanel'
+import { PersistentActionBar } from './persistent-action-bar'
+// Temporarily disabled - unused component
+// import { StageReviewPanel } from './stage-review-panel'
+
+interface PhaseControlsProps {
+  domain: string
+  onPhaseComplete?: (phase: string, data: any) => void
+  hideProgressCard?: boolean  // Add prop to optionally hide the progress card
+  onReset?: () => void  // Callback to reset parent component state
+}
+
+type Stage = 'site-analysis' | 'sitemap' | 'scraping' | 'extraction' | 'data-review' | 'enrichment' | 'generation'
+
+interface StageInfo {
+  id: Stage
+  label: string
+  description: string
+  icon: any
+  llmRequired: boolean
+  estimatedCost?: string
+}
+
+const STAGES: StageInfo[] = [
+  {
+    id: 'site-analysis',
+    label: 'Site Analysis',
+    description: 'Detect technology stack and configuration',
+    icon: Globe,
+    llmRequired: false
+  },
+  {
+    id: 'sitemap',
+    label: 'Sitemap Discovery',
+    description: 'Find and select pages to scrape',
+    icon: Map,
+    llmRequired: false
+  },
+  {
+    id: 'scraping',
+    label: 'Web Scraping',
+    description: 'Extract content from selected pages',
+    icon: Search,
+    llmRequired: false
+  },
+  {
+    id: 'extraction',
+    label: 'Data Extraction',
+    description: 'Structure and organize scraped data',
+    icon: Database,
+    llmRequired: false
+  },
+  {
+    id: 'data-review',
+    label: 'Data Review',
+    description: 'Select data for AI enrichment',
+    icon: CheckCircle2,
+    llmRequired: false
+  },
+  {
+    id: 'enrichment',
+    label: 'AI Enrichment',
+    description: 'Enhance data with AI analysis',
+    icon: Sparkles,
+    llmRequired: true,
+    estimatedCost: '$0.50'
+  },
+  {
+    id: 'generation',
+    label: 'Report Generation',
+    description: 'Generate final intelligence report',
+    icon: FileText,
+    llmRequired: true,
+    estimatedCost: '$0.25'
+  }
+]
+
+export function PhaseControls({ domain, onPhaseComplete, hideProgressCard = false, onReset }: PhaseControlsProps) {
+  const [currentStage, setCurrentStage] = useState<Stage>('site-analysis')
+  const [completedStages, setCompletedStages] = useState<Set<Stage>>(new Set())
+  const [stageData, setStageData] = useState<Record<string, any>>({})
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [totalCost, setTotalCost] = useState(0)
+  const [corporateStructure, setCorporateStructure] = useState<any>(null)
+  const [showCorporateDetector, setShowCorporateDetector] = useState(false)
+  const [isSitemapDiscovering, setIsSitemapDiscovering] = useState(false)
+  
+  // Auto-reset discovering state when we have sitemap data
+  useEffect(() => {
+    if (stageData.sitemap && stageData.sitemap.length > 0 && isSitemapDiscovering) {
+      permanentLogger.info('Auto-setting isSitemapDiscovering to false', { category: 'PHASE_CONTROLS', sitemapLength: stageData.sitemap.length })
+      setIsSitemapDiscovering(false)
+    }
+  }, [stageData.sitemap, isSitemapDiscovering])
+  
+  // Scraping progress state
+  const [scrapingProgress, setScrapingProgress] = useState({
+    totalPages: 0,
+    completedPages: 0,
+    currentPhase: 'rapid-scrape' as 'rapid-scrape' | 'validation' | 'enhancement' | 'complete',
+    phases: [] as any[],
+    validationScore: undefined as number | undefined,
+    enhancementCount: 0,
+    scraperType: 'cheerio' as 'cheerio' | 'playwright' | 'hybrid'
+  })
+  
+  // Get current stage index
+  const currentStageIndex = STAGES.findIndex(s => s.id === currentStage)
+  const currentStageInfo = STAGES[currentStageIndex]
+  
+  // Track last toast times for deduplication
+  const lastToastTimeRef = useRef<Record<string, number>>({})
+  
+  // Centralized toast notification function with deduplication (DRY principle)
+  const showStageToast = (stage: string, data?: any, isError: boolean = false) => {
+    // Create unique key for this toast
+    const toastKey = `${stage}-${isError ? 'error' : 'success'}`
+    const now = Date.now()
+    
+    // Check for duplicate within 2 seconds
+    if (lastToastTimeRef.current[toastKey] && (now - lastToastTimeRef.current[toastKey]) < 2000) {
+      console.log('[TOAST] Skipping duplicate toast for:', toastKey)
+      return // Skip duplicate toast
+    }
+    
+    // Update last toast time
+    lastToastTimeRef.current[toastKey] = now
+    
+    if (isError) {
+      // Handle error toasts
+      persistentToast.error(`${stage} failed: ${data}`)
+      return
+    }
+    
+    // Handle success toasts based on stage
+    switch (stage) {
+      case 'site-analysis':
+        const siteType = data?.siteType || 'website'
+        const techCount = data?.technologies ? Object.values(data.technologies).flat().length : 0
+        const indicatorCount = data?.corporateIndicators?.length || 0
+        
+        if (techCount > 0) {
+          persistentToast.success(`Site Analysis complete! Detected ${siteType} with ${techCount} technologies identified.`)
+        } else if (indicatorCount > 0) {
+          persistentToast.success(`Site Analysis complete! Detected ${siteType} with ${indicatorCount} key features.`)
+        } else {
+          persistentToast.success(`Site Analysis complete! Successfully analyzed ${siteType}.`)
+        }
+        break
+        
+      case 'sitemap':
+        const pageCount = data?.pages?.length || data?.length || 0
+        persistentToast.success(`Sitemap Discovery complete! Found ${pageCount} pages ready for scraping.`)
+        break
+        
+      case 'scraping':
+        const scrapedCount = data?.scraped?.length || 0
+        persistentToast.success(`Web Scraping complete! Successfully scraped ${scrapedCount} pages.`)
+        break
+        
+      case 'extraction':
+        persistentToast.success(`Data Extraction complete! Structured data is ready for review.`)
+        break
+        
+      case 'data-review':
+        const selectedCount = data?.selectedCount || 0
+        const totalCount = data?.totalCount || 0
+        persistentToast.success(`Data Review complete! Selected ${selectedCount} of ${totalCount} items for enrichment.`)
+        break
+        
+      case 'enrichment':
+        persistentToast.success(`AI Enrichment complete! Enhanced data with intelligent analysis.`)
+        break
+        
+      case 'generation':
+        persistentToast.success(`Report Generation complete! Your comprehensive research is ready. 🎉`)
+        break
+        
+      case 'corporate-structure':
+        const subsidiaries = data?.subsidiaries?.length || 0
+        const subBrands = data?.subBrands?.length || 0
+        persistentToast.success(`Found ${subsidiaries} subsidiaries and ${subBrands} sub-brands!`)
+        break
+        
+      default:
+        const stageInfo = STAGES.find(s => s.id === stage)
+        persistentToast.success(`${stageInfo?.label || stage} completed! Review results and proceed when ready.`)
+    }
+  }
+  
+  // Handle stage completion
+  const handleStageComplete = async (stage: Stage, data: any) => {
+    permanentLogger.log('PHASE_CONTROLS', `Stage ${stage} completed`, { data })
+    
+    // Store stage data
+    setStageData(prev => ({ ...prev, [stage]: data }))
+    
+    // Mark as completed
+    setCompletedStages(prev => new Set([...prev, stage]))
+    
+    // Initialize session on first stage completion if not exists
+    if (!sessionId && stage === 'site-analysis') {
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      setSessionId(newSessionId)
+      
+      try {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        
+        // Create the session with site analysis data
+        await supabase
+          .from('research_sessions')
+          .insert({
+            id: newSessionId,
+            domain,
+            session_name: `Research: ${domain}`,
+            site_analysis_data: data,
+            stage: 'site-analysis',
+            status: 'active',
+            created_at: new Date().toISOString()
+          })
+        
+        permanentLogger.info('Session created with site analysis data', { category: 'PHASE_CONTROLS', sessionId: newSessionId,
+          siteType: data.siteType })
+      } catch (error) {
+        permanentLogger.error('PHASE_CONTROLS', 'Failed to create session', { error })
+      }
+    }
+    // Update existing session with site analysis data
+    else if (stage === 'site-analysis' && sessionId) {
+      try {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        
+        await supabase
+          .from('research_sessions')
+          .update({
+            site_analysis_data: data,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sessionId)
+        
+        permanentLogger.info('Site analysis data updated in database', { category: 'PHASE_CONTROLS', sessionId,
+          siteType: data.siteType })
+      } catch (error) {
+        permanentLogger.error('PHASE_CONTROLS', 'Failed to save site analysis data', { error })
+      }
+    }
+    
+    // Show success toast for all stages
+    if (stage === 'sitemap') {
+      // For sitemap, just show selection count - don't auto-advance
+      persistentToast.success(`${data.length} pages selected! Click "Approve" to start web scraping.`)
+    } else {
+      // For other stages, show toast but don't auto-advance
+      persistentToast.success(`${stage.charAt(0).toUpperCase() + stage.slice(1)} complete! Review and approve to continue.`)
+    }
+    
+    // Call parent callback
+    if (onPhaseComplete) {
+      onPhaseComplete(stage, data)
+    }
+    
+    // Use centralized toast function with deduplication - but skip for sitemap since we already showed it
+    if (stage !== 'sitemap') {
+      showStageToast(stage, data)
+    }
+  }
+  
+  // Add method to manually proceed to next stage
+  const proceedToNextStage = () => {
+    if (isTransitioning) {
+      permanentLogger.info('Already transitioning, ignoring proceedToNextStage call', { category: 'PHASE_CONTROLS' })
+      return
+    }
+    
+    permanentLogger.info('Proceeding to next stage', { category: 'PHASE_CONTROLS', currentStage,
+      currentStageIndex,
+      nextStage: currentStageIndex + 1 < STAGES.length ? STAGES[currentStageIndex + 1].id : 'none' })
+    
+    setIsTransitioning(true)
+    
+    const nextIndex = currentStageIndex + 1
+    if (nextIndex < STAGES.length) {
+      const nextStage = STAGES[nextIndex].id
+      permanentLogger.info('Transitioning to next stage', { category: 'PHASE_CONTROLS', from: currentStage,
+        to: nextStage })
+      
+      // Set discovering state when entering sitemap phase
+      if (nextStage === 'sitemap') {
+        setIsSitemapDiscovering(true)
+      }
+      
+      setCurrentStage(nextStage)
+      
+      // Reset transition flag after a short delay
+      setTimeout(() => {
+        setIsTransitioning(false)
+      }, 500)
+    } else {
+      permanentLogger.info('No more stages to proceed to', { category: 'PHASE_CONTROLS' })
+      setIsTransitioning(false)
+    }
+  }
+  
+  // Add method to go back to previous stage
+  const goToPreviousStage = () => {
+    // Special case: if we're at site-analysis, reset everything to initial state
+    if (currentStage === 'site-analysis') {
+      // Clear all analysis data and reset to initial domain selection
+      permanentLogger.info('Resetting to initial domain selection', { category: 'PHASE_CONTROLS' })
+      setStageData({})
+      setCompletedStages(new Set())
+      setCorporateStructure(null)
+      setShowCorporateDetector(false)
+      setIsProcessing(false)
+      persistentToast.info('Reset to domain selection')
+      // Call parent reset to clear domain input
+      onReset?.()
+      return
+    }
+    
+    const prevIndex = currentStageIndex - 1
+    if (prevIndex >= 0) {
+      const prevStage = STAGES[prevIndex].id
+      permanentLogger.info('Going back to previous stage', { category: 'PHASE_CONTROLS', from: currentStage,
+        to: prevStage })
+      setCurrentStage(prevStage)
+      persistentToast.info(`Returned to ${STAGES[prevIndex].label}`)
+    } else {
+      permanentLogger.info('No previous stage to go back to', { category: 'PHASE_CONTROLS' })
+    }
+  }
+  
+  // Handle scraping phase with progress updates
+  const startScraping = async (sitemapPages?: any[]) => {
+    // Session should already exist from site-analysis stage
+    if (!sessionId) {
+      permanentLogger.error('PHASE_CONTROLS', 'No session found for scraping')
+      showStageToast('scraping', 'No session found. Please complete site analysis first.', true)
+      setCurrentStage('site-analysis')
+      return
+    }
+    
+    // Get pages from parameter (when auto-starting) or from component state (manual start)
+    // NOTE: This is NOT fallback/mock data - these are real user-selected pages
+    const pagesToScrape = sitemapPages || stageData.sitemap
+    
+    // Log interface details for debugging - NO MOCK DATA
+    permanentLogger.info('startScraping interface check - REAL DATA ONLY', { category: 'PHASE_CONTROLS', input: {
+        sitemapPagesProvided: !!sitemapPages,
+        sitemapPagesCount: sitemapPages?.length || 0,
+        stageDataAvailable: !!stageData.sitemap,
+        stageDataCount: stageData.sitemap?.length || 0,
+        source: sitemapPages ? 'direct-parameter' : 'component-state'
+      },
+      output: {
+        pagesToScrapeCount: pagesToScrape?.length || 0,
+        noMockData: true // Explicitly confirm no mock data
+      } })
+    
+    // Check if we have pages to scrape
+    const totalPages = pagesToScrape?.length || 0
+    if (totalPages === 0) {
+      permanentLogger.error('PHASE_CONTROLS', 'No pages selected for scraping')
+      showStageToast('scraping', 'No pages selected. Please select pages from the sitemap first.', true)
+      setCurrentStage('sitemap')
+      return
+    }
+    
+    setIsProcessing(true)
+    
+    // Initialize scraping progress
+    setScrapingProgress({
+      totalPages,
+      completedPages: 0,
+      currentPhase: 'rapid-scrape',
+      phases: [
+        { name: 'Rapid Scrape', status: 'in-progress', details: `0/${totalPages} pages` },
+        { name: 'Validation', status: 'pending' },
+        { name: 'Enhancement', status: 'pending' }
+      ],
+      validationScore: undefined,
+      enhancementCount: 0,
+      scraperType: 'cheerio'
+    })
+    
+    try {
+      // Check if site analysis detected a dynamic JavaScript framework
+      // Only use Playwright for client-side rendered frameworks
+      const siteAnalysis = stageData['site-analysis']
+      const requiresJavaScriptRendering = siteAnalysis?.siteType && 
+        ['react', 'nextjs', 'vue', 'angular', 'svelte'].includes(siteAnalysis.siteType)
+      
+      permanentLogger.info('Starting multi-phase scraping', { category: 'PHASE_CONTROLS', siteType: siteAnalysis?.siteType || 'unknown',
+        requiresJavaScriptRendering,
+        scraperMode: 'multi-phase',
+        totalPages,
+        phases: ['rapid-scrape', 'validation', 'enhancement'] })
+      
+      const response = await fetch('/api/company-intelligence/phases/scraping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionId || `session_${Date.now()}`,
+          domain,
+          pages: pagesToScrape, // Selected pages from sitemap stage
+          options: {
+            mode: 'multi-phase', // Always use multi-phase approach
+            maxPages: 50,
+            timeout: 120000, // Allow more time for multi-phase
+            stream: true // Enable progress streaming
+          }
+        })
+      })
+      
+      // Handle streaming response for progress updates
+      if (response.headers.get('content-type')?.includes('text/event-stream')) {
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        
+        if (reader) {
+          let finalResult = null
+          
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            
+            const chunk = decoder.decode(value)
+            const lines = chunk.split('\n')
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6))
+                  
+                  if (data.type === 'progress') {
+                    // Update scraping progress
+                    setScrapingProgress(prev => ({
+                      ...prev,
+                      completedPages: data.completedPages || prev.completedPages,
+                      currentPhase: data.phase || prev.currentPhase,
+                      phases: data.phases || prev.phases,
+                      validationScore: data.validationScore ?? prev.validationScore,
+                      enhancementCount: data.enhancementCount || prev.enhancementCount,
+                      scraperType: data.scraperType || prev.scraperType
+                    }))
+                    
+                    permanentLogger.info('Progress update', { category: 'PHASE_CONTROLS', ...data })
+                  } else if (data.type === 'complete') {
+                    finalResult = data.result
+                  }
+                } catch (e) {
+                  // Ignore JSON parse errors for incomplete chunks
+                }
+              }
+            }
+          }
+          
+          if (finalResult) {
+            permanentLogger.info('Multi-phase scraping complete', { category: 'PHASE_CONTROLS', pagesCount: finalResult?.result?.pages?.length || finalResult?.pages?.length || 0,
+              metrics: finalResult?.metrics })
+            
+            // Pass the actual scraped data
+            handleStageComplete('scraping', finalResult.result || finalResult)
+            
+            // Reset progress after completion
+            setScrapingProgress(prev => ({
+              ...prev,
+              currentPhase: 'complete'
+            }))
+          }
+        }
+      } else {
+        // Fallback to regular JSON response
+        const result = await response.json()
+        
+        if (result.success) {
+          permanentLogger.info('Scraping result received', { category: 'PHASE_CONTROLS', hasResult: !!result.result,
+            hasData: !!result.result?.data,
+            pagesCount: result.result?.data?.pages?.length || 0,
+            metrics: result.result?.metrics })
+          
+          handleStageComplete('scraping', result.result.data || result.result)
+        } else {
+          // Handle error response with details
+          const errorMessage = result.details || result.error || 'Unknown error'
+          throw new Error(errorMessage)
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      permanentLogger.error('PHASE_CONTROLS', `Scraping failed: ${errorMessage}`)
+      showStageToast('scraping', errorMessage, true)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+  
+  // Handle extraction phase
+  const startExtraction = async () => {
+    permanentLogger.info('Starting extraction phase', { category: 'PHASE_CONTROLS', sessionId,
+      hasScrapingData: !!stageData.scraping,
+      scrapingDataCount: stageData.scraping?.pages?.length || 0 })
+    
+    setIsProcessing(true)
+    
+    try {
+      const response = await fetch('/api/company-intelligence/phases/extraction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          scrapingResults: stageData.scraping
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        permanentLogger.info('Extraction completed successfully', { category: 'PHASE_CONTROLS', extractedDataTypes: Object.keys(result.result || { }),
+          totalExtracted: Object.values(result.result || {}).flat().length
+        })
+        handleStageComplete('extraction', result.result)
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      permanentLogger.error('PHASE_CONTROLS', `Extraction failed: ${errorMessage}`)
+      showStageToast('extraction', errorMessage, true)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+  
+  // Handle enrichment phase
+  const startEnrichment = async () => {
+    // Show cost warning
+    if (!confirm(`This will use AI and cost approximately ${currentStageInfo.estimatedCost}. Continue?`)) {
+      permanentLogger.info('User cancelled enrichment due to cost', { category: 'PHASE_CONTROLS' })
+      return
+    }
+    
+    // Use selected data from data-review stage if available, otherwise use all extraction data
+    const dataToEnrich = stageData['data-review']?.selectedData || stageData.extraction
+    
+    permanentLogger.info('Starting enrichment phase', { category: 'PHASE_CONTROLS', sessionId,
+      dataSource: stageData['data-review']?.selectedData ? 'selected-data' : 'all-extraction',
+      dataTypes: Object.keys(dataToEnrich || { }),
+      totalItems: Object.values(dataToEnrich || {}).flat().length,
+      estimatedCost: currentStageInfo.estimatedCost
+    })
+    
+    setIsProcessing(true)
+    
+    try {
+      
+      const response = await fetch('/api/company-intelligence/phases/enrichment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          extractionResults: dataToEnrich
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        const actualCost = result.cost || 0.5
+        permanentLogger.info('Enrichment completed successfully', { category: 'PHASE_CONTROLS', actualCost,
+          enrichedDataTypes: Object.keys(result.result || { }),
+          totalEnriched: Object.values(result.result || {}).flat().length
+        })
+        setTotalCost(prev => prev + actualCost)
+        handleStageComplete('enrichment', result.result)
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      permanentLogger.error('PHASE_CONTROLS', `Enrichment failed: ${errorMessage}`)
+      showStageToast('enrichment', errorMessage, true)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+  
+  // Handle generation phase
+  const startGeneration = async () => {
+    // Show cost warning
+    if (!confirm(`This will use AI and cost approximately ${currentStageInfo.estimatedCost}. Continue?`)) {
+      permanentLogger.info('User cancelled generation due to cost', { category: 'PHASE_CONTROLS' })
+      return
+    }
+    
+    permanentLogger.info('Starting generation phase', { category: 'PHASE_CONTROLS', sessionId,
+      hasEnrichmentData: !!stageData.enrichment,
+      enrichmentDataTypes: Object.keys(stageData.enrichment || { }),
+      estimatedCost: currentStageInfo.estimatedCost
+    })
+    
+    setIsProcessing(true)
+    
+    try {
+      const response = await fetch('/api/company-intelligence/phases/generation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          enrichmentResults: stageData.enrichment
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        const actualCost = result.cost || 0.25
+        permanentLogger.info('Generation completed successfully', { category: 'PHASE_CONTROLS', actualCost,
+          totalCost: totalCost + actualCost,
+          reportType: result.result?.type || 'unknown',
+          reportSections: Object.keys(result.result || { })
+        })
+        setTotalCost(prev => prev + actualCost)
+        handleStageComplete('generation', result.result)
+        persistentToast.success('Research complete! 🎉')
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      permanentLogger.error('PHASE_CONTROLS', `Generation failed: ${errorMessage}`)
+      showStageToast('generation', errorMessage, true)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+  
+  return (
+    <div className="space-y-4">
+      {/* Progress Indicator - Hide if hideProgressCard is true */}
+      {!hideProgressCard && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Research Progress</CardTitle>
+            <CardDescription>
+              Stage {currentStageIndex + 1} of {STAGES.length}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Progress bar */}
+              <Progress value={(completedStages.size / STAGES.length) * 100} />
+              
+              {/* Stage indicators */}
+              <div className="flex items-center justify-between">
+                {STAGES.map((stage, index) => {
+                  const Icon = stage.icon
+                  const isCompleted = completedStages.has(stage.id)
+                  const isCurrent = stage.id === currentStage
+                  const isPending = index > currentStageIndex
+                
+                return (
+                  <div
+                    key={stage.id}
+                    className={`flex flex-col items-center ${
+                      isPending ? 'opacity-50' : ''
+                    }`}
+                  >
+                    <div
+                      className={`rounded-full p-2 ${
+                        isCompleted
+                          ? 'bg-green-500 text-white'
+                          : isCurrent
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700'
+                      }`}
+                    >
+                      {isCompleted ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Icon className="h-4 w-4" />
+                      )}
+                    </div>
+                    <span className="text-xs mt-1">{stage.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+            
+            {/* Cost indicator */}
+            {totalCost > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Total Cost:</span>
+                <span className="font-semibold">${totalCost.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+      )}
+      
+      {/* Current Stage Content */}
+      <div className="min-h-[400px]">
+        {/* Site Analysis Stage */}
+        {currentStage === 'site-analysis' && (
+          <div className="space-y-4">
+            <SiteAnalyzer
+              domain={domain}
+              onAnalysisComplete={(analysis) => {
+                permanentLogger.info('Site analysis complete', { category: 'PHASE_CONTROLS', domain,
+                  siteType: analysis?.siteType,
+                  technologiesCount: Object.values(analysis?.technologies || { }).flat().length,
+                  indicators: analysis?.indicators,
+                  patterns: analysis?.patterns,
+                  hasCorporateIndicators: analysis?.indicators?.includes('corporate') || 
+                                         analysis?.indicators?.includes('enterprise') ||
+                                         analysis?.indicators?.includes('subsidiary')
+                })
+                handleStageComplete('site-analysis', analysis)
+                // Check if we should show corporate structure detector
+                if (analysis?.indicators?.includes('corporate') || 
+                    analysis?.indicators?.includes('enterprise') ||
+                    analysis?.indicators?.includes('subsidiary')) {
+                  permanentLogger.info('Corporate indicators detected, showing corporate structure detector', { category: 'PHASE_CONTROLS' })
+                  setShowCorporateDetector(true)
+                } else {
+                  permanentLogger.info('No corporate indicators detected, ready for sitemap discovery', { category: 'PHASE_CONTROLS' })
+                  // Don't auto-proceed - user must click proceed button
+                }
+              }}
+            />
+            
+            {/* Site Analysis Action Bar - Fixed position approve/reject buttons */}
+            {currentStage === 'site-analysis' && completedStages.has('site-analysis') && stageData['site-analysis'] && !showCorporateDetector && (
+              <StageActionBar
+                stage="site-analysis"
+                onApprove={() => {
+                  // Toast already shown by handleStageComplete
+                  proceedToNextStage()
+                }}
+                onReject={() => {
+                  toast.error('Please re-run site analysis')
+                  setCompletedStages(prev => {
+                    const newSet = new Set(prev)
+                    newSet.delete('site-analysis')
+                    return newSet
+                  })
+                }}
+              />
+            )}
+            
+            {/* Site Analysis Review Panel - Removed as no longer needed */}
+            
+            {/* Corporate Structure Detection - shown after site analysis if indicators present */}
+            {showCorporateDetector && completedStages.has('site-analysis') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-blue-500" />
+                    Corporate Structure Detected
+                  </CardTitle>
+                  <CardDescription>
+                    This appears to be part of a larger corporate structure. Would you like to discover subsidiaries and sub-brands?
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <CorporateStructureDetector
+                    domain={domain}
+                    initialData={stageData['site-analysis']}
+                    onStructureDetected={(structure) => {
+                      setCorporateStructure(structure)
+                      permanentLogger.info('Corporate structure detected', { category: 'PHASE_CONTROLS', hasParent: !!structure.parentCompany,
+                        subsidiariesCount: structure.subsidiaries?.length || 0,
+                        subBrandsCount: structure.subBrands?.length || 0 })
+                      
+                      // Store corporate structure with site analysis data
+                      setStageData(prev => ({
+                        ...prev,
+                        'site-analysis': {
+                          ...prev['site-analysis'],
+                          corporateStructure: structure
+                        }
+                      }))
+                      
+                      persistentToast.success(`Found ${structure.subsidiaries?.length || 0} subsidiaries and ${structure.subBrands?.length || 0} sub-brands!`)
+                    }}
+                  />
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      onClick={() => {
+                        setShowCorporateDetector(false)
+                        proceedToNextStage()
+                      }}
+                      variant="outline"
+                    >
+                      Skip Corporate Detection
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (corporateStructure) {
+                          // If structure detected, proceed with enhanced sitemap discovery
+                          proceedToNextStage()
+                        }
+                      }}
+                      disabled={!corporateStructure}
+                    >
+                      <ChevronRight className="h-4 w-4 mr-1" />
+                      Continue with Enhanced Discovery
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+        
+        {/* Sitemap Discovery Stage */}
+        {currentStage === 'sitemap' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              {/* Show corporate entities if detected */}
+              {corporateStructure && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-blue-600">
+                    {corporateStructure.currentEntity?.name || domain}
+                  </Badge>
+                  {corporateStructure.subsidiaries?.length > 0 && (
+                    <Badge variant="secondary">
+                      +{corporateStructure.subsidiaries.length} subsidiaries
+                    </Badge>
+                  )}
+                  {corporateStructure.subBrands?.length > 0 && (
+                    <Badge variant="secondary">
+                      +{corporateStructure.subBrands.length} sub-brands
+                    </Badge>
+                  )}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPreviousStage}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Back to Site Analysis
+              </Button>
+            </div>
+            
+            {/* Enhanced sitemap selector with corporate structure support */}
+            <SitemapSelectorMUI
+              domain={domain}
+              onComplete={(pages) => {
+                // Discovery is complete - immediately set discovering to false
+                permanentLogger.info('SitemapSelector onComplete called', { category: 'PHASE_CONTROLS', pagesCount: pages.length,
+                  wasDiscovering: isSitemapDiscovering })
+                setIsSitemapDiscovering(false)
+                
+                // If we have corporate structure, enhance pages with subsidiary/sub-brand URLs
+                let allPages = [...pages]
+                
+                if (corporateStructure) {
+                  // Add subsidiary domains to scraping list
+                  corporateStructure.subsidiaries?.forEach((subsidiary: any) => {
+                    if (subsidiary.domain && !allPages.includes(subsidiary.domain)) {
+                      allPages.push(subsidiary.domain)
+                    }
+                  })
+                  
+                  // Add sub-brand domains to scraping list
+                  corporateStructure.subBrands?.forEach((brand: any) => {
+                    if (brand.domain && !allPages.includes(brand.domain)) {
+                      allPages.push(brand.domain)
+                    }
+                  })
+                  
+                  permanentLogger.info('Enhanced pages with corporate structure', { category: 'PHASE_CONTROLS', originalPages: pages.length,
+                    enhancedPages: allPages.length,
+                    addedDomains: allPages.length - pages.length })
+                }
+                
+                // Store the pages but DON'T mark stage as complete yet - wait for user approval
+                permanentLogger.info('Sitemap selection ready for approval', { category: 'PHASE_CONTROLS', originalPages: pages.length,
+                  enhancedPages: allPages.length,
+                  currentStage,
+                  hadCorporateStructure: !!corporateStructure })
+                // Store in temporary state data for the approve button to use
+                setStageData(prev => ({ ...prev, sitemap: allPages }))
+              }}
+              onSelectionComplete={() => {
+                // This will be called from StageReviewPanel approve button
+                // No-op here as handleStageComplete already has the data
+              }}
+            />
+          </div>
+        )}
+        
+        {/* Scraping Stage */}
+        {currentStage === 'scraping' && !completedStages.has('scraping') && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <CardTitle className="flex items-center gap-2">
+                    <Search className="h-5 w-5" />
+                    Web Scraping
+                  </CardTitle>
+                  <CardDescription>
+                    Extract content from {stageData.sitemap?.length || 0} selected pages
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPreviousStage}
+                  className="ml-4"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Show detected site type and scraper to be used */}
+                {stageData['site-analysis'] && (
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Detected Site Type</span>
+                      <Badge variant="outline">
+                        {stageData['site-analysis'].siteType || 'unknown'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Scraper Engine</span>
+                      <Badge variant={
+                        ['react', 'nextjs', 'vue', 'angular', 'svelte'].includes(stageData['site-analysis'].siteType) 
+                          ? 'default' : 'secondary'
+                      }>
+                        {['react', 'nextjs', 'vue', 'angular', 'svelte'].includes(stageData['site-analysis'].siteType) 
+                          ? '🎭 Playwright (Dynamic)' : '⚡ Cheerio (Static)'}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {['react', 'nextjs', 'vue', 'angular', 'svelte'].includes(stageData['site-analysis'].siteType) 
+                        ? 'Client-side rendered app detected - Using Playwright browser engine for full JavaScript execution' 
+                        : 'Server-side rendered content - Using Cheerio for fast, efficient HTML parsing'}
+                    </p>
+                  </div>
+                )}
+                
+                <Alert className="mb-4">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    This stage does NOT use AI/LLM. Pure web scraping only.
+                  </AlertDescription>
+                </Alert>
+                
+                {/* Show phase indicator when processing */}
+                {isProcessing && scrapingProgress.currentPhase && scrapingProgress.currentPhase !== 'complete' && (
+                  <PhaseIndicator
+                    currentPhase={scrapingProgress.currentPhase}
+                    phases={scrapingProgress.phases?.map(phase => ({
+                      id: phase.name.toLowerCase().replace(' ', '-') as any,
+                      name: phase.name,
+                      icon: null,
+                      description: phase.details || '',
+                      status: phase.status,
+                      details: phase.details
+                    }))}
+                  />
+                )}
+                
+                {/* Show scraping progress when processing */}
+                {isProcessing && scrapingProgress.totalPages > 0 && (
+                  <div className="mb-4">
+                    <ScrapingProgress
+                      totalPages={scrapingProgress.totalPages}
+                      completedPages={scrapingProgress.completedPages}
+                      currentPhase={scrapingProgress.currentPhase}
+                      phases={scrapingProgress.phases}
+                      validationScore={scrapingProgress.validationScore}
+                      enhancementCount={scrapingProgress.enhancementCount}
+                      scraperType={scrapingProgress.scraperType}
+                    />
+                  </div>
+                )}
+                
+                {/* Only show button when not processing or no progress yet */}
+                {(!isProcessing || scrapingProgress.totalPages === 0) && (
+                  <Button
+                    onClick={startScraping}
+                    disabled={isProcessing}
+                    className="w-full"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Initializing scraping...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="mr-2 h-4 w-4" />
+                        Start Scraping
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Scraping Review Panel - Removed as no longer needed */}
+        
+        {/* Extraction Review Panel - Removed as no longer needed */}
+        
+        {/* Extraction Stage */}
+        {currentStage === 'extraction' && !completedStages.has('extraction') && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5" />
+                    Data Extraction
+                  </CardTitle>
+                  <CardDescription>
+                    Structure and organize the scraped data
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPreviousStage}
+                  className="ml-4"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Alert className="mb-4">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  This stage does NOT use AI/LLM. Data parsing only.
+                </AlertDescription>
+              </Alert>
+              <Button
+                onClick={startExtraction}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Extracting data...
+                  </>
+                ) : (
+                  <>
+                    <Database className="mr-2 h-4 w-4" />
+                    Start Extraction
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Data Review Stage */}
+        {currentStage === 'data-review' && (
+          <DataReviewPanel
+            extractedData={stageData.extraction}
+            onProceed={(selectedData) => {
+              const stats = {
+                selectedCount: Object.values(selectedData).flat().length,
+                totalCount: Object.values(stageData.extraction || {}).flat().length
+              }
+              permanentLogger.info('Data review completed', { category: 'PHASE_CONTROLS', ...{
+                selectedCount: stats.selectedCount,
+                totalCount: stats.totalCount,
+                selectedTypes: Object.keys(selectedData }),
+                selectionRate: ((stats.selectedCount / stats.totalCount) * 100).toFixed(1) + '%'
+              })
+              handleStageComplete('data-review', { ...stats, selectedData })
+              persistentToast.success(`Selected ${stats.selectedCount} items for enrichment`)
+              proceedToNextStage()
+            }}
+            onCancel={() => {
+              permanentLogger.info('Data review cancelled, going back to extraction', { category: 'PHASE_CONTROLS' })
+              goToPreviousStage()
+            }}
+          />
+        )}
+        
+        {/* Enrichment Review Panel - Removed as no longer needed */}
+        
+        {/* Enrichment Stage */}
+        {currentStage === 'enrichment' && !completedStages.has('enrichment') && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5" />
+                    AI Enrichment
+                  </CardTitle>
+                  <CardDescription>
+                    Enhance data with AI analysis
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPreviousStage}
+                  className="ml-4"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Alert className="mb-4 border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertTitle>AI Usage Required</AlertTitle>
+                <AlertDescription>
+                  This stage will use GPT-5 and cost approximately {currentStageInfo.estimatedCost}
+                </AlertDescription>
+              </Alert>
+              <Button
+                onClick={startEnrichment}
+                disabled={isProcessing}
+                className="w-full"
+                variant="default"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enriching with AI...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Approve & Start Enrichment
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Generation Review Panel - Removed as no longer needed */}
+        
+        {/* Generation Stage */}
+        {currentStage === 'generation' && !completedStages.has('generation') && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Report Generation
+                  </CardTitle>
+                  <CardDescription>
+                    Generate final intelligence report
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPreviousStage}
+                  className="ml-4"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Alert className="mb-4 border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertTitle>AI Usage Required</AlertTitle>
+                <AlertDescription>
+                  This stage will use GPT-5 and cost approximately {currentStageInfo.estimatedCost}
+                </AlertDescription>
+              </Alert>
+              <Button
+                onClick={startGeneration}
+                disabled={isProcessing}
+                className="w-full"
+                variant="default"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating report...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Approve & Generate Report
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+      
+      {/* Persistent Action Bar - Shows for all stages */}
+      {currentStage !== 'idle' && (
+        <PersistentActionBar
+          currentStage={currentStage}
+          stageLabel={STAGES.find(s => s.id === currentStage)?.label || ''}
+          approveDisabled={
+            // Disable approve button during scraping if scraping is in progress or not completed
+            (currentStage === 'scraping' && (!stageData.scraping || isProcessing)) ||
+            // Disable during sitemap if no pages selected
+            (currentStage === 'sitemap' && (!stageData.sitemap || stageData.sitemap.length === 0))
+          }
+          onApprove={() => {
+            // Handle approve based on current stage
+            switch (currentStage) {
+              case 'site-analysis':
+                if (stageData['site-analysis']) {
+                  handleStageComplete('site-analysis', stageData['site-analysis'])
+                  proceedToNextStage()
+                } else {
+                  // Site analysis is triggered by the SiteAnalyzer component
+                  persistentToast.error('Please complete site analysis first. Click "Analyze Site" to begin.')
+                }
+                break
+              case 'sitemap':
+                if (stageData.sitemap && stageData.sitemap.length > 0) {
+                  handleStageComplete('sitemap', stageData.sitemap)
+                  proceedToNextStage()
+                } else {
+                  persistentToast.error('Please select pages before approving')
+                }
+                break
+              case 'scraping':
+                if (stageData.scraping) {
+                  // Scraping already completed, proceed to next stage
+                  proceedToNextStage()
+                } else if (!isProcessing) {
+                  // Start scraping only if not already processing
+                  const sitemapPages = stageData.sitemap || []
+                  if (sitemapPages.length > 0) {
+                    startScraping(sitemapPages)
+                  } else {
+                    persistentToast.error('No pages available for scraping. Please go back and select pages.')
+                  }
+                }
+                break
+              case 'extraction':
+                if (stageData.extraction) {
+                  proceedToNextStage()
+                } else {
+                  startExtraction()
+                }
+                break
+              case 'data-review':
+                // Handled by DataReviewPanel's onProceed
+                break
+              case 'enrichment':
+                if (stageData.enrichment) {
+                  proceedToNextStage()
+                } else {
+                  startEnrichment()
+                }
+                break
+              case 'generation':
+                if (stageData.generation) {
+                  onPhaseComplete?.('generation', stageData.generation)
+                } else {
+                  startGeneration()
+                }
+                break
+            }
+          }}
+          onReject={() => {
+            // Abort entire process
+            permanentLogger.info('Process aborted by user', { category: 'PHASE_CONTROLS', ...{
+              currentStage,
+              completedStages: Array.from(completedStages })
+            })
+            persistentToast.error('Research process aborted')
+            // Reset to initial state
+            setCurrentStage('site-analysis')
+            setCompletedStages(new Set())
+            setStageData({})
+            setCorporateStructure(null)
+            setShowCorporateDetector(false)
+            setTotalCost(0)
+            // Call parent reset to clear domain
+            onReset?.()
+            // Notify parent component
+            onPhaseComplete?.('aborted', null)
+          }}
+          onGoBack={goToPreviousStage}
+          isProcessing={isProcessing || (currentStage === 'sitemap' && isSitemapDiscovering)}
+          additionalInfo={currentStage === 'sitemap' && stageData.sitemap ? `for ${stageData.sitemap.length} pages` : undefined}
+          approveText={
+            currentStage === 'sitemap' 
+              ? isSitemapDiscovering
+                ? 'Discovering...'
+                : stageData.sitemap?.length > 0
+                  ? `Approve Sitemap Discovery (${stageData.sitemap.length} pages)`
+                  : 'Waiting for selection...'
+              : currentStage === 'scraping'
+                ? isProcessing
+                  ? 'Scraping in progress...'
+                  : completedStages.has('scraping') || stageData.scraping
+                    ? 'Approve Web Scraping'
+                    : 'Start Web Scraping'
+                : undefined
+          }
+        />
+      )}
+    </div>
+  )
+}

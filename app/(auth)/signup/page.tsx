@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { StarfieldBackground } from '@/components/starfield-background'
 import { Navigation } from '@/components/navigation'
+import { LinkedInModal } from '@/components/linkedin-modal'
 import { Loader2, Mail, Linkedin } from 'lucide-react'
 
 export default function SignupPage() {
@@ -20,6 +21,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [showLinkedInModal, setShowLinkedInModal] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,19 +48,37 @@ export default function SignupPage() {
       setError(error.message)
       setLoading(false)
     } else if (data?.user) {
+      // Send signup notification
+      fetch('/api/auth/callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'SIGNED_IN',
+          user: {
+            ...data.user,
+            user_metadata: { full_name: fullName }
+          }
+        })
+      }).catch(err => console.error('Failed to send notification:', err))
+      
       setSuccess(true)
       setLoading(false)
     }
   }
 
   const handleOAuthSignup = async (provider: 'google' | 'linkedin_oidc') => {
+    if (provider === 'linkedin_oidc') {
+      setShowLinkedInModal(true)
+      return
+    }
+    
     setLoading(true)
     setError(null)
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
       },
     })
 
@@ -80,7 +100,7 @@ export default function SignupPage() {
           <CardHeader>
             <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
             <CardDescription>
-              We've sent a verification link to {email}
+              We&apos;ve sent a verification link to {email}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -249,6 +269,15 @@ export default function SignupPage() {
         </CardFooter>
       </Card>
       </div>
+      
+      <LinkedInModal 
+        open={showLinkedInModal}
+        onClose={() => setShowLinkedInModal(false)}
+        onUseGoogle={() => {
+          setShowLinkedInModal(false)
+          handleOAuthSignup('google')
+        }}
+      />
     </div>
   )
 }

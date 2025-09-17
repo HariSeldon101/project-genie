@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { StarfieldBackground } from '@/components/starfield-background'
 import { Navigation } from '@/components/navigation'
+import { LinkedInModal } from '@/components/linkedin-modal'
 import { Loader2, Mail, Github, Linkedin } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 
@@ -22,6 +23,7 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showLinkedInModal, setShowLinkedInModal] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,7 +35,7 @@ function LoginForm() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -42,11 +44,28 @@ function LoginForm() {
       setError(error.message)
       setLoading(false)
     } else {
+      // Send login notification
+      if (data?.user) {
+        fetch('/api/auth/callback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'SIGNED_IN',
+            user: data.user
+          })
+        }).catch(err => console.error('Failed to send notification:', err))
+      }
+      
       router.push(redirectTo)
     }
   }
 
   const handleOAuthLogin = async (provider: 'google' | 'linkedin_oidc') => {
+    if (provider === 'linkedin_oidc') {
+      setShowLinkedInModal(true)
+      return
+    }
+    
     setLoading(true)
     setError(null)
 
@@ -183,7 +202,7 @@ function LoginForm() {
         
         <CardFooter className="flex flex-col space-y-2">
           <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-blue-600 hover:underline">
               Sign up
             </Link>
@@ -194,6 +213,15 @@ function LoginForm() {
         </CardFooter>
       </Card>
       </div>
+      
+      <LinkedInModal 
+        open={showLinkedInModal}
+        onClose={() => setShowLinkedInModal(false)}
+        onUseGoogle={() => {
+          setShowLinkedInModal(false)
+          handleOAuthLogin('google')
+        }}
+      />
     </div>
   )
 }

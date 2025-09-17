@@ -1,0 +1,1049 @@
+'use client'
+
+import { useState } from 'react'
+import { TooltipWrapper } from './tooltip-wrapper'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  HelpCircle,
+  Settings,
+  Globe,
+  Brain,
+  DollarSign,
+  Shield,
+  Zap,
+  AlertTriangle,
+  Info,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Save,
+  RotateCcw
+} from 'lucide-react'
+import { AllowedModel, MODEL_PRICING } from '@/lib/llm/services/model-selector'
+import type { ProcessingStage, StageReview } from '@/lib/company-intelligence/services/review-gate-manager'
+
+export interface AdvancedSettings {
+  // Model Selection
+  model: {
+    selected: AllowedModel
+    reasoningLevel: 'low' | 'medium' | 'high'
+    autoSelect: boolean
+    environment: 'development' | 'testing' | 'production'
+  }
+  
+  // Web Search
+  webSearch: {
+    enabled: boolean
+    searchType: 'non-reasoning' | 'agentic' | 'deep'
+    contextSize: 'low' | 'medium' | 'high'
+    maxSearches: number
+    domains: string[]
+    blockedDomains: string[]
+    userLocation: string
+    recencyFilter?: 'day' | 'week' | 'month' | 'year'
+  }
+  
+  // Scraping
+  scraping: {
+    mode: 'static' | 'dynamic' | 'auto'
+    maxPages: number
+    batchSize: number
+    delayBetweenBatches: number
+    timeout: number
+    retryAttempts: number
+    followRedirects: boolean
+    respectRobotsTxt: boolean
+  }
+  
+  // Quality Control
+  qualityControl: {
+    enableReviewGates: boolean
+    autoApproveThreshold: number
+    requireManualReview: boolean
+    abortOnCriticalIssues: boolean
+    minDataQuality: number
+    minSourceDiversity: number
+  }
+  
+  // Cost Management
+  costManagement: {
+    maxBudgetPerRequest: number
+    alertThreshold: number
+    autoOptimize: boolean
+    trackUsage: boolean
+  }
+  
+  // Output
+  output: {
+    format: 'json' | 'html' | 'markdown' | 'pdf'
+    includeSourceCitations: boolean
+    includeMermaidDiagrams: boolean
+    includeDataQualityBadges: boolean
+    verbosity: 'minimal' | 'normal' | 'detailed'
+  }
+}
+
+interface AdvancedSettingsPanelProps {
+  settings: AdvancedSettings
+  onSettingsChange: (settings: AdvancedSettings) => void
+  currentStageReview?: StageReview
+  onReviewDecision?: (approved: boolean, feedback?: string) => void
+  isProcessing?: boolean
+}
+
+export function AdvancedSettingsPanel({
+  settings,
+  onSettingsChange,
+  currentStageReview,
+  onReviewDecision,
+  isProcessing = false
+}: AdvancedSettingsPanelProps) {
+  const [showResetDialog, setShowResetDialog] = useState(false)
+  const [reviewFeedback, setReviewFeedback] = useState('')
+  const [customDomain, setCustomDomain] = useState('')
+  const [blockedDomain, setBlockedDomain] = useState('')
+  
+  const updateSetting = (path: string, value: any) => {
+    const newSettings = { ...settings }
+    const keys = path.split('.')
+    let current: any = newSettings
+    
+    for (let i = 0; i < keys.length - 1; i++) {
+      current = current[keys[i]]
+    }
+    
+    current[keys[keys.length - 1]] = value
+    onSettingsChange(newSettings)
+  }
+  
+  const resetToDefaults = () => {
+    const defaults: AdvancedSettings = {
+      model: {
+        selected: AllowedModel.GPT5_NANO,
+        reasoningLevel: 'low',
+        autoSelect: true,
+        environment: 'production'
+      },
+      webSearch: {
+        enabled: true,
+        searchType: 'agentic',
+        contextSize: 'medium',
+        maxSearches: 5,
+        domains: [],
+        blockedDomains: [],
+        userLocation: 'United States',
+        recencyFilter: undefined
+      },
+      scraping: {
+        mode: 'auto',
+        maxPages: 10,
+        batchSize: 3,
+        delayBetweenBatches: 1000,
+        timeout: 30000,
+        retryAttempts: 3,
+        followRedirects: true,
+        respectRobotsTxt: true
+      },
+      qualityControl: {
+        enableReviewGates: true,
+        autoApproveThreshold: 80,
+        requireManualReview: false,
+        abortOnCriticalIssues: true,
+        minDataQuality: 50,
+        minSourceDiversity: 30
+      },
+      costManagement: {
+        maxBudgetPerRequest: 1.00,
+        alertThreshold: 0.50,
+        autoOptimize: true,
+        trackUsage: true
+      },
+      output: {
+        format: 'html',
+        includeSourceCitations: true,
+        includeMermaidDiagrams: true,
+        includeDataQualityBadges: true,
+        verbosity: 'normal'
+      }
+    }
+    
+    onSettingsChange(defaults)
+    setShowResetDialog(false)
+  }
+  
+  const calculateEstimatedCost = (): number => {
+    const pricing = MODEL_PRICING[settings.model.selected]
+    let estimatedTokens = 2000 // base
+    
+    // Add tokens based on settings
+    if (settings.webSearch.enabled) {
+      const contextMultiplier = { low: 1, medium: 2, high: 4 }
+      estimatedTokens += 1000 * contextMultiplier[settings.webSearch.contextSize]
+    }
+    
+    if (settings.scraping.maxPages > 5) {
+      estimatedTokens += settings.scraping.maxPages * 100
+    }
+    
+    const inputCost = (estimatedTokens / 1_000_000) * pricing.input
+    const outputCost = ((estimatedTokens * 0.7) / 1_000_000) * pricing.output
+    
+    return inputCost + outputCost
+  }
+  
+  return (
+    <div className="space-y-6">
+      {/* Stage Review Alert */}
+      {currentStageReview && (
+        <Card className="border-yellow-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Review Required: {currentStageReview.stage}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Quality Metrics */}
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <Label>Completeness</Label>
+                  <div className="text-2xl font-bold">
+                    {currentStageReview.metrics.dataCompleteness.toFixed(0)}%
+                  </div>
+                </div>
+                <div>
+                  <Label>Quality</Label>
+                  <div className="text-2xl font-bold">
+                    {currentStageReview.metrics.dataQuality.toFixed(0)}%
+                  </div>
+                </div>
+                <div>
+                  <Label>Diversity</Label>
+                  <div className="text-2xl font-bold">
+                    {currentStageReview.metrics.sourceDiversity.toFixed(0)}%
+                  </div>
+                </div>
+                <div>
+                  <Label>Confidence</Label>
+                  <div className="text-2xl font-bold">
+                    {currentStageReview.metrics.confidence.toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+              
+              {/* Issues */}
+              {currentStageReview.issues.length > 0 && (
+                <div>
+                  <Label>Issues Detected</Label>
+                  <div className="space-y-2 mt-2">
+                    {currentStageReview.issues.map((issue, idx) => (
+                      <div key={idx} className="flex items-start gap-2">
+                        {issue.severity === 'critical' && <XCircle className="h-4 w-4 text-red-500 mt-0.5" />}
+                        {issue.severity === 'warning' && <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />}
+                        {issue.severity === 'info' && <Info className="h-4 w-4 text-blue-500 mt-0.5" />}
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{issue.message}</p>
+                          {issue.suggestion && (
+                            <p className="text-xs text-muted-foreground">{issue.suggestion}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Review Actions */}
+              <div className="space-y-2">
+                <Label>Feedback (Optional)</Label>
+                <Textarea
+                  value={reviewFeedback}
+                  onChange={(e) => setReviewFeedback(e.target.value)}
+                  placeholder="Add any notes about this stage..."
+                  rows={2}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => onReviewDecision?.(true, reviewFeedback)}
+                    className="flex-1"
+                    disabled={isProcessing}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Approve & Continue
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => onReviewDecision?.(false, reviewFeedback)}
+                    className="flex-1"
+                    disabled={isProcessing}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Reject & Retry
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Settings Tabs */}
+      <Tabs defaultValue="model" className="w-full">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="model">
+            <Brain className="h-4 w-4 mr-1" />
+            Model
+          </TabsTrigger>
+          <TabsTrigger value="websearch">
+            <Globe className="h-4 w-4 mr-1" />
+            Search
+          </TabsTrigger>
+          <TabsTrigger value="scraping">
+            <Zap className="h-4 w-4 mr-1" />
+            Scraping
+          </TabsTrigger>
+          <TabsTrigger value="quality">
+            <Shield className="h-4 w-4 mr-1" />
+            Quality
+          </TabsTrigger>
+          <TabsTrigger value="cost">
+            <DollarSign className="h-4 w-4 mr-1" />
+            Cost
+          </TabsTrigger>
+          <TabsTrigger value="output">
+            <Settings className="h-4 w-4 mr-1" />
+            Output
+          </TabsTrigger>
+        </TabsList>
+        
+        {/* Model Settings */}
+        <TabsContent value="model">
+          <Card>
+            <CardHeader>
+              <CardTitle>Model Configuration</CardTitle>
+              <CardDescription>
+                Select and configure the AI model for intelligence generation
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Model Selection</Label>
+                <TooltipWrapper content="Select AI model for processing. GPT-5 models are best for general research and narrative content. GPT-4.1 models are optimized for structured data extraction. Pricing shown as (input/output per 1M tokens)">
+                  <Select
+                    value={settings.model.selected}
+                    onValueChange={(value) => updateSetting('model.selected', value)}
+                    disabled={settings.model.autoSelect}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={AllowedModel.GPT5}>
+                      GPT-5 (Best, $0.50/$4.00)
+                    </SelectItem>
+                    <SelectItem value={AllowedModel.GPT5_MINI}>
+                      GPT-5 Mini (Balanced, $0.25/$2.00)
+                    </SelectItem>
+                    <SelectItem value={AllowedModel.GPT5_NANO}>
+                      GPT-5 Nano (Budget, $0.025/$0.20)
+                    </SelectItem>
+                    <SelectItem value={AllowedModel.GPT4_1_MINI}>
+                      GPT-4.1 Mini (Structured, $0.15/$0.60)
+                    </SelectItem>
+                    <SelectItem value={AllowedModel.GPT4_1_NANO}>
+                      GPT-4.1 Nano (Fast, $0.075/$0.30)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                </TooltipWrapper>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Auto-Select Optimal Model</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically choose best model for task
+                  </p>
+                </div>
+                <TooltipWrapper content="When enabled, the system will automatically choose the most cost-effective model based on task complexity and required output quality">
+                  <Switch
+                    checked={settings.model.autoSelect}
+                    onCheckedChange={(checked) => updateSetting('model.autoSelect', checked)}
+                  />
+                </TooltipWrapper>
+              </div>
+              
+              <div>
+                <Label>Reasoning Level (GPT-5 only)</Label>
+                <TooltipWrapper content="Control the depth of AI reasoning. Low: Fast responses with basic analysis. Medium: Balanced depth and speed. High: Thorough analysis with detailed reasoning (increases cost and time)">
+                  <Select
+                    value={settings.model.reasoningLevel}
+                    onValueChange={(value) => updateSetting('model.reasoningLevel', value)}
+                    disabled={!settings.model.selected.startsWith('gpt-5')}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low (Fast)</SelectItem>
+                    <SelectItem value="medium">Medium (Balanced)</SelectItem>
+                    <SelectItem value="high">High (Thorough)</SelectItem>
+                  </SelectContent>
+                </Select>
+                </TooltipWrapper>
+              </div>
+              
+              <div>
+                <Label>Environment</Label>
+                <TooltipWrapper content="Select environment mode. Development: verbose logging, Testing: standard logging with mocks enabled, Production: minimal logging for performance">
+                  <Select
+                    value={settings.model.environment}
+                    onValueChange={(value) => updateSetting('model.environment', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="development">Development</SelectItem>
+                    <SelectItem value="testing">Testing</SelectItem>
+                    <SelectItem value="production">Production</SelectItem>
+                  </SelectContent>
+                </Select>
+                </TooltipWrapper>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Web Search Settings */}
+        <TabsContent value="websearch">
+          <Card>
+            <CardHeader>
+              <CardTitle>Web Search Configuration</CardTitle>
+              <CardDescription>
+                Configure real-time web search for enrichment
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Enable Web Search</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Enrich data with real-time web information
+                  </p>
+                </div>
+                <TooltipWrapper content="Enable real-time web search to enrich research with current information from the internet. This may increase processing time and cost">
+                  <Switch
+                    checked={settings.webSearch.enabled}
+                    onCheckedChange={(checked) => updateSetting('webSearch.enabled', checked)}
+                  />
+                </TooltipWrapper>
+              </div>
+              
+              {settings.webSearch.enabled && (
+                <>
+                  <div>
+                    <Label>Search Type</Label>
+                    <TooltipWrapper content="Non-Reasoning: Fast fact retrieval only. Agentic: Smart multi-step research with context understanding. Deep: Comprehensive investigation with extensive analysis">
+                      <Select
+                        value={settings.webSearch.searchType}
+                        onValueChange={(value) => updateSetting('webSearch.searchType', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="non-reasoning">
+                          Non-Reasoning (Facts only)
+                        </SelectItem>
+                        <SelectItem value="agentic">
+                          Agentic (Multi-step research)
+                        </SelectItem>
+                        <SelectItem value="deep">
+                          Deep Research (Comprehensive)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    </TooltipWrapper>
+                  </div>
+                  
+                  <div>
+                    <Label>Context Size</Label>
+                    <Select
+                      value={settings.webSearch.contextSize}
+                      onValueChange={(value) => updateSetting('webSearch.contextSize', value as 'low' | 'medium' | 'high')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low (500-1K tokens)</SelectItem>
+                        <SelectItem value="medium">Medium (1K-3K tokens)</SelectItem>
+                        <SelectItem value="high">High (3K-8K tokens)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label>Max Searches: {settings.webSearch.maxSearches}</Label>
+                    <Slider
+                      value={[settings.webSearch.maxSearches]}
+                      onValueChange={(value) => updateSetting('webSearch.maxSearches', value[0])}
+                      min={1}
+                      max={10}
+                      step={1}
+                      className="mt-2"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label>Recency Filter</Label>
+                    <Select
+                      value={settings.webSearch.recencyFilter || 'none'}
+                      onValueChange={(value) => 
+                        updateSetting('webSearch.recencyFilter', value === 'none' ? undefined : value)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No filter</SelectItem>
+                        <SelectItem value="day">Last 24 hours</SelectItem>
+                        <SelectItem value="week">Last week</SelectItem>
+                        <SelectItem value="month">Last month</SelectItem>
+                        <SelectItem value="year">Last year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <Accordion type="single" collapsible>
+                    <AccordionItem value="domains">
+                      <AccordionTrigger>Domain Filtering</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-4">
+                          <div>
+                            <Label>Allowed Domains</Label>
+                            <div className="flex gap-2 mt-2">
+                              <Input
+                                placeholder="e.g., reuters.com"
+                                value={customDomain}
+                                onChange={(e) => setCustomDomain(e.target.value)}
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  if (customDomain) {
+                                    updateSetting('webSearch.domains', [...settings.webSearch.domains, customDomain])
+                                    setCustomDomain('')
+                                  }
+                                }}
+                              >
+                                Add
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {settings.webSearch.domains.map((domain, idx) => (
+                                <Badge key={idx} variant="secondary">
+                                  {domain}
+                                  <button
+                                    onClick={() => {
+                                      updateSetting(
+                                        'webSearch.domains',
+                                        settings.webSearch.domains.filter((_, i) => i !== idx)
+                                      )
+                                    }}
+                                    className="ml-2 text-xs"
+                                  >
+                                    ×
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <Label>Blocked Domains</Label>
+                            <div className="flex gap-2 mt-2">
+                              <Input
+                                placeholder="e.g., wikipedia.org"
+                                value={blockedDomain}
+                                onChange={(e) => setBlockedDomain(e.target.value)}
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  if (blockedDomain) {
+                                    updateSetting('webSearch.blockedDomains', [...settings.webSearch.blockedDomains, blockedDomain])
+                                    setBlockedDomain('')
+                                  }
+                                }}
+                              >
+                                Block
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {settings.webSearch.blockedDomains.map((domain, idx) => (
+                                <Badge key={idx} variant="destructive">
+                                  {domain}
+                                  <button
+                                    onClick={() => {
+                                      updateSetting(
+                                        'webSearch.blockedDomains',
+                                        settings.webSearch.blockedDomains.filter((_, i) => i !== idx)
+                                      )
+                                    }}
+                                    className="ml-2 text-xs"
+                                  >
+                                    ×
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Scraping Settings */}
+        <TabsContent value="scraping">
+          <Card>
+            <CardHeader>
+              <CardTitle>Web Scraping Configuration</CardTitle>
+              <CardDescription>
+                Configure how websites are scraped for data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Scraping Mode</Label>
+                <TooltipWrapper content="Static: Fast HTML scraping for simple websites. Dynamic: JavaScript rendering for modern SPAs and interactive sites. Auto: Automatically detects and uses the best approach">
+                  <Select
+                    value={settings.scraping.mode}
+                    onValueChange={(value) => updateSetting('scraping.mode', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="static">Static (Fast, HTML only)</SelectItem>
+                    <SelectItem value="dynamic">Dynamic (Slow, JavaScript)</SelectItem>
+                    <SelectItem value="auto">Auto (Smart selection)</SelectItem>
+                  </SelectContent>
+                </Select>
+                </TooltipWrapper>
+              </div>
+              
+              <div>
+                <Label>Max Pages: {settings.scraping.maxPages}</Label>
+                <TooltipWrapper content="Maximum number of pages to scrape from the website. Higher values provide more comprehensive data but increase processing time and cost">
+                  <Slider
+                    value={[settings.scraping.maxPages]}
+                    onValueChange={(value) => updateSetting('scraping.maxPages', value[0])}
+                    min={1}
+                    max={50}
+                    step={1}
+                    className="mt-2"
+                  />
+                </TooltipWrapper>
+              </div>
+              
+              <div>
+                <Label>Batch Size: {settings.scraping.batchSize}</Label>
+                <TooltipWrapper content="Number of pages to process simultaneously. Higher values speed up scraping but may trigger rate limiting on some websites">
+                  <Slider
+                    value={[settings.scraping.batchSize]}
+                    onValueChange={(value) => updateSetting('scraping.batchSize', value[0])}
+                    min={1}
+                    max={10}
+                    step={1}
+                    className="mt-2"
+                  />
+                </TooltipWrapper>
+              </div>
+              
+              <div>
+                <Label>Delay Between Batches: {settings.scraping.delayBetweenBatches}ms</Label>
+                <TooltipWrapper content="Wait time between batch requests to avoid overwhelming the target server. Higher values are more respectful but increase total processing time">
+                  <Slider
+                    value={[settings.scraping.delayBetweenBatches]}
+                    onValueChange={(value) => updateSetting('scraping.delayBetweenBatches', value[0])}
+                    min={0}
+                    max={5000}
+                    step={100}
+                    className="mt-2"
+                  />
+                </TooltipWrapper>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Follow Redirects</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically follow HTTP redirects
+                  </p>
+                </div>
+                <TooltipWrapper content="Automatically follow HTTP redirects when scraping. Useful for sites that redirect to www or https versions">
+                  <Switch
+                    checked={settings.scraping.followRedirects}
+                    onCheckedChange={(checked) => updateSetting('scraping.followRedirects', checked)}
+                  />
+                </TooltipWrapper>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Respect Robots.txt</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Honor website crawling restrictions
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.scraping.respectRobotsTxt}
+                  onCheckedChange={(checked) => updateSetting('scraping.respectRobotsTxt', checked)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Quality Control Settings */}
+        <TabsContent value="quality">
+          <Card>
+            <CardHeader>
+              <CardTitle>Quality Control</CardTitle>
+              <CardDescription>
+                Configure data quality thresholds and review gates
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Enable Review Gates</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Review data at each processing stage
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.qualityControl.enableReviewGates}
+                  onCheckedChange={(checked) => updateSetting('qualityControl.enableReviewGates', checked)}
+                />
+              </div>
+              
+              {settings.qualityControl.enableReviewGates && (
+                <>
+                  <div>
+                    <Label>Auto-Approve Threshold: {settings.qualityControl.autoApproveThreshold}%</Label>
+                    <Slider
+                      value={[settings.qualityControl.autoApproveThreshold]}
+                      onValueChange={(value) => updateSetting('qualityControl.autoApproveThreshold', value[0])}
+                      min={0}
+                      max={100}
+                      step={5}
+                      className="mt-2"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Require Manual Review</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Always require human approval
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.qualityControl.requireManualReview}
+                      onCheckedChange={(checked) => updateSetting('qualityControl.requireManualReview', checked)}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Abort on Critical Issues</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Stop processing if critical issues detected
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.qualityControl.abortOnCriticalIssues}
+                      onCheckedChange={(checked) => updateSetting('qualityControl.abortOnCriticalIssues', checked)}
+                    />
+                  </div>
+                </>
+              )}
+              
+              <div>
+                <Label>Minimum Data Quality: {settings.qualityControl.minDataQuality}%</Label>
+                <Slider
+                  value={[settings.qualityControl.minDataQuality]}
+                  onValueChange={(value) => updateSetting('qualityControl.minDataQuality', value[0])}
+                  min={0}
+                  max={100}
+                  step={5}
+                  className="mt-2"
+                />
+              </div>
+              
+              <div>
+                <Label>Minimum Source Diversity: {settings.qualityControl.minSourceDiversity}%</Label>
+                <Slider
+                  value={[settings.qualityControl.minSourceDiversity]}
+                  onValueChange={(value) => updateSetting('qualityControl.minSourceDiversity', value[0])}
+                  min={0}
+                  max={100}
+                  step={5}
+                  className="mt-2"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Cost Management Settings */}
+        <TabsContent value="cost">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cost Management</CardTitle>
+              <CardDescription>
+                Control and monitor API usage costs
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Estimated Cost per Request</span>
+                  <span className="text-2xl font-bold">${calculateEstimatedCost().toFixed(4)}</span>
+                </div>
+              </div>
+              
+              <div>
+                <Label>Max Budget per Request: ${settings.costManagement.maxBudgetPerRequest.toFixed(2)}</Label>
+                <Slider
+                  value={[settings.costManagement.maxBudgetPerRequest]}
+                  onValueChange={(value) => updateSetting('costManagement.maxBudgetPerRequest', value[0])}
+                  min={0.01}
+                  max={5.00}
+                  step={0.01}
+                  className="mt-2"
+                />
+              </div>
+              
+              <div>
+                <Label>Alert Threshold: ${settings.costManagement.alertThreshold.toFixed(2)}</Label>
+                <Slider
+                  value={[settings.costManagement.alertThreshold]}
+                  onValueChange={(value) => updateSetting('costManagement.alertThreshold', value[0])}
+                  min={0.01}
+                  max={2.00}
+                  step={0.01}
+                  className="mt-2"
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Auto-Optimize for Cost</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically select cheaper models when possible
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.costManagement.autoOptimize}
+                  onCheckedChange={(checked) => updateSetting('costManagement.autoOptimize', checked)}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Track Usage Statistics</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Monitor token usage and costs
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.costManagement.trackUsage}
+                  onCheckedChange={(checked) => updateSetting('costManagement.trackUsage', checked)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Output Settings */}
+        <TabsContent value="output">
+          <Card>
+            <CardHeader>
+              <CardTitle>Output Configuration</CardTitle>
+              <CardDescription>
+                Configure how results are formatted and presented
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Output Format</Label>
+                <Select
+                  value={settings.output.format}
+                  onValueChange={(value) => updateSetting('output.format', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="json">JSON (Structured data)</SelectItem>
+                    <SelectItem value="html">HTML (Web view)</SelectItem>
+                    <SelectItem value="markdown">Markdown (Documentation)</SelectItem>
+                    <SelectItem value="pdf">PDF (Reports)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label>Verbosity Level</Label>
+                <Select
+                  value={settings.output.verbosity}
+                  onValueChange={(value) => updateSetting('output.verbosity', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minimal">Minimal (Key points only)</SelectItem>
+                    <SelectItem value="normal">Normal (Standard detail)</SelectItem>
+                    <SelectItem value="detailed">Detailed (Comprehensive)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Include Source Citations</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Add references to data sources
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.output.includeSourceCitations}
+                  onCheckedChange={(checked) => updateSetting('output.includeSourceCitations', checked)}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Include Mermaid Diagrams</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Generate visual charts and graphs
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.output.includeMermaidDiagrams}
+                  onCheckedChange={(checked) => updateSetting('output.includeMermaidDiagrams', checked)}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Include Data Quality Badges</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Show confidence indicators for data
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.output.includeDataQualityBadges}
+                  onCheckedChange={(checked) => updateSetting('output.includeDataQualityBadges', checked)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+      
+      {/* Action Buttons */}
+      <div className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={() => setShowResetDialog(true)}
+        >
+          <RotateCcw className="h-4 w-4 mr-2" />
+          Reset to Defaults
+        </Button>
+        
+        <div className="flex gap-2">
+          <Button variant="outline">
+            <Save className="h-4 w-4 mr-2" />
+            Save Preset
+          </Button>
+          <Button>
+            Apply Settings
+          </Button>
+        </div>
+      </div>
+      
+      {/* Reset Confirmation Dialog */}
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset to Default Settings?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reset all settings to their default values. Your current configuration will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={resetToDefaults}>
+              Reset Settings
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}

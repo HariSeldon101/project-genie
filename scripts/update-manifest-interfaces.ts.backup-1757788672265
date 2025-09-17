@@ -1,0 +1,260 @@
+#!/usr/bin/env npx tsx
+/**
+ * Updates PROJECT_MANIFEST.json with API interface documentation
+ * Automatically extracts interfaces from API routes and key components
+ */
+
+import * as fs from 'fs'
+import * as path from 'path'
+import { permanentLogger } from '../lib/utils/permanent-logger'
+
+const PROJECT_ROOT = path.join(__dirname, '..')
+const MANIFEST_PATH = path.join(PROJECT_ROOT, 'PROJECT_MANIFEST.json')
+const API_INTERFACES_PATH = path.join(PROJECT_ROOT, 'docs/api-interface-documentation.md')
+
+interface ApiInterface {
+  endpoint: string
+  method: string
+  input: any
+  output: any
+  description: string
+  path: string
+}
+
+interface ManifestInterfaces {
+  companyIntelligence: {
+    [key: string]: ApiInterface
+  }
+  documentGeneration: {
+    [key: string]: ApiInterface
+  }
+  components: {
+    [key: string]: any
+  }
+}
+
+function extractInterfacesFromDocs(): ManifestInterfaces {
+  const interfaces: ManifestInterfaces = {
+    companyIntelligence: {},
+    documentGeneration: {},
+    components: {}
+  }
+
+  // Read the API interface documentation
+  if (fs.existsSync(API_INTERFACES_PATH)) {
+    const docContent = fs.readFileSync(API_INTERFACES_PATH, 'utf-8')
+    
+    // Extract key interfaces from the documentation
+    interfaces.companyIntelligence = {
+      analyzeSite: {
+        endpoint: '/api/company-intelligence/analyze-site',
+        method: 'POST',
+        description: 'Analyze a website to determine its technology stack and metadata',
+        path: '/app/api/company-intelligence/analyze-site/route.ts',
+        input: {
+          domain: 'string (required)',
+          includeOg: 'boolean (optional, default: true)'
+        },
+        output: {
+          success: 'boolean',
+          data: {
+            url: 'string',
+            domain: 'string',
+            siteType: 'static | react | nextjs | vue | angular | svelte | unknown',
+            metadata: 'object',
+            technologies: 'string[]',
+            performance: 'object'
+          },
+          error: 'string (optional)'
+        }
+      },
+      scraping: {
+        endpoint: '/api/company-intelligence/phases/scraping',
+        method: 'POST',
+        description: 'Scrape selected pages from a website using intelligent strategy selection',
+        path: '/app/api/company-intelligence/phases/scraping/route.ts',
+        input: {
+          sessionId: 'string (required)',
+          domain: 'string (required)',
+          pages: 'string[] (required)',
+          options: {
+            mode: 'multi-phase | single | auto-detect (optional)',
+            maxPages: 'number (optional)',
+            timeout: 'number (optional, default: 60000ms)',
+            stream: 'boolean (optional, default: false)'
+          }
+        },
+        output: {
+          streaming: {
+            progress: {
+              type: 'progress',
+              phase: 'string',
+              completedPages: 'number',
+              totalPages: 'number',
+              phases: 'PhaseInfo[]',
+              validationScore: 'number (optional)',
+              enhancementCount: 'number (optional)',
+              scraperType: 'string (optional)'
+            },
+            complete: {
+              type: 'complete',
+              result: {
+                pages: 'PageData[]',
+                brandAssets: 'any',
+                contactInfo: 'any',
+                socialLinks: 'string[]',
+                teamMembers: 'any[]',
+                testimonials: 'any[]',
+                products: 'any[]',
+                llmUsage: 'object'
+              }
+            }
+          }
+        }
+      },
+      enrichment: {
+        endpoint: '/api/company-intelligence/phases/enrichment',
+        method: 'POST',
+        description: 'Enrich scraped data using AI/LLM analysis',
+        path: '/app/api/company-intelligence/phases/enrichment/route.ts',
+        input: {
+          sessionId: 'string (required)',
+          domain: 'string (required)',
+          scrapedData: 'any (required)',
+          options: {
+            enrichers: 'string[] (optional)',
+            llmModel: 'string (optional)'
+          }
+        },
+        output: {
+          success: 'boolean',
+          data: {
+            enrichedData: 'any',
+            enrichmentMetrics: {
+              enrichersUsed: 'string[]',
+              llmCalls: 'number',
+              totalCost: 'number',
+              duration: 'number'
+            }
+          },
+          error: 'string (optional)'
+        }
+      }
+    }
+
+    interfaces.components = {
+      PhaseControls: {
+        path: '/components/company-intelligence/phase-controls.tsx',
+        description: 'Main phase orchestration component',
+        functions: {
+          handleStageComplete: {
+            input: {
+              stage: 'Stage',
+              data: 'any'
+            },
+            processing: [
+              'Store data in stageData state',
+              'Update completedStages set',
+              'Create/update database session',
+              'Trigger next stage if appropriate'
+            ],
+            output: 'void (calls onPhaseComplete callback)'
+          },
+          startScraping: {
+            input: {
+              sitemapPages: 'string[] (optional, falls back to stageData.sitemap)'
+            },
+            processing: [
+              'Validate session exists',
+              'Check pages available',
+              'Initialize progress tracking',
+              'Call scraping API with streaming',
+              'Handle progress updates',
+              'Process final results'
+            ],
+            output: [
+              'Updates scrapingProgress state',
+              'Calls handleStageComplete on success',
+              'Shows error toast on failure'
+            ]
+          }
+        },
+        state: {
+          sessionId: 'string | null',
+          currentStage: 'Stage',
+          completedStages: 'Set<Stage>',
+          stageData: 'Record<Stage, any>',
+          isProcessing: 'boolean',
+          scrapingProgress: 'ScrapingProgress'
+        }
+      }
+    }
+  }
+
+  return interfaces
+}
+
+async function updateManifest() {
+  try {
+    console.log('📝 Updating PROJECT_MANIFEST.json with interface documentation...')
+
+    // Read existing manifest
+    const manifestContent = fs.readFileSync(MANIFEST_PATH, 'utf-8')
+    const manifest = JSON.parse(manifestContent)
+
+    // Extract interfaces from documentation
+    const interfaces = extractInterfacesFromDocs()
+
+    // Add interfaces section to manifest
+    manifest.interfaces = {
+      description: 'API and component interface definitions',
+      lastUpdated: new Date().toISOString(),
+      sourceDocumentation: '/docs/api-interface-documentation.md',
+      api: interfaces.companyIntelligence,
+      components: interfaces.components,
+      dataFlow: {
+        scraping: {
+          strategy: 'StrategyManager pattern',
+          deprecated: ['scraperFactory', 'scraperName'],
+          current: 'strategyManager with Static/Dynamic/SPA strategies'
+        }
+      },
+      loggingStandards: {
+        entry: 'Log all function entries with input parameters',
+        exit: 'Log all function exits with output/metrics',
+        errors: 'Log all errors with full context',
+        transformations: 'Log before/after for data transformations'
+      }
+    }
+
+    // Update lastUpdated timestamp
+    manifest.lastUpdated = new Date().toISOString()
+
+    // Write updated manifest
+    fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2))
+
+    console.log('✅ PROJECT_MANIFEST.json updated with interface documentation')
+    console.log('📍 Interface count:', Object.keys(interfaces.companyIntelligence).length)
+    console.log('📍 Component interfaces:', Object.keys(interfaces.components).length)
+
+    permanentLogger.info('Interfaces added to manifest', { category: 'MANIFEST_UPDATE', ...{
+      apiInterfaces: Object.keys(interfaces.companyIntelligence }).length,
+      componentInterfaces: Object.keys(interfaces.components).length,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('❌ Error updating manifest:', error)
+    permanentLogger.error('MANIFEST_UPDATE', 'Failed to update manifest with interfaces', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+    process.exit(1)
+  }
+}
+
+// Run if executed directly
+if (require.main === module) {
+  updateManifest()
+}
+
+export { updateManifest, extractInterfacesFromDocs }

@@ -7,6 +7,21 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Exclude logs directory from file watching to prevent recompilation loops
+  webpack: (config, { dev, isServer }) => {
+    if (dev && !isServer) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          '**/node_modules',
+          '**/logs/**',
+          '**/.git/**',
+          '**/claude-code-dev-log.md'
+        ],
+      }
+    }
+    return config
+  },
 };
 
 export default nextConfig;

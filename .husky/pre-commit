@@ -1,0 +1,49 @@
+#!/bin/sh
+
+echo "🔍 Running pre-commit validation..."
+
+# CRITICAL: Check repository pattern compliance per CLAUDE.md
+echo "📊 Checking repository pattern compliance (CLAUDE.md requirement)..."
+npx tsx scripts/check-db-patterns.ts || {
+  echo ""
+  echo "❌ COMMIT BLOCKED: Repository pattern violations detected!"
+  echo ""
+  echo "Fix violations by:"
+  echo "1. Never calling supabase.from() directly in UI components"
+  echo "2. Use API endpoints from UI components"
+  echo "3. Use repositories from API routes"
+  echo "4. Follow: UI → API → Repository → Database"
+  echo ""
+  echo "See CLAUDE.md for repository pattern guidelines."
+  exit 1
+}
+
+# Type check
+echo "📝 Checking TypeScript types..."
+npx tsc --noEmit || {
+  echo "❌ TypeScript errors found. Please fix before committing."
+  echo "Run 'npx tsc --noEmit' to see detailed errors."
+  exit 1
+}
+
+# Lint
+echo "🧹 Running ESLint..."
+npm run lint || {
+  echo "❌ ESLint errors found. Please fix before committing."
+  echo "Run 'npm run lint' to see detailed errors."
+  exit 1
+}
+
+# Update manifest for tracking per CLAUDE.md
+echo "📋 Updating project manifest..."
+if [ -f "scripts/update-manifest.ts" ]; then
+  npx tsx scripts/update-manifest.ts
+
+  # Add updated manifest to commit if it changed
+  if git diff --name-only | grep -q "PROJECT_MANIFEST.json"; then
+    git add PROJECT_MANIFEST.json
+    echo "📋 PROJECT_MANIFEST.json updated and staged"
+  fi
+fi
+
+echo "✅ All pre-commit checks passed!"

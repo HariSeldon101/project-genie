@@ -1,0 +1,366 @@
+/**
+ * Scraper Factory
+ * Intelligently selects and manages scrapers based on website analysis
+ */
+
+import { EventEmitter } from 'events'
+import { logger } from '@/lib/utils/permanent-logger'
+import { WebsiteDetector, type WebsiteAnalysis } from '../detection/website-detector'
+import type { IScraper, ScrapeOptions, ScrapedData, ScraperError } from './scraper.interface'
+
+export class ScraperFactory extends EventEmitter {
+  private scrapers: Map<string, IScraper> = new Map()
+  private scraperFactories: Map<string, () => IScraper> = new Map()
+  private activeScrapers: Set<string> = new Set()
+  private maxConcurrent: number = 5
+  private instanceId: string = Math.random().toString(36).substring(7)
+
+  constructor() {
+    super()
+    // Set max listeners to prevent memory leak warnings with multiple concurrent scrapers
+    this.setMaxListeners(0)
+    logger.info('SCRAPER_FACTORY', 'Initializing scraper factory', {
+      instanceId: this.instanceId,
+      maxConcurrent: this.maxConcurrent
+    })
+  }
+
+  /**
+   * Register a scraper implementation
+   */
+  register(scraper: IScraper): void {
+    const existingScraper = this.scrapers.has(scraper.name)
+    this.scrapers.set(scraper.name, scraper)
+    logger.info('SCRAPER_FACTORY', `Registered scraper: ${scraper.name}`, {
+      instanceId: this.instanceId,
+      scraperId: (scraper as any).id || 'unknown',
+      replaced: existingScraper,
+      totalScrapers: this.scrapers.size
+    })
+  }
+
+  /**
+   * Register a scraper factory for lazy initialization
+   */
+  registerLazy(name: string, factory: () => IScraper): void {
+    this.scraperFactories.set(name, factory)
+    logger.info('SCRAPER_FACTORY', `Registered lazy scraper factory: ${name}`, {
+      instanceId: this.instanceId,
+      totalFactories: this.scraperFactories.size
+    })
+  }
+
+  /**
+   * Get a specific scraper by name (creates lazily if needed)
+   */
+  getScraper(name: string): IScraper | undefined {
+    // Check if already instantiated
+    let scraper = this.scrapers.get(name)
+    
+    // If not, check if we have a factory for it
+    if (!scraper && this.scraperFactories.has(name)) {
+      const factory = this.scraperFactories.get(name)!
+      scraper = factory()
+      this.scrapers.set(name, scraper)
+      logger.info('SCRAPER_FACTORY', `Lazily created scraper: ${name}`, {
+        instanceId: this.instanceId,
+        scraperId: (scraper as any).id || 'unknown'
+      })
+    }
+    
+    return scraper
+  }
+
+  /**
+   * Unregister a scraper
+   */
+  unregister(name: string): void {
+    const scraper = this.scrapers.get(name)
+    if (scraper?.cleanup) {
+      scraper.cleanup()
+    }
+    this.scrapers.delete(name)
+    logger.info('SCRAPER_FACTORY', `Unregistered scraper: ${name}`)
+  }
+
+  /**
+   * Main scraping method with intelligent scraper selection
+   */
+  async scrape(url: string, options: ScrapeOptions = {}): Promise<ScrapedData> {
+    const startTime = Date.now()
+    
+    try {
+      logger.info('SCRAPER_FACTORY', 'Starting intelligent scrape', { 
+        url,
+        explicitScraper: options.selectors ? 'custom' : 'auto'
+      })
+
+      // Wait if at capacity
+      await this.waitForCapacity()
+
+      // Analyze website first
+      const analysis = await this.analyzeWebsite(url)
+      
+      logger.info('SCRAPER_FACTORY', 'Website analysis complete', {
+        url,
+        frameworks: analysis.frameworks.map(f => `${f.framework}(${Math.round(f.confidence * 100)}%)`),
+        requiresJS: analysis.requiresJS,
+        isStatic: analysis.isStatic,
+        recommendedScraper: analysis.recommendedScraper
+      })
+      
+      // Emit framework detection event
+      this.emit('frameworkDetected', {
+        frameworks: analysis.frameworks,
+        recommendedScraper: analysis.recommendedScraper,
+        isStatic: analysis.isStatic,
+        requiresJS: analysis.requiresJS
+      })
+
+      // Try scrapers in order of suitability
+      const scraperOrder = this.determineScraperOrder(analysis, options)
+      
+      let lastError: Error | null = null
+      
+      for (const scraperName of scraperOrder) {
+        const scraper = this.getScraper(scraperName)  // Use getScraper for lazy creation
+        
+        if (!scraper) {
+          logger.warn('SCRAPER_FACTORY', `Scraper ${scraperName} not available`)
+          continue
+        }
+
+        if (!scraper.canHandle(url, analysis)) {
+          logger.info('SCRAPER_FACTORY', `Scraper ${scraperName} cannot handle ${url}`)
+          continue
+        }
+
+        try {
+          logger.info('SCRAPER_FACTORY', `Attempting scrape with ${scraperName}`, { url })
+          
+          // Emit scraper selection event
+          this.emit('scraperSelected', scraperName)
+          this.emit('log', {
+            level: 'info',
+            context: 'SCRAPER',
+            message: `Using ${scraperName} scraper for ${url}`
+          })
+          
+          this.activeScrapers.add(scraperName)
+          const result = await scraper.scrape(url, this.enrichOptions(options, analysis))
+          this.activeScrapers.delete(scraperName)
+          
+          logger.info('SCRAPER_FACTORY', 'Scrape successful', {
+            url,
+            scraper: scraperName,
+            duration: Date.now() - startTime,
+            dataPoints: result.data ? Object.keys(result.data).length : 
+                       Object.keys(result).filter(k => result[k] !== null && result[k] !== undefined).length
+          })
+          
+          return result
+          
+        } catch (error) {
+          this.activeScrapers.delete(scraperName)
+          lastError = error as Error
+          
+          logger.error('SCRAPER_FACTORY', `Scraper ${scraperName} failed`, {
+            url,
+            error: (error as Error).message,
+            duration: Date.now() - startTime
+          })
+          
+          // Continue to next scraper
+          continue
+        }
+      }
+
+      // All scrapers failed
+      throw new Error(`All scrapers failed for ${url}: ${lastError?.message || 'Unknown error'}`)
+      
+    } catch (error) {
+      logger.error('SCRAPER_FACTORY', 'Scraping failed completely', {
+        url,
+        error: (error as Error).message,
+        duration: Date.now() - startTime
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Analyze website to determine characteristics
+   * SIMPLIFIED: Skip axios analysis which often fails, go straight to Playwright
+   */
+  private async analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
+    logger.info('SCRAPER_FACTORY', 'Skipping axios analysis, using Playwright for all sites', { url })
+    
+    // Return analysis that prefers Playwright for everything
+    // This avoids axios failures (CORS, bot protection, etc.) that were causing all scraping to fail
+    return {
+      url,
+      frameworks: [],
+      isStatic: false,
+      requiresJS: true, // Assume JS required for safety
+      hasForms: false,
+      hasInfiniteScroll: false,
+      requiresCrossBrowser: false,
+      recommendedScraper: 'playwright' as 'cheerio' | 'puppeteer' | 'playwright' // Always use Playwright
+    }
+  }
+
+  /**
+   * Determine optimal scraper order based on analysis
+   * SIMPLIFIED: Always prioritize Playwright since it can handle all sites
+   */
+  private determineScraperOrder(analysis: WebsiteAnalysis, options: ScrapeOptions): string[] {
+    const order: string[] = []
+
+    // If user specified a scraper, try it first
+    if (options.browserType && this.scrapers.has(options.browserType)) {
+      order.push(options.browserType)
+    }
+
+    // ALWAYS prioritize Playwright - it can handle both static and dynamic sites
+    if (!order.includes('playwright') && this.scrapers.has('playwright')) {
+      order.push('playwright')
+    }
+    
+    // Add Cheerio as fallback only if Playwright isn't available
+    if (!order.includes('cheerio') && this.scrapers.has('cheerio')) {
+      order.push('cheerio')
+    }
+
+    // Ensure we have at least one scraper
+    if (order.length === 0) {
+      // Add any available scraper as last resort
+      for (const scraperName of this.scrapers.keys()) {
+        if (!order.includes(scraperName)) {
+          order.push(scraperName)
+        }
+      }
+    }
+
+    logger.info('SCRAPER_FACTORY', 'Determined scraper order', {
+      order,
+      reason: 'Prioritizing Playwright for maximum compatibility'
+    })
+
+    return order
+  }
+
+  /**
+   * Enrich options with framework-specific selectors
+   */
+  private enrichOptions(options: ScrapeOptions, analysis: WebsiteAnalysis): ScrapeOptions {
+    const enriched = { ...options }
+
+    // Add framework-specific selectors if not provided
+    if (!enriched.selectors && analysis.frameworks.length > 0) {
+      const topFramework = analysis.frameworks[0].framework
+      const frameworkSelectors = WebsiteDetector.getFrameworkSpecificSelectors(topFramework)
+      
+      if (Object.keys(frameworkSelectors).length > 0) {
+        enriched.selectors = frameworkSelectors
+        logger.info('SCRAPER_FACTORY', `Added ${topFramework} specific selectors`, {
+          selectors: Object.keys(frameworkSelectors)
+        })
+      }
+    }
+
+    // Adjust timeout based on complexity
+    if (!enriched.timeout) {
+      if (analysis.isStatic) {
+        enriched.timeout = 10000
+      } else if (analysis.requiresJS) {
+        enriched.timeout = 30000
+      } else {
+        enriched.timeout = 20000
+      }
+    }
+
+    // Enable scroll for infinite scroll sites
+    if (analysis.hasInfiniteScroll && enriched.scrollToBottom === undefined) {
+      enriched.scrollToBottom = true
+      logger.info('SCRAPER_FACTORY', 'Enabled auto-scroll for infinite scroll site')
+    }
+
+    return enriched
+  }
+
+  /**
+   * Wait for capacity if too many concurrent scrapers
+   */
+  private async waitForCapacity(): Promise<void> {
+    while (this.activeScrapers.size >= this.maxConcurrent) {
+      logger.info('SCRAPER_FACTORY', 'At capacity, waiting...', {
+        active: this.activeScrapers.size,
+        max: this.maxConcurrent
+      })
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  }
+
+  /**
+   * Get registered scrapers
+   */
+  getScrapers(): string[] {
+    return Array.from(this.scrapers.keys())
+  }
+
+  /**
+   * Get factory instance ID
+   */
+  getInstanceId(): string {
+    return this.instanceId
+  }
+
+  /**
+   * Get metrics
+   */
+  getMetrics(): Record<string, any> {
+    return {
+      registeredScrapers: this.getScrapers(),
+      activeScrapers: Array.from(this.activeScrapers),
+      capacity: `${this.activeScrapers.size}/${this.maxConcurrent}`
+    }
+  }
+
+  /**
+   * Cleanup all scrapers
+   */
+  async cleanup(): Promise<void> {
+    logger.info('SCRAPER_FACTORY', 'Cleaning up all scrapers')
+    
+    const cleanupPromises = Array.from(this.scrapers.values()).map(scraper => {
+      if (scraper.cleanup) {
+        return scraper.cleanup()
+      }
+      return Promise.resolve()
+    })
+
+    await Promise.all(cleanupPromises)
+    
+    this.scrapers.clear()
+    this.activeScrapers.clear()
+    
+    logger.info('SCRAPER_FACTORY', 'All scrapers cleaned up')
+  }
+}
+
+// Singleton instance
+let factoryInstance: ScraperFactory | null = null
+
+export function getScraperFactory(): ScraperFactory {
+  if (!factoryInstance) {
+    factoryInstance = new ScraperFactory()
+  }
+  return factoryInstance
+}
+
+export function resetScraperFactory(): void {
+  if (factoryInstance) {
+    factoryInstance.cleanup()
+    factoryInstance = null
+  }
+}

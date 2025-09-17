@@ -1,0 +1,162 @@
+/**
+ * URL Validation Utility
+ * 
+ * Validates that URLs actually exist (return 200-299 status codes)
+ * before including them in sitemaps or scraping operations.
+ * 
+ * CRITICAL: Prevents phantom URLs from being scraped
+ */
+
+import { permanentLogger } from './permanent-logger'
+
+/**
+ * Validates a single URL by making a HEAD request
+ * Returns true if URL exists (200-299 status), false otherwise
+ */
+export async function validateUrlExists(url: string): Promise<boolean> {
+  const startTime = Date.now()
+  
+  try {
+    permanentLogger.breadcrumb('url_validation_start', `Validating URL: ${url}`)
+    
+    // Make HEAD request to check if URL exists
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; ProjectGenie/1.0; +https://project-genie.com/bot)'
+      },
+      // Short timeout to avoid hanging on non-existent URLs
+      signal: AbortSignal.timeout(5000)
+    })
+    
+    const duration = Date.now() - startTime
+    const exists = response.ok // 200-299 status codes
+    
+    permanentLogger.breadcrumb('url_validation_complete', `URL validation completed`, {
+      url,
+      exists,
+      status: response.status,
+      duration
+    })
+    
+    if (!exists) {
+      permanentLogger.log('URL_VALIDATOR', `URL does not exist or is not accessible`, {
+        url,
+        status: response.status,
+        statusText: response.statusText,
+        duration
+      })
+    }
+    
+    return exists
+    
+  } catch (error) {
+    const duration = Date.now() - startTime
+    
+    permanentLogger.breadcrumb('url_validation_error', `URL validation failed`, {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+      duration
+    })
+    
+    permanentLogger.warn('URL_VALIDATOR', `Failed to validate URL`, {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+      duration
+    })
+    
+    // If we can't validate (network error, timeout, etc), assume URL doesn't exist
+    return false
+  }
+}
+
+/**
+ * Validates multiple URLs in parallel
+ * Returns array of valid URLs that actually exist
+ */
+export async function validateUrls(urls: string[]): Promise<string[]> {
+  const startTime = Date.now()
+  
+  permanentLogger.log('URL_VALIDATOR', `Starting batch URL validation`, {
+    totalUrls: urls.length
+  })
+  
+  // Validate all URLs in parallel
+  const validationResults = await Promise.all(
+    urls.map(async (url) => ({
+      url,
+      exists: await validateUrlExists(url)
+    }))
+  )
+  
+  // Filter to only valid URLs
+  const validUrls = validationResults
+    .filter(result => result.exists)
+    .map(result => result.url)
+  
+  const duration = Date.now() - startTime
+  const invalidCount = urls.length - validUrls.length
+  
+  permanentLogger.log('URL_VALIDATOR', `Batch URL validation completed`, {
+    totalUrls: urls.length,
+    validUrls: validUrls.length,
+    invalidUrls: invalidCount,
+    duration,
+    averageTimePerUrl: Math.round(duration / urls.length)
+  })
+  
+  if (invalidCount > 0) {
+    const invalidUrls = validationResults
+      .filter(result => !result.exists)
+      .map(result => result.url)
+    
+    permanentLogger.warn('URL_VALIDATOR', `Found invalid/phantom URLs`, {
+      invalidCount,
+      invalidUrls
+    })
+  }
+  
+  return validUrls
+}
+
+/**
+ * Checks if a URL is well-formed (syntactically valid)
+ * Does NOT check if the URL actually exists
+ */
+export function isValidUrlFormat(url: string): boolean {
+  try {
+    new URL(url)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Normalizes a URL by removing fragments and trailing slashes
+ */
+export function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.hash = ''
+    // Remove trailing slash unless it's the root path
+    if (parsed.pathname !== '/' && parsed.pathname.endsWith('/')) {
+      parsed.pathname = parsed.pathname.slice(0, -1)
+    }
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
+/**
+ * Extracts the domain from a URL
+ */
+export function extractDomain(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname
+  } catch {
+    return ''
+  }
+}

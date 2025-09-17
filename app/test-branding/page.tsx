@@ -1,0 +1,308 @@
+'use client'
+
+import { useState } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CharterView } from '@/components/documents/charter-view'
+import { RiskRegisterView } from '@/components/documents/risk-register-view'
+import { CheckCircle, Sparkles } from 'lucide-react'
+
+// Sample documents for testing
+const sampleCharter = {
+  executiveSummary: "This AI-Powered Healthcare Platform project aims to revolutionize healthcare delivery through intelligent automation and data-driven insights, making quality healthcare accessible to all.",
+  visionAndObjectives: {
+    vision: "To transform healthcare delivery through intelligent automation and data-driven insights",
+    objectives: [
+      { id: "O1", description: "Deliver MVP within 6 months", measurable: true, targetDate: "2025-06-30" },
+      { id: "O2", description: "Achieve 95% user satisfaction score", measurable: true, targetDate: "2025-Q3" }
+    ]
+  },
+  successCriteria: [
+    { criterion: "Project delivered on time", metric: "Schedule adherence", target: "95%", baseline: "Current baseline" },
+    { criterion: "Quality standards met", metric: "Defect rate", target: "<5%", baseline: "Industry average" }
+  ],
+  scope: {
+    inScope: ["Core AI functionality", "Healthcare provider portal", "Patient mobile app", "Integration with EHR systems"],
+    outOfScope: ["Legacy system migration", "Third-party customizations", "Hardware procurement"],
+    assumptions: ["Resources available as planned", "Stakeholder engagement maintained", "Regulatory approval obtained"],
+    constraints: ["Budget of $2M", "6-month timeline", "HIPAA compliance required"]
+  },
+  deliverables: [
+    { 
+      name: "AI Diagnostic Engine", 
+      description: "Core AI system for diagnostic assistance", 
+      acceptanceCriteria: ["99.9% uptime", "Sub-second response time", "FDA approval"],
+      targetSprint: "Sprint 8"
+    }
+  ],
+  stakeholderAnalysis: [
+    { role: "[CHIEF_MEDICAL_OFFICER]", interest: "high", influence: "high", communicationNeeds: "Weekly executive briefings" },
+    { role: "[HEAD_OF_IT]", interest: "high", influence: "medium", communicationNeeds: "Technical updates bi-weekly" }
+  ],
+  teamStructure: {
+    productOwner: "[PRODUCT_OWNER]",
+    scrumMaster: "[SCRUM_MASTER]",
+    developmentTeam: [
+      { role: "AI/ML Engineer", responsibilities: ["Model development", "Algorithm optimization"] },
+      { role: "Healthcare Domain Expert", responsibilities: ["Clinical validation", "Regulatory compliance"] }
+    ]
+  }
+}
+
+const sampleRiskRegister = {
+  risks: [
+    {
+      id: 'R001',
+      category: 'regulatory',
+      description: 'FDA approval delay for AI diagnostic features',
+      probability: 'medium',
+      impact: 'very_high',
+      score: 8,
+      proximity: 'within_stage',
+      response: 'reduce',
+      responseActions: ['Early FDA engagement', 'Phased approval approach'],
+      owner: '[REGULATORY_OFFICER]',
+      status: 'active'
+    },
+    {
+      id: 'R002',
+      category: 'technical',
+      description: 'Integration complexity with existing EHR systems',
+      probability: 'high',
+      impact: 'high',
+      score: 9,
+      proximity: 'immediate',
+      response: 'reduce',
+      responseActions: ['Conduct technical spike', 'Build abstraction layer'],
+      owner: '[TECH_LEAD]',
+      status: 'active'
+    },
+    {
+      id: 'R003',
+      category: 'operational',
+      description: 'Healthcare provider adoption resistance',
+      probability: 'medium',
+      impact: 'medium',
+      score: 5,
+      proximity: 'within_project',
+      response: 'reduce',
+      responseActions: ['Change management program', 'Pilot with key providers'],
+      owner: '[CHANGE_MANAGER]',
+      status: 'monitoring'
+    }
+  ]
+}
+
+export default function TestBrandingPage() {
+  const [userTier, setUserTier] = useState<'free' | 'basic' | 'premium'>('free')
+  const [selectedDoc, setSelectedDoc] = useState<'charter' | 'risk'>('charter')
+
+  const getBrandingSettings = (tier: string) => {
+    switch (tier) {
+      case 'premium':
+        return {
+          showBranding: false,
+          brandingText: '',
+          logoUrl: '/custom-logo.png',
+          primaryColor: '#0EA5E9',
+          footerText: '© 2024 Your Healthcare Company. All rights reserved.'
+        }
+      case 'basic':
+        return {
+          showBranding: true,
+          brandingText: 'Powered by Your Healthcare Platform',
+          logoUrl: '/company-logo.png',
+          primaryColor: '#3B82F6',
+          footerText: 'Generated with Your Platform'
+        }
+      default: // free
+        return {
+          showBranding: true,
+          brandingText: '🚀 Generated by Project Genie - Upgrade for custom branding',
+          logoUrl: null,
+          primaryColor: '#6B7280',
+          footerText: 'Generated by Project Genie'
+        }
+    }
+  }
+
+  const branding = getBrandingSettings(userTier)
+
+  return (
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Document Branding Test</h1>
+        <p className="text-muted-foreground">
+          View how documents appear with different subscription tier branding
+        </p>
+      </div>
+
+      {/* Success Message */}
+      <Card className="mb-6 border-green-200 bg-green-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            Documents Generated Successfully
+          </CardTitle>
+          <CardDescription>
+            3 documents created using mock provider • Formatted views ready
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {/* Tier Selector */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Select Subscription Tier</CardTitle>
+          <CardDescription>See how branding changes based on subscription</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <Button
+              variant={userTier === 'free' ? 'default' : 'outline'}
+              onClick={() => setUserTier('free')}
+              className="flex flex-col h-auto py-4"
+            >
+              <span className="font-semibold">Free Tier</span>
+              <span className="text-xs mt-1">Project Genie Branding</span>
+            </Button>
+            <Button
+              variant={userTier === 'basic' ? 'default' : 'outline'}
+              onClick={() => setUserTier('basic')}
+              className="flex flex-col h-auto py-4"
+            >
+              <span className="font-semibold">Basic ($19/mo)</span>
+              <span className="text-xs mt-1">Custom Branding</span>
+            </Button>
+            <Button
+              variant={userTier === 'premium' ? 'default' : 'outline'}
+              onClick={() => setUserTier('premium')}
+              className="flex flex-col h-auto py-4"
+            >
+              <span className="font-semibold">Premium ($49/mo)</span>
+              <span className="text-xs mt-1">White Label</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Branding Preview */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Current Branding Settings</CardTitle>
+          <Badge variant={userTier === 'premium' ? 'default' : userTier === 'basic' ? 'secondary' : 'outline'}>
+            {userTier.toUpperCase()} TIER
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="font-medium">Footer Text:</span>
+              <span className="text-muted-foreground">{branding.brandingText || 'Hidden'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Watermark:</span>
+              <span className="text-muted-foreground">
+                {userTier === 'free' ? 'Visible' : userTier === 'basic' ? 'Minimal' : 'None'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Custom Logo:</span>
+              <span className="text-muted-foreground">
+                {userTier === 'premium' ? 'Yes' : userTier === 'basic' ? 'Limited' : 'No'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Custom Colors:</span>
+              <span className="text-muted-foreground">
+                {userTier === 'premium' ? 'Full customization' : userTier === 'basic' ? 'Theme selection' : 'Default only'}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Document Viewer */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Document Preview</CardTitle>
+          <CardDescription>
+            Formatted document with {userTier} tier branding applied
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="charter">
+            <TabsList className="mb-4">
+              <TabsTrigger value="charter" onClick={() => setSelectedDoc('charter')}>
+                Project Charter
+              </TabsTrigger>
+              <TabsTrigger value="risk" onClick={() => setSelectedDoc('risk')}>
+                Risk Register
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="charter" className="border rounded-lg overflow-auto max-h-[600px]">
+              <CharterView 
+                content={sampleCharter}
+                showBranding={branding.showBranding}
+                brandingText={branding.brandingText}
+              />
+            </TabsContent>
+            
+            <TabsContent value="risk" className="border rounded-lg overflow-auto max-h-[600px]">
+              <RiskRegisterView 
+                content={sampleRiskRegister}
+                showBranding={branding.showBranding}
+                brandingText={branding.brandingText}
+              />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Feature Summary */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Features Demonstrated
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>Formatted document display (not JSON)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>Professional layouts with sections</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>Risk matrix visualization</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>Tier-based branding</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>PII protection with placeholders</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>DeepSeek integration ready</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

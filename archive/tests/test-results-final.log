@@ -1,0 +1,86 @@
+[dotenv@17.2.1] injecting env (22) from .env.local -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+
+🧪 COMPANY INTELLIGENCE UI TEST SUITE
+Testing progressive flow without API mocks
+
+Loaded test account from config: test@bigfluffy.ai
+🚀 [INFO] [init] 
+============================================================
+🎯 STAGE: INIT
+============================================================ 
+🚀 [INFO] [init] 🚀 Initializing Company Intelligence UI Test 
+🚀 [INFO] [init] ✅ Browser initialized successfully 
+🚀 [INFO] [init] Logging in to application 
+🚀 [INFO] [init] ✅ Login successful 
+🚀 [INFO] [init] Navigating to Company Intelligence page 
+🔍 [INFO] [site-analysis] 
+============================================================
+🎯 STAGE: SITE-ANALYSIS
+============================================================ 
+🔍 [INFO] [site-analysis] Entering domain: bigfluffy.ai 
+🔍 [DEBUG] [site-analysis] API Request: POST http://localhost:3001/api/company-intelligence/sessions 
+🔍 [INFO] [site-analysis] Pressing Enter to start the progressive flow 
+🔍 [DEBUG] [site-analysis] API Request: POST http://localhost:3001/api/company-intelligence/sessions 
+🔍 [INFO] [site-analysis] Waiting for Site Analyzer component 
+🔍 [DEBUG] [site-analysis] API Request: POST http://localhost:3001/api/company-intelligence/validate-domain 
+🔍 [INFO] [site-analysis] Waiting for site analysis to complete 
+🔍 [WARN] [site-analysis] API Response: 201 http://localhost:3001/api/company-intelligence/sessions 
+🔍 [WARN] [site-analysis] API Response: 500 http://localhost:3001/api/company-intelligence/sessions 
+🔍 [ERROR] [site-analysis] Browser console: Failed to load resource: the server responded with a status of 500 (Internal Server Error) 
+🔍 [ERROR] [site-analysis] Browser console: ❌ [PHASE_STATE] Failed to create session {status: 500, error: Object} 
+🔍 [ERROR] [site-analysis] Browser console: ❌ [PHASE_STATE] Failed to initialize session {error: Error: Failed to create session
+    at usePhaseState.useCallback[initializeSession] (webpack-intern…, domain: bigfluffy.ai} 
+🔍 [ERROR] [site-analysis] Browser console: ❌ [PHASE_CONTROLS] Failed to initialize session {error: Error: Failed to create session
+    at usePhaseState.useCallback[initializeSession] (webpack-intern…} 
+🔍 [DEBUG] [site-analysis] API Request: POST http://localhost:3001/api/company-intelligence/analyze-site 
+🔍 [INFO] [site-analysis] Site type detected: NEXTJS 
+🔍 [DEBUG] [site-analysis] API Request: PATCH http://localhost:3001/api/company-intelligence/sessions 
+🔍 [DEBUG] [site-analysis] API Request: POST http://localhost:3001/api/company-intelligence/fetch-sitemap 
+🔍 [DEBUG] [site-analysis] API Request: POST http://localhost:3001/api/company-intelligence/fetch-sitemap 
+🔍 [WARN] [site-analysis] API Response: 405 http://localhost:3001/api/company-intelligence/sessions 
+🔍 [ERROR] [site-analysis] Browser console: Failed to load resource: the server responded with a status of 405 (Method Not Allowed) 
+🔍 [INFO] [site-analysis] ✅ Site Analysis stage completed 
+🗺️ [INFO] [sitemap] 
+============================================================
+🎯 STAGE: SITEMAP
+============================================================ 
+🗺️ [INFO] [sitemap] Waiting for Sitemap Selector 
+🗺️ [INFO] [sitemap] 🔄 Testing SSE streaming for incremental updates 
+🗺️ [INFO] [sitemap] Waiting for sitemap to auto-fetch with incremental updates 
+🗺️ [ERROR] [sitemap] Sitemap Discovery failed: TimeoutError: page.waitForSelector: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('[role="tree"]') to be visible[22m
+ 
+🗺️ [ERROR] [sitemap] Progressive flow failed: TimeoutError: page.waitForSelector: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('[role="tree"]') to be visible[22m
+ 
+✅ [INFO] [complete] 
+============================================================
+🎯 STAGE: COMPLETE
+============================================================ 
+
+======================================================================
+COMPANY INTELLIGENCE UI TEST SUMMARY
+======================================================================
+
+📋 Session ID: 4283fbf5-25c8-41f0-8307-d12c726d5de5
+🌐 Domain Tested: bigfluffy.ai
+👤 Test Account: test@bigfluffy.ai
+⏱️  Total Duration: 0.00s
+
+📊 Stage Results:
+  ✅ site-analysis: PASSED (4.50s)
+  ❌ sitemap: FAILED (30.01s)
+     Error: TimeoutError: page.waitForSelector: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('[role="tree"]') to be visible[22m
+
+
+📈 Overall Result:
+  ❌ TESTS FAILED
+  Failed Stages: sitemap
+
+📁 Full report saved to: test-results/4283fbf5-25c8-41f0-8307-d12c726d5de5/report.json
+📹 Videos saved to: test-results/4283fbf5-25c8-41f0-8307-d12c726d5de5/videos
+📝 Logs saved to: test-results/4283fbf5-25c8-41f0-8307-d12c726d5de5/logs.json

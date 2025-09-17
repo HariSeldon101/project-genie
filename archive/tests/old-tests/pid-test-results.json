@@ -1,0 +1,23 @@
+[
+  {
+    "config": {
+      "maxTokens": 1500,
+      "reasoningEffort": "minimal",
+      "description": "1500 tokens, minimal reasoning"
+    },
+    "success": true,
+    "duration": 119134,
+    "tokenUsage": {
+      "input": 500,
+      "output": 827,
+      "reasoning": 2481,
+      "total": 3808
+    },
+    "cost": 0.0006741000000000001,
+    "documentQuality": {
+      "hasAllSections": true,
+      "sectionCount": 10,
+      "wordCount": 139
+    }
+  }
+]

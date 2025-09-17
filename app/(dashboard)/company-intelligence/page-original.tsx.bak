@@ -1,0 +1,1467 @@
+'use client'
+
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Slider } from '@/components/ui/slider'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { 
+  Search, 
+  Globe, 
+  Building2, 
+  Users, 
+  Package, 
+  TrendingUp,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Download,
+  Eye,
+  RefreshCw,
+  Settings,
+  Code,
+  Database,
+  Activity,
+  Bug,
+  Terminal,
+  Trash2,
+  Copy,
+  ExternalLink,
+  HelpCircle,
+  Info,
+  Monitor,
+  FileText,
+  BarChart3,
+  DollarSign,
+  Zap,
+  Shield,
+  Brain
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { AnimatedBackgroundSubtle } from '@/components/animated-background-subtle'
+import { UnifiedPackFormatter } from '@/lib/documents/formatters/unified-pack-formatter'
+import { AdvancedSettingsPanel, type AdvancedSettings } from '@/components/company-intelligence/advanced-settings-panel'
+import { ReviewGateManager, ProcessingStage, type StageReview } from '@/lib/company-intelligence/services/review-gate-manager'
+import { AllowedModel } from '@/lib/llm/services/model-selector'
+import DOMPurify from 'dompurify'
+import mermaid from 'mermaid'
+import { ScraperStatus } from '@/components/company-intelligence/scraper-status'
+import { StageReviewPanel } from '@/components/company-intelligence/stage-review-panel'
+import { SiteStructureVisualizer } from '@/components/company-intelligence/site-structure-visualizer'
+import { BrandAssetsPanel } from '@/components/company-intelligence/brand-assets-panel'
+import { ContentViewer } from '@/components/company-intelligence/content-viewer'
+import { ImageGallery } from '@/components/company-intelligence/image-gallery'
+import { NavigationMap } from '@/components/company-intelligence/navigation-map'
+
+interface ResearchOptions {
+  depth: 'basic' | 'standard' | 'comprehensive'
+  includeNews: boolean
+  includeCompetitors: boolean
+  includeSocialMedia: boolean
+  includeFinancials: boolean
+  includeTechStack: boolean
+  maxPages: number
+  timeout: number
+  scraperMode: 'auto' | 'static' | 'dynamic'
+}
+
+// Metric status for visual indicators
+type MetricStatus = 'excellent' | 'good' | 'fair' | 'poor'
+
+function getMetricStatus(value: number): MetricStatus {
+  if (value >= 80) return 'excellent'
+  if (value >= 60) return 'good'
+  if (value >= 40) return 'fair'
+  return 'poor'
+}
+
+function getMetricColor(status: MetricStatus): string {
+  switch (status) {
+    case 'excellent': return 'text-green-600'
+    case 'good': return 'text-blue-600'
+    case 'fair': return 'text-yellow-600'
+    case 'poor': return 'text-red-600'
+  }
+}
+
+interface ResearchStatus {
+  status: 'idle' | 'discovering' | 'researching' | 'completed' | 'failed'
+  progress: number
+  currentPhase: string
+  pagesScraped: number
+  totalPages: number
+  discoveredUrls: number
+  duration: number
+  startTime: number | null
+  errors: string[]
+}
+
+interface LogEntry {
+  timestamp: Date
+  level: 'info' | 'warn' | 'error' | 'debug' | 'success'
+  message: string
+  details?: any
+  source?: string
+}
+
+interface ErrorLog {
+  timestamp: Date
+  type: string
+  message: string
+  stack?: string
+  request?: any
+  response?: any
+  phase?: string
+}
+
+export default function CompanyIntelligencePage() {
+  const [domain, setDomain] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  
+  // Advanced settings state
+  const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>({
+    model: {
+      selected: AllowedModel.GPT5_NANO,
+      reasoningLevel: 'medium',
+      autoSelect: false,
+      environment: 'testing'
+    },
+    webSearch: {
+      enabled: true,
+      searchType: 'agentic',
+      contextSize: 'medium',
+      maxSearches: 5,
+      domains: [],
+      blockedDomains: [],
+      userLocation: 'United States'
+    },
+    scraping: {
+      mode: 'auto',
+      maxPages: 50,  // Increased from 10 to capture all discovered pages
+      batchSize: 3,
+      delayBetweenBatches: 1000,
+      timeout: 60000,
+      retryAttempts: 3,
+      followRedirects: true,
+      respectRobotsTxt: true
+    },
+    qualityControl: {
+      enableReviewGates: true,
+      autoApproveThreshold: 80,
+      requireManualReview: false,
+      abortOnCriticalIssues: true,
+      minDataQuality: 60,
+      minSourceDiversity: 40
+    },
+    costManagement: {
+      maxBudgetPerRequest: 1.0,
+      alertThreshold: 0.5,
+      autoOptimize: true,
+      trackUsage: true
+    },
+    output: {
+      format: 'html',
+      includeSourceCitations: true,
+      includeMermaidDiagrams: true,
+      includeDataQualityBadges: true,
+      verbosity: 'normal'
+    }
+  })
+  
+  const [status, setStatus] = useState<ResearchStatus>({
+    status: 'idle',
+    progress: 0,
+    currentPhase: '',
+    pagesScraped: 0,
+    totalPages: 0,
+    discoveredUrls: 0,
+    duration: 0,
+    startTime: null,
+    errors: []
+  })
+  const [result, setResult] = useState<any>(null)
+  const [debugMode, setDebugMode] = useState(false)
+  const [recentJobs, setRecentJobs] = useState<any[]>([])
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([])
+  const [autoScroll, setAutoScroll] = useState(true)
+  const logsEndRef = useRef<HTMLDivElement>(null)
+  const errorLogsEndRef = useRef<HTMLDivElement>(null)
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
+  
+  // Enhanced scraper status state
+  // Stage review states
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [currentStage, setCurrentStage] = useState<'scraping' | 'extraction' | 'enrichment' | 'generation' | null>(null)
+  const [stageData, setStageData] = useState<any>(null)
+  const [showStageReview, setShowStageReview] = useState(false)
+  
+  const [scraperStatus, setScraperStatus] = useState<{
+    status: 'idle' | 'detecting' | 'scraping' | 'processing' | 'completed' | 'error'
+    frameworkDetection?: {
+      frameworks: Array<{ framework: string; confidence: number }>
+      recommendedScraper: string
+      isStatic: boolean
+      requiresJS: boolean
+    }
+    currentScraper?: string
+    progress?: number
+    logs?: Array<{
+      timestamp: string
+      level: 'info' | 'warn' | 'error' | 'success'
+      context: string
+      message: string
+      data?: any
+    }>
+    error?: string
+  }>({
+    status: 'idle',
+    logs: []
+  })
+
+  // Timer update effect
+  useEffect(() => {
+    if (status.status === 'discovering' || status.status === 'researching') {
+      // Start timer
+      timerIntervalRef.current = setInterval(() => {
+        setStatus(prev => ({
+          ...prev,
+          duration: prev.startTime ? Date.now() - prev.startTime : 0
+        }))
+      }, 100) // Update every 100ms for smooth display
+      
+      return () => {
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current)
+          timerIntervalRef.current = null
+        }
+      }
+    } else {
+      // Stop timer
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
+      }
+    }
+  }, [status.status, status.startTime])
+  
+  // Cleanup SSE on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+    }
+  }, [])
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (autoScroll && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [logs, autoScroll])
+
+  useEffect(() => {
+    if (autoScroll && errorLogsEndRef.current) {
+      errorLogsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [errorLogs, autoScroll])
+
+  // Add log entry
+  const addLog = (level: LogEntry['level'], message: string, details?: any, source?: string) => {
+    const entry: LogEntry = {
+      timestamp: new Date(),
+      level,
+      message,
+      details,
+      source
+    }
+    setLogs(prev => [...prev, entry])
+    
+    // Also log to console for debugging
+    const logFn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log
+    logFn(`[${source || 'COMPANY-INTEL'}] ${message}`, details || '')
+  }
+
+  // Add error log
+  const addErrorLog = (error: any, phase?: string, request?: any, response?: any) => {
+    const errorLog: ErrorLog = {
+      timestamp: new Date(),
+      type: error.name || 'Error',
+      message: error.message || 'Unknown error',
+      stack: error.stack,
+      request,
+      response,
+      phase
+    }
+    setErrorLogs(prev => [...prev, errorLog])
+    addLog('error', error.message || 'Unknown error', { error, phase }, 'ERROR')
+  }
+
+  
+  const startResearch = async () => {
+    // Clear previous state
+    setLogs([])
+    setErrorLogs([])
+    setSessionId(null)
+    setCurrentStage(null)
+    setStageData(null)
+    setShowStageReview(false)
+    setResult(null)
+    
+    // Clean up any existing SSE connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    
+    if (debugMode) {
+      addLog('info', '=== Starting STAGE-BY-STAGE research ===', null, 'SYSTEM')
+    }
+
+    // Get auth token for API call (optional for test mode)
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!domain) {
+      const error = 'Please enter a company domain'
+      toast.error(error)
+      addErrorLog(new Error(error), 'Validation')
+      return
+    }
+
+    // Validate domain format
+    try {
+      new URL(`https://${domain}`)
+      addLog('success', `Domain validated: ${domain}`, null, 'VALIDATION')
+    } catch {
+      const error = 'Invalid domain format. Please enter a valid domain (e.g., stripe.com)'
+      toast.error(error)
+      addErrorLog(new Error(error), 'Validation', { domain })
+      return
+    }
+
+    const startTime = Date.now()
+    const newSessionId = crypto.randomUUID()
+    setSessionId(newSessionId)
+    
+    // Start with discovery phase
+    setStatus({
+      status: 'discovering',
+      progress: 5,
+      currentPhase: 'Discovering pages and sitemap...',
+      pagesScraped: 0,
+      totalPages: 0,
+      discoveredUrls: 0,
+      duration: 0,
+      startTime: startTime,
+      errors: []
+    })
+    
+    // Connect to SSE for real-time updates
+    const eventSource = new EventSource(`/api/company-intelligence/progress?sessionId=${newSessionId}`)
+    eventSourceRef.current = eventSource
+    
+    // Handle SSE events
+    eventSource.addEventListener('discovery_sitemap', (e) => {
+      const data = JSON.parse(e.data)
+      addLog('info', `Found ${data.count} URLs in sitemap`, data.urls, 'DISCOVERY')
+      setStatus(prev => ({
+        ...prev,
+        currentPhase: `Found ${data.count} URLs in sitemap...`,
+        progress: 8
+      }))
+    })
+    
+    eventSource.addEventListener('discovery_complete', (e) => {
+      const data = JSON.parse(e.data)
+      addLog('success', `Discovery complete: Found ${data.totalUrls} total URLs`, {
+        sitemapUrls: data.sitemapUrls,
+        crawledUrls: data.crawledUrls
+      }, 'DISCOVERY')
+      setStatus(prev => ({
+        ...prev,
+        status: 'researching',
+        currentPhase: `Found ${data.totalUrls} pages! Starting scraping...`,
+        progress: 15,
+        discoveredUrls: data.totalUrls,
+        totalPages: data.totalUrls
+      }))
+    })
+    
+    eventSource.addEventListener('scraping_start', (e) => {
+      const data = JSON.parse(e.data)
+      addLog('info', `Starting to scrape ${data.totalPages} pages`, data, 'SCRAPING')
+      setStatus(prev => ({
+        ...prev,
+        currentPhase: `Scraping ${data.totalPages} pages...`,
+        progress: 20
+      }))
+    })
+    
+    eventSource.addEventListener('scraping_page', (e) => {
+      const data = JSON.parse(e.data)
+      if (data.success) {
+        setStatus(prev => ({
+          ...prev,
+          currentPhase: `Scraped page ${data.pageNumber} of ${data.totalPages}`,
+          pagesScraped: data.pageNumber,
+          progress: 20 + Math.floor((data.pageNumber / data.totalPages) * 60)
+        }))
+      }
+    })
+    
+    // Add handler for scraping_progress events from heartbeat
+    eventSource.addEventListener('scraping_progress', (e) => {
+      const data = JSON.parse(e.data)
+      const progressPercent = data.total > 0 ? (data.completed / data.total) * 100 : 0
+      setStatus(prev => ({
+        ...prev,
+        currentPhase: `Scraping: ${data.completed} of ${data.total} pages (${data.velocity} pages/sec)`,
+        pagesScraped: data.completed,
+        totalPages: data.total,
+        progress: 20 + Math.floor(progressPercent * 0.6), // 20-80% range for scraping
+        duration: Date.now() - prev.startTime
+      }))
+      
+      // Log progress details if in debug mode
+      if (debugMode && data.currentPages?.length > 0) {
+        addLog('info', `Currently scraping: ${data.currentPages.join(', ')}`, {
+          velocity: data.velocity,
+          estimatedRemaining: data.estimatedRemaining
+        }, 'PROGRESS')
+      }
+    })
+    
+    eventSource.addEventListener('scraping_complete', (e) => {
+      const data = JSON.parse(e.data)
+      addLog('success', `Scraping complete: ${data.totalScraped} of ${data.totalAttempted} pages`, data, 'SCRAPING')
+      setStatus(prev => ({
+        ...prev,
+        currentPhase: `Scraping complete! ${data.totalScraped} pages scraped.`,
+        progress: 80
+      }))
+    })
+    
+    eventSource.addEventListener('error', (e) => {
+      const data = JSON.parse(e.data)
+      addLog('error', `Error: ${data.message}`, data, 'ERROR')
+    })
+    
+    eventSource.onerror = () => {
+      addLog('warn', 'SSE connection lost', null, 'SSE')
+    }
+    setResult(null)
+
+    addLog('info', 'Starting discovery phase...', { domain }, 'DISCOVERY')
+    
+    addLog('info', 'Starting Stage 1: Web Scraping', { 
+      domain, 
+      model: advancedSettings.model.selected,
+      maxPages: advancedSettings.scraping.maxPages
+    }, 'STAGE-REVIEW')
+
+    try {
+      // Stage 1: Start scraping ONLY
+      const requestBody = {
+        stage: 'start',
+        domain,
+        sessionId: newSessionId,  // Pass sessionId for progress tracking
+        options: {
+          maxPages: advancedSettings.scraping.maxPages,
+          timeout: advancedSettings.scraping.timeout,
+          scraperMode: advancedSettings.scraping.mode
+        }
+      }
+
+      addLog('debug', 'Starting scraping phase', requestBody, 'API')
+
+      // Call stage-review endpoint to START scraping only
+      const response = await fetch('/api/company-intelligence/stage-review', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'x-test-mode': 'true' // For development
+        },
+        body: JSON.stringify(requestBody)
+      })
+      
+      // Handle JSON response for stage review
+      if (!response.ok) {
+        let errorData
+        let errorMessage = `Research failed with status ${response.status}`
+        
+        try {
+          const contentType = response.headers.get('content-type')
+          
+          if (contentType?.includes('application/json')) {
+            errorData = await response.json()
+            errorMessage = errorData.message || errorMessage
+          } else if (contentType?.includes('text/html')) {
+            const text = await response.text()
+            errorMessage = 'Received HTML instead of JSON - likely a server error'
+            errorData = { 
+              html: text.substring(0, 500), 
+              contentType,
+              hint: 'Server returned HTML, possibly a 404 or 500 error page'
+            }
+            addLog('error', 'Invalid response format', errorData, 'API')
+          } else {
+            const text = await response.text()
+            errorMessage = text || errorMessage
+            errorData = { rawText: text, contentType }
+          }
+        } catch (parseError) {
+          addLog('error', 'Failed to parse error response', parseError, 'API')
+          errorData = { parseError: parseError instanceof Error ? parseError.message : 'Unknown' }
+        }
+
+        addErrorLog(
+          new Error(errorMessage),
+          'API Response',
+          requestBody,
+          { status: response.status, data: errorData }
+        )
+        throw new Error(errorMessage)
+      }
+
+      // Parse successful response
+      const data = await response.json()
+      
+      const discoveredCount = data.data?.discoveredUrls || data.data?.pages?.length || 0
+      const scrapedCount = data.data?.pages?.filter((p: any) => p.content)?.length || 0
+      
+      // Update status to show discovery complete
+      setStatus(prev => ({
+        ...prev,
+        status: 'researching',
+        currentPhase: `Discovery complete! Found ${discoveredCount} pages. Starting scraping...`,
+        progress: 15,
+        discoveredUrls: discoveredCount,
+        totalPages: discoveredCount,
+        pagesScraped: 0  // Reset scraped count
+      }))
+      
+      addLog('success', `Discovery complete: Found ${discoveredCount} URLs`, {
+        discovered: discoveredCount,
+        scraped: scrapedCount
+      }, 'DISCOVERY')
+      
+      addLog('success', 'Stage 1 Complete: Scraping finished', { 
+        sessionId: data.sessionId,
+        stage: data.stage,
+        pagesScraped: scrapedCount,
+        totalPages: discoveredCount
+      }, 'STAGE-REVIEW')
+      
+      // Store session ID and scraped data
+      setSessionId(data.sessionId)
+      setCurrentStage('scraping')
+      setStageData(data.data)
+      
+      // Show stage review panel for user approval
+      setShowStageReview(true)
+      
+      setStatus(prev => ({
+        ...prev,
+        status: 'idle',
+        progress: 25,
+        currentPhase: 'Awaiting approval for scraped content',
+        pagesScraped: scrapedCount,  // Use the actual scraped count
+        totalPages: discoveredCount,  // Use the actual discovered count
+        discoveredUrls: discoveredCount,  // Use the actual discovered count
+        duration: Date.now() - (prev.startTime || Date.now())
+      }))
+      
+      toast.success('Web scraping complete! Please review the scraped content.')
+      
+      // The approval/rejection will be handled by the StageReviewPanel
+      
+    } catch (error) {
+      console.error('Research failed:', error)
+      
+      let errorMessage = 'Unknown error'
+      if (error instanceof Error) {
+        errorMessage = error.message
+        
+        // Check for specific error patterns
+        if (errorMessage.includes('<!DOCTYPE') || errorMessage.includes('<html')) {
+          errorMessage = 'Server returned HTML instead of JSON - check API endpoint'
+          addLog('error', 'API endpoint issue detected', {
+            hint: 'The API might be returning an error page or the endpoint might not exist',
+            originalError: error.message.substring(0, 200)
+          }, 'DIAGNOSIS')
+        }
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        errorMessage = String(error.message)
+      }
+      
+      setStatus(prev => ({
+        ...prev,
+        status: 'failed',
+        progress: 0,
+        currentPhase: 'Research failed',
+        pagesScraped: 0,
+        duration: Date.now() - (prev.startTime || Date.now()),
+        errors: [errorMessage]
+      }))
+      
+      toast.error('Research failed: ' + errorMessage)
+      addErrorLog(error, 'Research Failed', { domain, advancedSettings })
+    }
+  }
+
+  // Handle stage review approval
+  const handleStageApproval = async () => {
+    if (!sessionId || !currentStage) {
+      toast.error('No active session to continue')
+      return
+    }
+    
+    addLog('info', `Stage ${currentStage} approved by user`, null, 'STAGE-REVIEW')
+    setShowStageReview(false)
+    
+    // Continue to next stage based on current stage
+    const nextStage = getNextStage(currentStage)
+    if (!nextStage) {
+      toast.error('Process complete')
+      return
+    }
+    
+    try {
+      const requestBody = {
+        stage: 'continue',
+        sessionId,
+        nextStage,
+        approved: true
+      }
+      
+      addLog('debug', `Continuing to ${nextStage}`, requestBody, 'API')
+      
+      const response = await fetch('/api/company-intelligence/stage-review', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to continue: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      
+      // Update state with new stage data
+      setCurrentStage(nextStage)
+      setStageData(data.data)
+      
+      if (nextStage === 'generation') {
+        // Final stage - we have the complete pack
+        setResult(data.data)
+        setStatus({
+          status: 'completed',
+          progress: 100,
+          currentPhase: 'Research complete!',
+          pagesScraped: status.pagesScraped,
+          duration: Date.now() - status.duration,
+          errors: []
+        })
+        toast.success('Research completed successfully!')
+        addLog('success', 'Research completed with user approval at each stage', null, 'COMPLETE')
+      } else {
+        // Show review for next stage
+        setShowStageReview(true)
+        setStatus(prev => ({
+          ...prev,
+          progress: prev.progress + 25,
+          currentPhase: `Awaiting approval for ${nextStage}`
+        }))
+      }
+    } catch (error) {
+      addErrorLog(error, `Failed to continue to next stage`, { sessionId, currentStage })
+      toast.error('Failed to continue process')
+    }
+  }
+  
+  // Handle stage review rejection
+  const handleStageRejection = (reason?: string) => {
+    addLog('warn', `Stage ${currentStage} rejected by user`, { reason }, 'STAGE-REVIEW')
+    setShowStageReview(false)
+    setSessionId(null)
+    setCurrentStage(null)
+    setStageData(null)
+    setStatus({
+      status: 'failed',
+      progress: 0,
+      currentPhase: 'Process aborted by user',
+      pagesScraped: 0,
+      duration: 0,
+      errors: [`User rejected ${currentStage}: ${reason || 'No reason provided'}`]
+    })
+    toast.error('Process aborted. You can start a new research with different settings.')
+  }
+  
+  // Get next stage in the process
+  const getNextStage = (current: string): string | null => {
+    const stages = ['scraping', 'extraction', 'enrichment', 'generation']
+    const currentIndex = stages.indexOf(current)
+    return currentIndex >= 0 && currentIndex < stages.length - 1 
+      ? stages[currentIndex + 1]
+      : null
+  }
+
+  const downloadResult = () => {
+    if (!result) return
+    
+    const dataStr = JSON.stringify(result, null, 2)
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr)
+    
+    const exportFileDefaultName = `${result.domain}-intelligence-${new Date().toISOString()}.json`
+    
+    const linkElement = document.createElement('a')
+    linkElement.setAttribute('href', dataUri)
+    linkElement.setAttribute('download', exportFileDefaultName)
+    linkElement.click()
+    
+    addLog('info', `Downloaded results for ${result.domain}`, null, 'EXPORT')
+  }
+
+  const clearLogs = () => {
+    setLogs([])
+    setErrorLogs([])
+    addLog('info', 'Logs cleared', null, 'SYSTEM')
+  }
+
+  const copyLogs = () => {
+    const logText = logs.map(log => 
+      `[${log.timestamp.toISOString()}] [${log.level.toUpperCase()}] [${log.source || 'APP'}] ${log.message} ${log.details ? JSON.stringify(log.details) : ''}`
+    ).join('\n')
+    
+    navigator.clipboard.writeText(logText)
+    toast.success('Logs copied to clipboard')
+  }
+
+  const getLevelColor = (level: LogEntry['level']) => {
+    switch (level) {
+      case 'error': return 'text-red-500'
+      case 'warn': return 'text-yellow-500'
+      case 'success': return 'text-green-500'
+      case 'debug': return 'text-blue-500'
+      default: return 'text-gray-500'
+    }
+  }
+
+  return (
+    <div className="relative flex-1 space-y-6 p-8">
+      <AnimatedBackgroundSubtle />
+      
+      <div className="relative z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Company Intelligence Testing</h1>
+            <p className="text-muted-foreground">
+              Development dashboard for testing and debugging company research
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="px-3 py-1">
+              <Bug className="mr-2 h-3 w-3" />
+              Debug: {debugMode ? 'ON' : 'OFF'}
+            </Badge>
+            <Badge variant="outline" className="px-3 py-1">
+              <Activity className="mr-2 h-3 w-3" />
+              Logs: {logs.length}
+            </Badge>
+            {errorLogs.length > 0 && (
+              <Badge variant="destructive" className="px-3 py-1">
+                <AlertCircle className="mr-2 h-3 w-3" />
+                Errors: {errorLogs.length}
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <TooltipProvider>
+          <Tabs defaultValue="research" className="mt-6">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="research">
+                <Search className="mr-2 h-4 w-4" />
+                Research
+              </TabsTrigger>
+              <TabsTrigger value="configuration">
+                <Settings className="mr-2 h-4 w-4" />
+                Configuration
+              </TabsTrigger>
+              <TabsTrigger value="results" disabled={!result}>
+                <FileText className="mr-2 h-4 w-4" />
+                Results
+              </TabsTrigger>
+              <TabsTrigger value="monitor">
+                <Monitor className="mr-2 h-4 w-4" />
+                Monitor
+                {(logs.length > 0 || errorLogs.length > 0) && (
+                  <Badge variant="outline" className="ml-2 px-1 py-0">
+                    {logs.length + errorLogs.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="analytics">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Analytics
+              </TabsTrigger>
+            </TabsList>
+
+          {/* Research Tab - Main Action */}
+            <TabsContent value="research" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Company Research</CardTitle>
+                      <CardDescription>
+                        Enter a company domain to gather intelligence
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="advanced-mode" className="text-sm">
+                        Advanced Mode
+                      </Label>
+                      <Switch
+                        id="advanced-mode"
+                        checked={showAdvanced}
+                        onCheckedChange={setShowAdvanced}
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Domain Input */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="domain">Company Domain</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">
+                            Enter the company's website domain (e.g., stripe.com).<br/>
+                            The system will gather comprehensive intelligence about the company.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Input
+                        id="domain"
+                        placeholder="e.g., stripe.com"
+                        value={domain}
+                        onChange={(e) => setDomain(e.target.value)}
+                        disabled={status.status === 'researching'}
+                      />
+                      <Button 
+                        onClick={startResearch}
+                        disabled={status.status === 'researching' || !domain}
+                        size="default"
+                      >
+                        {(status.status === 'discovering' || status.status === 'researching') ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Researching...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="mr-2 h-4 w-4" />
+                            Start Research
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Popular test domains: stripe.com • github.com • vercel.com • supabase.com
+                    </p>
+                  </div>
+                  
+                  {/* Quick Settings (shown when not in advanced mode) */}
+                  {!showAdvanced && (
+                    <Card className="bg-muted/50">
+                      <CardContent className="pt-4">
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-sm">AI Model</Label>
+                            <RadioGroup 
+                              value={advancedSettings.model.selected}
+                              onValueChange={(value) => setAdvancedSettings(prev => ({
+                                ...prev,
+                                model: { ...prev.model, selected: value as AllowedModel }
+                              }))}
+                              className="mt-2"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value={AllowedModel.GPT5_NANO} id="nano" />
+                                <Label htmlFor="nano" className="text-sm font-normal cursor-pointer">
+                                  GPT-5 Nano (Fast, ~$0.02)
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value={AllowedModel.GPT5_MINI} id="mini" />
+                                <Label htmlFor="mini" className="text-sm font-normal cursor-pointer">
+                                  GPT-5 Mini (Balanced, ~$0.10) ⭐
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value={AllowedModel.GPT5} id="full" />
+                                <Label htmlFor="full" className="text-sm font-normal cursor-pointer">
+                                  GPT-5 (Best, ~$0.50)
+                                </Label>
+                              </div>
+                            </RadioGroup>
+                          </div>
+                          
+                          <Separator />
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">Max Pages to Scrape</Label>
+                              <span className="text-sm text-muted-foreground">
+                                {advancedSettings.scraping.maxPages} pages
+                              </span>
+                            </div>
+                            <Slider
+                              value={[advancedSettings.scraping.maxPages]}
+                              onValueChange={(value) => setAdvancedSettings(prev => ({
+                                ...prev,
+                                scraping: { ...prev.scraping, maxPages: value[0] }
+                              }))}
+                              min={10}
+                              max={100}
+                              step={10}
+                              className="w-full"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              More pages = deeper research but longer processing
+                            </p>
+                          </div>
+                          
+                          <Separator />
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="text-sm">Enable Web Search</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Find real-time information
+                              </p>
+                            </div>
+                            <Switch
+                              checked={advancedSettings.webSearch.enabled}
+                              onCheckedChange={(checked) => setAdvancedSettings(prev => ({
+                                ...prev,
+                                webSearch: { ...prev.webSearch, enabled: checked }
+                              }))}
+                            />
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="text-sm">Quality Gates</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Review data at each stage
+                              </p>
+                            </div>
+                            <Switch
+                              checked={advancedSettings.qualityControl.enableReviewGates}
+                              onCheckedChange={(checked) => setAdvancedSettings(prev => ({
+                                ...prev,
+                                qualityControl: { ...prev.qualityControl, enableReviewGates: checked }
+                              }))}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  
+                  {/* Enhanced Scraper Status - Shows when scraping is active */}
+                  {(scraperStatus.status !== 'idle' || status.currentPhase === 'Scraping website') && (
+                    <ScraperStatus
+                      status={scraperStatus.status}
+                      frameworkDetection={scraperStatus.frameworkDetection}
+                      currentScraper={scraperStatus.currentScraper}
+                      progress={scraperStatus.progress || status.progress}
+                      logs={scraperStatus.logs}
+                      error={scraperStatus.error}
+                    />
+                  )}
+                  
+                  {/* Stage Review Panel - Shows when data needs approval */}
+                  {showStageReview && stageData && (
+                    <StageReviewPanel
+                      stage={currentStage || 'scraping'}
+                      data={stageData}
+                      onApprove={handleStageApproval}
+                      onReject={handleStageRejection}
+                    />
+                  )}
+                  
+                  {/* Standard Progress Card - Shows for non-scraping phases */}
+                  {status.status !== 'idle' && !showStageReview && status.currentPhase !== 'Scraping website' && scraperStatus.status === 'idle' && (
+                    <Card>
+                      <CardContent className="pt-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            {status.status === 'researching' && (
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                          )}
+                          {status.status === 'completed' && (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          )}
+                          {status.status === 'failed' && (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          )}
+                          <span className="text-sm font-medium">{status.currentPhase}</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground font-mono">
+                          {(status.duration / 1000).toFixed(1)}s
+                        </span>
+                      </div>
+                      
+                      <Progress value={status.progress} />
+                      
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Discovered:</span>
+                          <span className="ml-2 font-medium">{status.discoveredUrls || 0} URLs</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Scraped:</span>
+                          <span className="ml-2 font-medium">
+                            {status.pagesScraped}{status.totalPages > 0 ? ` / ${status.totalPages}` : ''}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Progress:</span>
+                          <span className="ml-2 font-medium">{status.progress}%</span>
+                        </div>
+                      </div>
+
+                      {status.errors.length > 0 && (
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Error</AlertTitle>
+                          <AlertDescription>
+                            {status.errors.map((error, i) => (
+                              <div key={i}>{error}</div>
+                            ))}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {result && (
+                  <div className="space-y-4">
+                    {/* Overview Card */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle>Research Complete</CardTitle>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => {
+                              // Scroll to results section or switch tabs if needed
+                              const resultsElement = document.getElementById('results-section')
+                              if (resultsElement) {
+                                resultsElement.scrollIntoView({ behavior: 'smooth' })
+                              }
+                            }}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={downloadResult}>
+                              <Download className="mr-2 h-4 w-4" />
+                              Export
+                            </Button>
+                          </div>
+                        </div>
+                        <CardDescription>
+                          Successfully analyzed {result?.domain || 'website'} - {result?.data?.pages?.length || 0} pages scraped
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {/* Quick Stats */}
+                        <div className="grid grid-cols-4 gap-4">
+                          <div className="text-center">
+                            <Globe className="h-8 w-8 mx-auto mb-2 text-blue-500" />
+                            <p className="text-2xl font-bold">{result?.data?.pages?.length || 0}</p>
+                            <p className="text-xs text-muted-foreground">Pages</p>
+                          </div>
+                          <div className="text-center">
+                            <Palette className="h-8 w-8 mx-auto mb-2 text-purple-500" />
+                            <p className="text-2xl font-bold">{result?.data?.brandAssets?.colors?.length || 0}</p>
+                            <p className="text-xs text-muted-foreground">Brand Colors</p>
+                          </div>
+                          <div className="text-center">
+                            <Users className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                            <p className="text-2xl font-bold">{result?.data?.teamMembers?.length || 0}</p>
+                            <p className="text-xs text-muted-foreground">Team Members</p>
+                          </div>
+                          <div className="text-center">
+                            <Package className="h-8 w-8 mx-auto mb-2 text-orange-500" />
+                            <p className="text-2xl font-bold">{result?.data?.products?.length || 0}</p>
+                            <p className="text-xs text-muted-foreground">Products</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Main Visualization Components */}
+                    <div id="results-section">
+                      <Tabs defaultValue="structure" className="w-full">
+                      <TabsList className="grid w-full grid-cols-6">
+                        <TabsTrigger value="structure">Site Map</TabsTrigger>
+                        <TabsTrigger value="content">Content</TabsTrigger>
+                        <TabsTrigger value="brand">Brand</TabsTrigger>
+                        <TabsTrigger value="images">Images</TabsTrigger>
+                        <TabsTrigger value="navigation">Navigation</TabsTrigger>
+                        <TabsTrigger value="raw">Raw Data</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="structure">
+                        <SiteStructureVisualizer 
+                          pages={result?.data?.pages}
+                          sitemapUrls={result?.data?.sitemapUrls}
+                          navigationItems={result?.data?.navigationItems}
+                        />
+                      </TabsContent>
+
+                      <TabsContent value="content">
+                        <ContentViewer 
+                          pages={result?.data?.pages}
+                        />
+                      </TabsContent>
+
+                      <TabsContent value="brand">
+                        <BrandAssetsPanel
+                          brandAssets={result?.data?.brandAssets}
+                          screenshot={result?.data?.screenshot}
+                        />
+                      </TabsContent>
+
+                      <TabsContent value="images">
+                        <ImageGallery
+                          images={result?.data?.pages?.flatMap(p => 
+                            (p.images || []).map(src => ({ src, alt: p.title }))
+                          )}
+                          logos={result?.data?.brandAssets?.logo ? [result.data.brandAssets.logo] : []}
+                          favicons={result?.data?.brandAssets?.favicon ? [result.data.brandAssets.favicon] : []}
+                          screenshots={result?.data?.screenshot ? [result.data.screenshot] : []}
+                        />
+                      </TabsContent>
+
+                      <TabsContent value="navigation">
+                        <NavigationMap
+                          navigation={{
+                            main: result?.data?.navigationItems?.map(item => ({
+                              text: item.text || item.name,
+                              href: item.url || item.href
+                            })),
+                            footer: result?.data?.footerNavigation,
+                            sidebar: result?.data?.sidebarNavigation,
+                            breadcrumbs: result?.data?.breadcrumbs
+                          }}
+                        />
+                      </TabsContent>
+
+                      <TabsContent value="raw">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Raw Data</CardTitle>
+                            <CardDescription>Complete JSON response from the research</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <ScrollArea className="h-[500px] w-full rounded border p-4">
+                              <pre className="text-xs">
+                                {JSON.stringify(result, null, 2)}
+                              </pre>
+                            </ScrollArea>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+                    </Tabs>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
+
+
+
+          {/* Configuration Tab - Full Advanced Settings */}
+            <TabsContent value="configuration" className="space-y-4">
+              <AdvancedSettingsPanel
+                settings={advancedSettings}
+                onSettingsChange={setAdvancedSettings}
+                isProcessing={status.status === 'researching'}
+              />
+            </TabsContent>
+            
+            {/* Results Tab - View Research Output */}
+            <TabsContent value="results" className="space-y-4">
+              {result ? (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Research Results</CardTitle>
+                        <CardDescription>
+                          {result.basics?.companyName || result.domain} - Company Intelligence Pack
+                        </CardDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => {
+                          const formatter = new UnifiedPackFormatter(
+                            result,
+                            {
+                              projectName: result?.basics?.companyName || result?.domain || 'Company',
+                              companyName: result?.basics?.companyName || result?.domain || 'Company',
+                              documentType: 'Company Intelligence Pack',
+                              generatedBy: 'Company Intelligence System'
+                            }
+                          )
+                          const html = formatter.generateHTML()
+                          const styles = formatter.generateStyles()
+                          
+                          const printWindow = window.open('', '_blank')
+                          if (printWindow) {
+                            printWindow.document.write(`
+                              <!DOCTYPE html>
+                              <html>
+                                <head>
+                                  <title>${result?.basics?.companyName || result?.domain} - Company Intelligence Pack</title>
+                                  <style>${styles}</style>
+                                  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+                                  <script>mermaid.initialize({ theme: 'neutral' });</script>
+                                </head>
+                                <body>${html}</body>
+                              </html>
+                            `)
+                            printWindow.document.close()
+                          }
+                        }}>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Open in New Window
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={downloadResult}>
+                          <Download className="mr-2 h-4 w-4" />
+                          Export JSON
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="pack-viewer">
+                      <ScrollArea className="h-[600px] w-full rounded border">
+                        <div 
+                          className="p-6"
+                          dangerouslySetInnerHTML={{
+                            __html: DOMPurify.sanitize((() => {
+                              const formatter = new UnifiedPackFormatter(
+                                result,
+                                {
+                                  projectName: result?.basics?.companyName || result?.domain || 'Company',
+                                  companyName: result?.basics?.companyName || result?.domain || 'Company',
+                                  documentType: 'Company Intelligence Pack',
+                                  generatedBy: 'Company Intelligence System'
+                                }
+                              )
+                              return formatter.generateHTML()
+                            })())
+                          }}
+                        />
+                      </ScrollArea>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>No Results Yet</AlertTitle>
+                  <AlertDescription>
+                    Run a company research to view the results here.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </TabsContent>
+            
+            {/* Monitor Tab - Combined Logs and Errors */}
+            <TabsContent value="monitor" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>System Monitor</CardTitle>
+                    <div className="flex gap-2">
+                      <Switch
+                        checked={autoScroll}
+                        onCheckedChange={setAutoScroll}
+                        id="autoscroll"
+                      />
+                      <Label htmlFor="autoscroll" className="text-sm">Auto-scroll</Label>
+                      <Button variant="outline" size="sm" onClick={clearLogs}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Clear All
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="activity" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="activity">
+                        Activity Logs ({logs.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="errors" className="relative">
+                        Errors ({errorLogs.length})
+                        {errorLogs.length > 0 && (
+                          <span className="ml-2 h-2 w-2 rounded-full bg-red-500" />
+                        )}
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="activity">
+                      <ScrollArea className="h-[400px] w-full rounded border bg-black/5 dark:bg-white/5 p-4">
+                        <div className="space-y-1 font-mono text-xs">
+                          {logs.length === 0 ? (
+                            <p className="text-muted-foreground text-center py-8">No logs yet</p>
+                          ) : (
+                            logs.map((log, i) => (
+                              <div key={i} className={getLevelColor(log.level)}>
+                                <span className="text-muted-foreground">
+                                  [{log.timestamp.toLocaleTimeString()}]
+                                </span>
+                                <span className="mx-1 font-semibold">
+                                  [{log.level.toUpperCase()}]
+                                </span>
+                                <span className="text-blue-400">
+                                  [{log.source || 'APP'}]
+                                </span>
+                                <span className="ml-2">{log.message}</span>
+                                {log.details && (
+                                  <div className="ml-8 mt-1 text-muted-foreground">
+                                    {JSON.stringify(log.details, null, 2)}
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                          <div ref={logsEndRef} />
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+                    
+                  </Tabs>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            {/* Analytics Tab - Usage Statistics */}
+            <TabsContent value="analytics" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{recentJobs.length}</div>
+                    <p className="text-xs text-muted-foreground">This session</p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {recentJobs.length > 0 
+                        ? Math.round(recentJobs.filter((j: any) => j.status === 'completed').length / recentJobs.length * 100)
+                        : 0}%
+                    </div>
+                    <p className="text-xs text-muted-foreground">Overall performance</p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Avg. Duration</CardTitle>
+                    <Zap className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {status.duration > 0 ? `${(status.duration / 1000).toFixed(1)}s` : '0s'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Processing time</p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Est. Cost</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      ${advancedSettings.model.selected === AllowedModel.GPT5_NANO ? '0.02' :
+                        advancedSettings.model.selected === AllowedModel.GPT5_MINI ? '0.10' :
+                        advancedSettings.model.selected === AllowedModel.GPT5 ? '0.50' : '0.05'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Per research</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+          </Tabs>
+        </TooltipProvider>
+      </div>
+    </div>
+  )
+}

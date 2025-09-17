@@ -1,10 +1,53 @@
 {
   "extends": ["next/core-web-vitals"],
   "rules": {
-    "@typescript-eslint/no-unused-vars": "warn",
-    "@typescript-eslint/no-explicit-any": "warn",
+    // STRICT TYPE SAFETY
+    "@typescript-eslint/no-unused-vars": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unsafe-assignment": "error",
+    "@typescript-eslint/no-unsafe-member-access": "error",
+    "@typescript-eslint/no-unsafe-call": "error",
+    "@typescript-eslint/no-unsafe-return": "error",
+
+    // ASYNC/AWAIT ENFORCEMENT
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/require-await": "error",
+
+    // CUSTOM RULES: Ban non-existent permanentLogger methods
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "permanentLogger",
+        "property": "error",
+        "message": "Use permanentLogger.captureError() instead - error() method does not exist!"
+      },
+      {
+        "object": "permanentLogger",
+        "property": "log",
+        "message": "Use permanentLogger.info() instead - log() method does not exist!"
+      }
+    ],
+
+    // CUSTOM RULES: Enforce correct timer usage
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CallExpression[callee.property.name='end'][callee.object.name=/timer|Timer/]",
+        "message": "Use timer.stop() not timer.end() - end() method does not exist!"
+      },
+      {
+        "selector": "NewExpression[callee.name='createClient'][typeParameters=undefined]",
+        "message": "Use createTypedClient() from @/lib/supabase/client-typed for type-safe database access!"
+      }
+    ],
+
+    // REACT RULES
     "react/no-unescaped-entities": "off",
-    "react-hooks/exhaustive-deps": "warn",
-    "prefer-const": "warn"
+    "react-hooks/exhaustive-deps": "error",
+
+    // GENERAL CODE QUALITY
+    "prefer-const": "error",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "no-debugger": "error"
   }
 }
