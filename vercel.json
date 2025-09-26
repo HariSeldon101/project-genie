@@ -4,6 +4,12 @@
       "main": true
     }
   },
+  "installCommand": "npm install --force --legacy-peer-deps",
+  "buildCommand": "npm run vercel-build",
+  "env": {
+    "SKIP_ENV_VALIDATION": "true",
+    "NODE_ENV": "production"
+  },
   "ignoreCommand": "exit 1",
   "github": {
     "enabled": true,

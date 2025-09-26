@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
+// NUCLEAR: Force define globals for build
+require('./lib/global-polyfill.js');
+
 const nextConfig: NextConfig = {
+  // NUCLEAR: Use standalone output to bypass SSR issues
+  output: 'standalone',
+
   // Disable strict mode in development to reduce memory usage (double rendering)
   reactStrictMode: false,
 
@@ -28,7 +34,42 @@ const nextConfig: NextConfig = {
 
   // Webpack configuration
   webpack: (config, { dev, isServer }) => {
-    // Handle browser-only modules properly
+    // NUCLEAR OPTION: Handle BOTH client and server issues
+    if (!isServer) {
+      // CLIENT-SIDE NUCLEAR OPTIONS
+      const webpack = require('webpack')
+
+      // Provide global shims for client-side
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+          global: 'globalThis',
+          self: 'globalThis',
+          window: 'globalThis',
+          Buffer: ['buffer', 'Buffer'],
+          process: 'process/browser',
+        })
+      )
+
+      // Client-side fallbacks
+      config.resolve.fallback = {
+        ...config.resolve?.fallback,
+        global: require.resolve('global'),
+        buffer: require.resolve('buffer'),
+        process: require.resolve('process/browser'),
+        stream: require.resolve('stream-browserify'),
+        crypto: require.resolve('crypto-browserify'),
+        fs: false,
+        net: false,
+        tls: false,
+        http: false,
+        https: false,
+        zlib: false,
+        path: false,
+        os: false,
+      }
+    }
+
+    // Handle server-side modules
     if (isServer) {
       const path = require('path')
       const webpack = require('webpack')
@@ -48,12 +89,15 @@ const nextConfig: NextConfig = {
       })
 
       // LAYER 3: Provide globals for any code that still references them
+      // Add global polyfill to ensure self exists
+      if (!global.self) {
+        global.self = global
+      }
+
       config.plugins.push(
         new webpack.ProvidePlugin({
           'self': 'global',
           'window': 'global',
-          'document': '{}',
-          'navigator': '{ userAgent: "node" }',
         })
       )
 
@@ -186,7 +230,9 @@ const nextConfig: NextConfig = {
 
   // Server external packages (moved from experimental in Next.js 15.5)
   serverExternalPackages: [
-    'playwright'
+    'playwright',
+    '@supabase/realtime-js',
+    'mermaid'
   ],
 
   // DISABLED FOR STAGING - experimental optimizations can cause build issues
