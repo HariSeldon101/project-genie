@@ -1,7 +1,5 @@
-// Global polyfill for staging build - bypasses 'self is not defined' error
-if (typeof self === 'undefined') {
-  (global as any).self = global;
-}
+// Import aggressive polyfills for staging build
+import './polyfills'
 
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
