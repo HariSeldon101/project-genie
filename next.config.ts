@@ -28,6 +28,21 @@ const nextConfig: NextConfig = {
 
   // Webpack configuration
   webpack: (config, { dev, isServer }) => {
+    // STAGING BYPASS: Polyfill browser globals for server-side rendering
+    if (isServer) {
+      config.resolve = {
+        ...config.resolve,
+        fallback: {
+          ...config.resolve?.fallback,
+          self: false,
+          window: false,
+          document: false,
+          navigator: false,
+          location: false,
+        }
+      }
+    }
+
     // Development optimizations
     if (dev && !isServer) {
       config.watchOptions = {
