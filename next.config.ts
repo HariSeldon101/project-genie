@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // STAGING NUCLEAR BYPASS - disable everything that could cause issues
-  swcMinify: false, // Use older Terser minifier instead of SWC
-
   // Disable strict mode in development to reduce memory usage (double rendering)
   reactStrictMode: false,
 
@@ -33,51 +30,65 @@ const nextConfig: NextConfig = {
   webpack: (config, { dev, isServer }) => {
     // Handle browser-only modules properly
     if (isServer) {
-      // Don't resolve browser-only modules on the server
+      const path = require('path')
+      const webpack = require('webpack')
+
+      // LAYER 1: Replace realtime module with our mock
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /@supabase\/realtime-js/,
+          path.join(__dirname, 'lib/mocks/empty-module.js')
+        )
+      )
+
+      // LAYER 2: Use null-loader for any remaining problematic modules
+      config.module.rules.push({
+        test: /node_modules\/@supabase\/realtime-js/,
+        use: 'null-loader',
+      })
+
+      // LAYER 3: Provide globals for any code that still references them
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+          'self': 'global',
+          'window': 'global',
+          'document': '{}',
+          'navigator': '{ userAgent: "node" }',
+        })
+      )
+
+      // LAYER 4: Alias problematic modules to our mock
       config.resolve.alias = {
         ...config.resolve.alias,
-        // CRITICAL: Supabase realtime WebSocket modules that use 'self'
-        '@supabase/realtime-js': false,
-        '@supabase/realtime-js/dist/module/lib/websocket-factory.js': false,
-        '@supabase/realtime-js/dist/module/index.js': false,
-        // Mermaid and ALL its possible dependencies
+        // Replace Supabase realtime with mock
+        '@supabase/realtime-js': path.join(__dirname, 'lib/mocks/empty-module.js'),
+        '@supabase/realtime-js/dist/module/lib/websocket-factory.js': path.join(__dirname, 'lib/mocks/empty-module.js'),
+        '@supabase/realtime-js/dist/module/index.js': path.join(__dirname, 'lib/mocks/empty-module.js'),
+        // Mermaid and its dependencies
         'mermaid': false,
         'mermaid/dist/mermaid.js': false,
-        'mermaid/dist/mermaid.min.js': false,
         'd3': false,
         'd3-selection': false,
         'd3-shape': false,
-        'd3-path': false,
-        'd3-array': false,
-        'd3-scale': false,
         'dagre': false,
         'dagre-d3': false,
-        'dagre-d3-es': false,
         'cytoscape': false,
         'elkjs': false,
-        'khroma': false,
-        'stylis': false,
-        'dompurify': false,
-        // Scraping/browser automation
+        // Browser automation
         'playwright': false,
         'playwright-core': false,
-        'playwright-chromium': false,
         'puppeteer': false,
-        'puppeteer-core': false,
         '@firecrawl/sdk': false,
         'cheerio': false,
         // PDF libraries
         'pdfjs-dist': false,
         'pdf-lib': false,
-        'jspdf': false,
-        // Other potential browser-only packages
+        // DOM libraries
         'canvas': false,
         'jsdom': false,
-        'xmldom': false,
-        '@xmldom/xmldom': false
       }
 
-      // Also add fallbacks for browser globals
+      // Fallbacks for Node.js modules
       config.resolve.fallback = {
         ...config.resolve?.fallback,
         fs: false,
@@ -91,24 +102,6 @@ const nextConfig: NextConfig = {
         path: false,
         os: false
       }
-
-      // Add webpack plugins to handle browser-only modules
-      const webpack = require('webpack')
-
-      // Define 'self' globally for any remaining references
-      config.plugins.push(
-        new webpack.DefinePlugin({
-          'self': 'global'
-        })
-      )
-
-      // CRITICAL: Completely ignore realtime module during SSR
-      config.plugins.push(
-        new webpack.IgnorePlugin({
-          resourceRegExp: /@supabase\/realtime-js/,
-          contextRegExp: /@supabase/
-        })
-      )
     }
 
     // Development optimizations

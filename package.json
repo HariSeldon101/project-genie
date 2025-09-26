@@ -1,6 +1,6 @@
 {
   "name": "project-genie",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "scripts": {
     "manifest:update": "tsx scripts/update-manifest.ts",
@@ -190,6 +190,7 @@
     "jsdom": "^26.1.0",
     "marked": "^16.2.1",
     "msw": "^2.10.5",
+    "null-loader": "^4.0.1",
     "pdf-parse": "^1.1.1",
     "prettier": "^3.6.2",
     "tailwindcss": "^4",
