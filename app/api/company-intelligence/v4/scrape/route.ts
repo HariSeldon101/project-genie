@@ -21,13 +21,12 @@ import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
 import { StreamWriter, EventFactory, EventSource } from '@/lib/realtime-events'
 import { CompanyIntelligenceRepository } from '@/lib/repositories/company-intelligence-repository'
-import {
-  createScraper,
-  ScraperType,
-  ProgressEventType,
-  ScrapingPhase,
-  type ScrapingResult
-} from '@/lib/company-intelligence/scrapers-v4'
+// Import only types at module level - actual implementations loaded dynamically
+import type {
+  ScrapingResult
+} from '@/lib/company-intelligence/scrapers-v4/types'
+
+// We'll dynamically import the actual scraper functions when needed
 
 // Set maximum duration for scraping operations
 export const maxDuration = 300 // 5 minutes
@@ -145,8 +144,12 @@ export async function POST(req: NextRequest) {
             domain
           })
 
+          // Dynamically import scrapers to avoid SSR issues
+          const scraperModule = await import('@/lib/company-intelligence/scrapers-v4')
+          const { createScraper, ScraperType } = scraperModule
+
           // Map string to ScraperType enum
-          let typeEnum: ScraperType
+          let typeEnum: any
           switch (scraperType?.toLowerCase()) {
             case 'firecrawl':
               typeEnum = ScraperType.FIRECRAWL
