@@ -4,7 +4,7 @@
       "main": true
     }
   },
-  "ignoreCommand": "git branch --show-current | grep -q ^main$ || exit 0",
+  "ignoreCommand": "exit 1",
   "github": {
     "enabled": true,
     "autoAlias": false
