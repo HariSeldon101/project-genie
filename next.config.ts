@@ -36,6 +36,10 @@ const nextConfig: NextConfig = {
       // Don't resolve browser-only modules on the server
       config.resolve.alias = {
         ...config.resolve.alias,
+        // CRITICAL: Supabase realtime WebSocket modules that use 'self'
+        '@supabase/realtime-js': false,
+        '@supabase/realtime-js/dist/module/lib/websocket-factory.js': false,
+        '@supabase/realtime-js/dist/module/index.js': false,
         // Mermaid and ALL its possible dependencies
         'mermaid': false,
         'mermaid/dist/mermaid.js': false,
