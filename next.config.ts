@@ -36,17 +36,41 @@ const nextConfig: NextConfig = {
       // Don't resolve browser-only modules on the server
       config.resolve.alias = {
         ...config.resolve.alias,
-        // Mermaid and its dependencies
+        // Mermaid and ALL its possible dependencies
         'mermaid': false,
+        'mermaid/dist/mermaid.js': false,
+        'mermaid/dist/mermaid.min.js': false,
         'd3': false,
+        'd3-selection': false,
+        'd3-shape': false,
+        'd3-path': false,
+        'd3-array': false,
+        'd3-scale': false,
+        'dagre': false,
         'dagre-d3': false,
+        'dagre-d3-es': false,
         'cytoscape': false,
-        // Scraping/browser automation (if used in CI)
+        'elkjs': false,
+        'khroma': false,
+        'stylis': false,
+        'dompurify': false,
+        // Scraping/browser automation
         'playwright': false,
+        'playwright-core': false,
+        'playwright-chromium': false,
         'puppeteer': false,
+        'puppeteer-core': false,
         '@firecrawl/sdk': false,
-        // Any other browser-only libraries
-        'pdfjs-dist': false
+        'cheerio': false,
+        // PDF libraries
+        'pdfjs-dist': false,
+        'pdf-lib': false,
+        'jspdf': false,
+        // Other potential browser-only packages
+        'canvas': false,
+        'jsdom': false,
+        'xmldom': false,
+        '@xmldom/xmldom': false
       }
 
       // Also add fallbacks for browser globals
@@ -63,6 +87,14 @@ const nextConfig: NextConfig = {
         path: false,
         os: false
       }
+
+      // Add webpack DefinePlugin to define 'self' during build
+      const webpack = require('webpack')
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          'self': 'global'
+        })
+      )
     }
 
     // Development optimizations
