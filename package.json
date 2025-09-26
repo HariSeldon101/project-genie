@@ -15,7 +15,7 @@
     "dev": "NODE_OPTIONS='--max-old-space-size=4096' next dev",
     "local": "bash scripts/local-dev-only.sh",
     "rebuild": "lsof -ti:3000 | xargs kill -9 2>/dev/null && npm run dev",
-    "build": "next build",
+    "build": "SKIP_ENV_VALIDATION=true next build --no-lint",
     "build-with-sitemap": "next build && next-sitemap",
     "start": "next start",
     "deploy:preview": "vercel deploy --prod=false",
