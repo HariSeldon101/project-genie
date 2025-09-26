@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // STAGING NUCLEAR BYPASS - disable everything that could cause issues
+  swcMinify: false, // Use older Terser minifier instead of SWC
+
   // Disable strict mode in development to reduce memory usage (double rendering)
   reactStrictMode: false,
 
@@ -128,21 +131,21 @@ const nextConfig: NextConfig = {
     'playwright'
   ],
 
-  // Experimental features for optimization
-  experimental: {
-    optimizeCss: false, // Disabled to fix critters dependency issue
+  // DISABLED FOR STAGING - experimental optimizations can cause build issues
+  // experimental: {
+  //   optimizeCss: false, // Disabled to fix critters dependency issue
 
-    // Optimize specific heavy packages
-    optimizePackageImports: [
-      '@radix-ui',
-      'lucide-react',
-      'framer-motion',
-      'mermaid',
-      '@supabase/supabase-js',
-      'recharts',
-      'date-fns'
-    ],
-  },
+  //   // Optimize specific heavy packages
+  //   optimizePackageImports: [
+  //     '@radix-ui',
+  //     'lucide-react',
+  //     'framer-motion',
+  //     'mermaid',
+  //     '@supabase/supabase-js',
+  //     'recharts',
+  //     'date-fns'
+  //   ],
+  // },
 
   // Image optimization
   images: {
