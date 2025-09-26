@@ -92,11 +92,21 @@ const nextConfig: NextConfig = {
         os: false
       }
 
-      // Add webpack DefinePlugin to define 'self' during build
+      // Add webpack plugins to handle browser-only modules
       const webpack = require('webpack')
+
+      // Define 'self' globally for any remaining references
       config.plugins.push(
         new webpack.DefinePlugin({
           'self': 'global'
+        })
+      )
+
+      // CRITICAL: Completely ignore realtime module during SSR
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /@supabase\/realtime-js/,
+          contextRegExp: /@supabase/
         })
       )
     }
