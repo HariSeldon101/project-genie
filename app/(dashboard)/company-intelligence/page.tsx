@@ -1,5 +1,9 @@
 'use client'
 
+// ULTRA-NUCLEAR: Force dynamic rendering
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 import { useState, useEffect, useRef, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { AnimatedBackgroundSubtle } from '@/components/animated-background-subtle'

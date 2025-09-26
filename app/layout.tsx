@@ -8,6 +8,15 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { GlobalErrorHandler } from './global-error-handler';
 import "./globals.css";
 
+// ULTRA-NUCLEAR: Force dynamic rendering for entire app
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
+
+// Import force-client to ensure it's included
+import './force-client';
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

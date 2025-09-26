@@ -1,11 +1,20 @@
+// ULTRA-NUCLEAR: Define self before ANY imports
+if (typeof globalThis !== 'undefined' && !globalThis.self) {
+  globalThis.self = globalThis;
+}
+if (typeof global !== 'undefined' && !global.self) {
+  global.self = global;
+}
+
 import type { NextConfig } from "next";
 
 // NUCLEAR: Force define globals for build
 require('./lib/global-polyfill.js');
 
 const nextConfig: NextConfig = {
-  // NUCLEAR: Use standalone output to bypass SSR issues
-  output: 'standalone',
+  // ULTRA-NUCLEAR: Disable all static optimization
+  trailingSlash: true,
+  generateBuildId: async () => 'build-' + Date.now(),
 
   // Disable strict mode in development to reduce memory usage (double rendering)
   reactStrictMode: false,
@@ -32,8 +41,28 @@ const nextConfig: NextConfig = {
     },
   },
 
-  // Webpack configuration
+  // Webpack configuration with ultra-nuclear fixes
   webpack: (config, { dev, isServer }) => {
+    const webpack = require('webpack');
+
+    // ULTRA-NUCLEAR: String replacement for self references
+    config.module.rules.push({
+      test: /\.(js|jsx|ts|tsx)$/,
+      use: [
+        {
+          loader: 'string-replace-loader',
+          options: {
+            multiple: [
+              { search: /\btypeof self\b/g, replace: 'typeof globalThis' },
+              { search: /\bself\./g, replace: 'globalThis.' },
+              { search: /\bself\[/g, replace: 'globalThis[' },
+              { search: /([^a-zA-Z])self([^a-zA-Z])/g, replace: '$1globalThis$2' }
+            ]
+          }
+        }
+      ]
+    });
+
     // NUCLEAR OPTION: Handle BOTH client and server issues
     if (!isServer) {
       // CLIENT-SIDE NUCLEAR OPTIONS
@@ -232,24 +261,17 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     'playwright',
     '@supabase/realtime-js',
+    '@supabase/supabase-js',
+    '@supabase/auth-helpers-nextjs',
+    '@supabase/ssr',
     'mermaid'
   ],
 
-  // DISABLED FOR STAGING - experimental optimizations can cause build issues
-  // experimental: {
-  //   optimizeCss: false, // Disabled to fix critters dependency issue
-
-  //   // Optimize specific heavy packages
-  //   optimizePackageImports: [
-  //     '@radix-ui',
-  //     'lucide-react',
-  //     'framer-motion',
-  //     'mermaid',
-  //     '@supabase/supabase-js',
-  //     'recharts',
-  //     'date-fns'
-  //   ],
-  // },
+  // ULTRA-NUCLEAR: Experimental settings to disable SSG
+  experimental: {
+    // Force dynamic rendering everywhere
+    ppr: false,  // Disable partial prerendering
+  },
 
   // Image optimization
   images: {
