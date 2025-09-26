@@ -403,23 +403,53 @@ export default function NewProjectPage() {
   const handleCreateProject = async () => {
     setLoading(true)
 
+    // Add breadcrumb for debugging
+    if (typeof window !== 'undefined' && window.permanentLogger) {
+      window.permanentLogger.breadcrumb('ui', 'Starting project creation', {
+        projectName: projectData.name,
+        timestamp: Date.now()
+      })
+    }
+
     try {
       // First ensure the user has a profile via API
       const profileResponse = await fetch('/api/profile', {
-        method: 'POST', // POST will create if doesn't exist
+        method: 'POST', // POST will verify/create profile
         headers: { 'Content-Type': 'application/json' }
       })
 
       if (!profileResponse.ok) {
-        console.error('Profile setup failed')
-        throw new Error('Error creating project: Profile setup required. Please try again or contact support.')
+        const errorData = await profileResponse.json().catch(() => ({}))
+        console.error('Profile setup failed:', errorData)
+
+        if (typeof window !== 'undefined' && window.permanentLogger) {
+          window.permanentLogger.captureError('PROJECT_CREATE',
+            new Error('Profile setup failed'),
+            {
+              status: profileResponse.status,
+              error: errorData
+            }
+          )
+        }
+
+        throw new Error(errorData.error || 'Profile setup required. Please try again or contact support.')
       }
-      
+
+      const profileData = await profileResponse.json()
+      console.log('Profile verified:', profileData.id)
+
       // Get current user (auth operations are allowed to use Supabase directly)
       const { data: { user }, error: authError } = await supabase.auth.getUser()
 
       if (authError) {
         console.error('Auth error:', authError)
+
+        if (typeof window !== 'undefined' && window.permanentLogger) {
+          window.permanentLogger.captureError('PROJECT_CREATE', authError as Error, {
+            context: 'Failed to get authenticated user'
+          })
+        }
+
         throw new Error('Authentication error. Please sign in again.')
       }
 
@@ -427,16 +457,7 @@ export default function NewProjectPage() {
         throw new Error('Not authenticated. Please sign in again.')
       }
 
-      console.log('Authenticated user:', user.email, user.id)
-      
-      // IMPORTANT: Show the actual user ID in the error for debugging
-      if (typeof window !== 'undefined') {
-        console.log('Current session user ID:', user.id)
-        console.log('This should match the owner_id being sent to the database')
-      }
-
-      // Profile is now guaranteed to exist from ensureUserProfile() call above
-      console.log('Profile verified for user:', user.id)
+      console.log('Creating project for user:', user.email, user.id)
 
       // Create project with proper owner_id
       const projectPayload = {
@@ -550,13 +571,30 @@ export default function NewProjectPage() {
       // Store project data in session for document generation
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(`project_data_${project.id}`, JSON.stringify(projectData))
+
+        // Log successful creation
+        if (window.permanentLogger) {
+          window.permanentLogger.info('PROJECT_CREATE', 'Project created successfully', {
+            projectId: project.id,
+            projectName: project.name
+          })
+        }
       }
-      
+
       // Redirect to document generation page
       router.push(`/projects/${project.id}/generate`)
     } catch (error: any) {
       console.error('Error creating project:', error)
       setLoading(false)
+
+      // Log error with permanent logger
+      if (typeof window !== 'undefined' && window.permanentLogger) {
+        window.permanentLogger.captureError('PROJECT_CREATE', error as Error, {
+          projectName: projectData.name,
+          stage: 'final',
+          errorCode: error?.code
+        })
+      }
       
       // Handle specific RLS error
       if (error?.code === '42501') {

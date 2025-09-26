@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
+import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
@@ -150,23 +151,48 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
     }))
     setDocumentProgress(docList)
     
+    // Start timing the entire generation process
+    const startTime = Date.now()
+    const timer = permanentLogger.timing('document_generation', {
+      projectId,
+      documentCount: selectedDocuments.size
+    })
+
     // Step 1: Initialize
     updateProgress(0)
+    permanentLogger.breadcrumb('generation_start', 'Document generation initialized', {
+      projectId,
+      methodology: projectData.methodology,
+      selectedDocuments: Array.from(selectedDocuments)
+    })
     await new Promise(resolve => setTimeout(resolve, 500))
 
     try {
       // Step 2: Authenticate
       updateProgress(1)
+      permanentLogger.breadcrumb('auth_check', 'Checking authentication', {
+        projectId
+      })
+
       const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
-      
+
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
+
       if (sessionError || !session) {
+        permanentLogger.captureError('DOCUMENT_GENERATOR', sessionError || new Error('No session'), {
+          stage: 'authentication',
+          projectId
+        })
         throw new Error('Authentication required. Please log in.')
       }
+
+      permanentLogger.breadcrumb('auth_success', 'Authentication successful', {
+        userId: session.user.id,
+        projectId
+      })
       
       const token = session.access_token
 
@@ -180,10 +206,11 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
       
       // Step 5: Generate with AI
       updateProgress(4, 'AI is creating your documents... This may take up to 10 minutes for complex documents')
-      console.log('[DocumentGenerator] Starting document generation:', {
+      permanentLogger.info('DOCUMENT_GENERATOR', 'Starting document generation', {
         projectId,
         methodology: projectData.methodology,
-        timestamp: new Date().toISOString()
+        selectedCount: selectedDocuments.size,
+        hasCompanyIntelligence: !!companyIntelligencePack
       })
       
       // Start a progress simulation - update documents one by one
@@ -203,7 +230,11 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
         // Don't immediately abort - give a warning first
-        console.warn('[DocumentGenerator] Generation taking longer than expected...')
+        permanentLogger.warn('DOCUMENT_GENERATOR', 'Generation taking longer than expected', {
+          projectId,
+          elapsed: Date.now() - startTime,
+          timeout: 600000
+        })
         controller.abort()
       }, 600000) // 600 second (10 minute) timeout to match API maxDuration
       
@@ -229,10 +260,19 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
       } catch (err: any) {
         clearTimeout(timeoutId)
         if (err.name === 'AbortError') {
+          permanentLogger.captureError('DOCUMENT_GENERATOR', new Error('Generation timeout'), {
+            projectId,
+            elapsed: Date.now() - startTime,
+            stage: 'fetch_request'
+          })
           // More graceful timeout handling
           throw new Error('Document generation is taking longer than expected (over 10 minutes). The server may still be processing. Please check your documents page in a few minutes to see if they completed.')
         }
-        console.error('[DocumentGenerator] Fetch error:', err)
+        permanentLogger.captureError('DOCUMENT_GENERATOR', err as Error, {
+          projectId,
+          stage: 'fetch_request',
+          errorType: err.name
+        })
         throw new Error(`Network error: ${err.message || 'Failed to connect to server'}`)
       }
       
@@ -240,10 +280,12 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
 
       // Check response status FIRST before trying to parse
       if (!response.ok) {
-        console.error('[DocumentGenerator] HTTP Error:', {
+        permanentLogger.captureError('DOCUMENT_GENERATOR', new Error(`HTTP ${response.status}`), {
           status: response.status,
           statusText: response.statusText,
-          url: response.url
+          url: response.url,
+          projectId,
+          stage: 'response_check'
         })
         
         // Try to get error details from response
@@ -254,9 +296,16 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
           if (contentType && contentType.includes('application/json')) {
             const errorData = await response.json()
             errorMessage = errorData.details || errorData.error || errorMessage
+            permanentLogger.breadcrumb('error_parse', 'Parsed JSON error response', {
+              errorMessage,
+              status: response.status
+            })
           } else if (contentType && contentType.includes('text/html')) {
             // Vercel returns HTML error pages in production
-            console.warn('[DocumentGenerator] Received HTML error page instead of JSON')
+            permanentLogger.warn('DOCUMENT_GENERATOR', 'Received HTML error page instead of JSON', {
+              status: response.status,
+              contentType
+            })
             const text = await response.text()
             
             // Check for specific Vercel error patterns
@@ -273,14 +322,27 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
               errorMessage = 'Unable to generate documents. Please refresh the page and try again.'
             }
             
-            console.error('[DocumentGenerator] HTML response detected, likely Vercel protection:', text.substring(0, 500))
+            permanentLogger.captureError('DOCUMENT_GENERATOR', new Error('HTML error page received'), {
+              status: response.status,
+              preview: text.substring(0, 500),
+              projectId
+            })
           } else {
             const text = await response.text()
-            console.error('[DocumentGenerator] Non-JSON error response:', text.substring(0, 200))
+            permanentLogger.captureError('DOCUMENT_GENERATOR', new Error('Non-JSON error response'), {
+              status: response.status,
+              contentType: contentType || 'unknown',
+              preview: text.substring(0, 200),
+              projectId
+            })
             errorMessage = 'Unexpected response from server. Please try again.'
           }
         } catch (parseError) {
-          console.error('[DocumentGenerator] Could not parse error response:', parseError)
+          permanentLogger.captureError('DOCUMENT_GENERATOR', parseError as Error, {
+            stage: 'error_response_parse',
+            status: response.status,
+            projectId
+          })
           errorMessage = 'Connection error. Please check your internet connection and try again.'
         }
         
@@ -297,7 +359,12 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
         } else if (contentType && contentType.includes('text/html')) {
           // This means we got an HTML page even with a 200 status - likely Vercel auth wall
           const text = await response.text()
-          console.error('[DocumentGenerator] Got HTML response with 200 status - likely Vercel auth:', text.substring(0, 500))
+          permanentLogger.captureError('DOCUMENT_GENERATOR', new Error('HTML response with 200 status'), {
+            contentType,
+            preview: text.substring(0, 500),
+            projectId,
+            stage: 'response_parse'
+          })
           
           if (text.includes('Vercel') || text.includes('deployment') || text.includes('protection')) {
             throw new Error('Access denied by deployment protection. Please ensure you are properly authenticated.')
@@ -307,7 +374,12 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
         } else {
           // Unexpected content type for successful response
           const text = await response.text()
-          console.error('[DocumentGenerator] Unexpected content-type for success response:', contentType, text.substring(0, 200))
+          permanentLogger.captureError('DOCUMENT_GENERATOR', new Error('Unexpected content type'), {
+            contentType: contentType || 'unknown',
+            preview: text.substring(0, 200),
+            projectId,
+            stage: 'response_parse'
+          })
           throw new Error('Server returned successful response but not in expected format')
         }
       } catch (parseError) {
@@ -315,16 +387,21 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
         if (parseError.message.includes('Access denied') || parseError.message.includes('Service configuration')) {
           throw parseError
         }
-        console.error('[DocumentGenerator] Failed to parse successful response:', parseError)
+        permanentLogger.captureError('DOCUMENT_GENERATOR', parseError as Error, {
+          stage: 'success_response_parse',
+          contentType: response.headers.get('content-type'),
+          projectId
+        })
         throw new Error(`Unable to process server response. Please try again.`)
       }
 
       const result = responseData
-      console.log('[DocumentGenerator] Generation response:', {
+      permanentLogger.info('DOCUMENT_GENERATOR', 'Generation response received', {
         provider: result.provider,
         model: result.model,
         documentsCount: result.documents?.length,
-        debugInfo: result.debugInfo
+        projectId,
+        hasDebugInfo: !!result.debugInfo
       })
       
       // Set provider info
@@ -335,7 +412,15 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
       // Check for partial success
       const successfulDocs = result.documents?.filter(doc => !doc.error) || []
       const failedDocs = result.documents?.filter(doc => doc.error) || []
-      
+
+      if (failedDocs.length > 0) {
+        permanentLogger.breadcrumb('partial_failure', 'Some documents failed to generate', {
+          failedCount: failedDocs.length,
+          failedTypes: failedDocs.map(doc => doc.type),
+          projectId
+        })
+      }
+
       // Step 6: Validate
       updateProgress(5, 'Checking document completeness...')
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -392,16 +477,37 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
       }, 500) // Mark a document as completed every 500ms
       
       setProgress(100)
-      
+
+      // Stop timing and log completion
+      const duration = timer.stop()
+      permanentLogger.info('DOCUMENT_GENERATOR', 'Generation completed', {
+        projectId,
+        duration,
+        successCount: successfulDocs.length,
+        failureCount: failedDocs.length,
+        provider: result.provider,
+        model: result.model
+      })
+
       // Determine overall status
       if (successfulDocs.length === 0) {
         setStatus('error')
         setMessage('Generation Failed')
         setSubMessage('No documents were generated successfully. Please try again.')
+        permanentLogger.captureError('DOCUMENT_GENERATOR', new Error('All documents failed'), {
+          projectId,
+          stage: 'completion',
+          attemptedCount: result.documents.length
+        })
       } else if (failedDocs.length > 0) {
         setStatus('success')
         setMessage('Partial Success')
         setSubMessage(`Generated ${successfulDocs.length} of ${result.documents.length} documents. ${failedDocs.length} failed.`)
+        permanentLogger.warn('DOCUMENT_GENERATOR', 'Partial generation success', {
+          projectId,
+          successCount: successfulDocs.length,
+          failureCount: failedDocs.length
+        })
       } else {
         setStatus('success')
         setMessage('Success!')
@@ -413,9 +519,16 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
       }
 
     } catch (err) {
-      console.error('[DocumentGenerator] Generation failed:', {
-        error: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
+      // Stop timer if it exists
+      if (timer) {
+        timer.stop()
+      }
+
+      permanentLogger.captureError('DOCUMENT_GENERATOR', err as Error, {
+        projectId,
+        selectedDocuments: Array.from(selectedDocuments),
+        stage: 'generation_complete',
+        duration: Date.now() - startTime
       })
       // Clear any running intervals
       if (typeof progressInterval !== 'undefined') {
@@ -475,7 +588,11 @@ export function DocumentGenerator({ projectId, projectData, companyIntelligenceP
       document.body.removeChild(a)
 
     } catch (err) {
-      console.error('Export error:', err)
+      permanentLogger.captureError('DOCUMENT_GENERATOR', err as Error, {
+        stage: 'export',
+        format,
+        projectId
+      })
       setError(err instanceof Error ? err.message : 'Failed to export document')
     }
   }

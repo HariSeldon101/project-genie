@@ -8,6 +8,7 @@
 
 import { BaseRepository } from './base-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
 import type { Database } from '@/lib/database.types'
 
 type Artifact = Database['public']['Tables']['artifacts']['Row']
@@ -46,12 +47,13 @@ export class ArtifactsRepository extends BaseRepository {
         .single()
 
       if (error) {
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'createArtifact',
           type: artifact.type,
           projectId: artifact.project_id
         })
-        throw error
+        throw jsError
       }
 
       if (!data) {
@@ -89,11 +91,12 @@ export class ArtifactsRepository extends BaseRepository {
         .single()
 
       if (error) {
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'getArtifact',
           artifactId
         })
-        throw error
+        throw jsError
       }
 
       // NO FALLBACK - throw if not found
@@ -154,12 +157,13 @@ export class ArtifactsRepository extends BaseRepository {
         .single()
 
       if (error) {
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'updateArtifact.update',
           artifactId,
           version: newVersion
         })
-        throw error
+        throw jsError
       }
 
       if (!data) {
@@ -197,11 +201,12 @@ export class ArtifactsRepository extends BaseRepository {
         .order('created_at', { ascending: false })
 
       if (error) {
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'getProjectArtifacts',
           projectId
         })
-        throw error
+        throw jsError
       }
 
       // Empty array is valid - no fallback needed
@@ -210,6 +215,51 @@ export class ArtifactsRepository extends BaseRepository {
       const duration = timer.stop()
       permanentLogger.breadcrumb('repository', 'Project artifacts fetched', {
         projectId,
+        count: artifacts.length,
+        duration
+      })
+
+      return artifacts
+    })
+  }
+
+  /**
+   * Get artifacts for a specific project and type
+   * Technical PM: Filters by both project and document type
+   */
+  async getProjectArtifactsByType(projectId: string, type: string): Promise<Artifact[]> {
+    const timer = permanentLogger.timing('repository.getProjectArtifactsByType')
+
+    return this.execute('getProjectArtifactsByType', async (client) => {
+      permanentLogger.breadcrumb('repository', 'Fetching project artifacts by type', {
+        projectId,
+        type,
+        timestamp: Date.now()
+      })
+
+      const { data, error } = await client
+        .from('artifacts')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('type', type)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
+          operation: 'getProjectArtifactsByType',
+          projectId,
+          type
+        })
+        throw jsError
+      }
+
+      const artifacts = data || []
+
+      const duration = timer.stop()
+      permanentLogger.breadcrumb('repository', 'Project artifacts by type fetched', {
+        projectId,
+        type,
         count: artifacts.length,
         duration
       })
@@ -245,12 +295,13 @@ export class ArtifactsRepository extends BaseRepository {
       const { data, error } = await query.order('created_at', { ascending: false })
 
       if (error) {
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'getArtifactsByType',
           type,
           userId
         })
-        throw error
+        throw jsError
       }
 
       const artifacts = data || []
@@ -285,11 +336,12 @@ export class ArtifactsRepository extends BaseRepository {
         .eq('id', artifactId)
 
       if (error) {
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'deleteArtifact',
           artifactId
         })
-        throw error
+        throw jsError
       }
 
       timer.stop()
@@ -320,11 +372,12 @@ export class ArtifactsRepository extends BaseRepository {
         .order('created_at', { ascending: false })
 
       if (error) {
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'getLatestProjectArtifacts',
           projectId
         })
-        throw error
+        throw jsError
       }
 
       // Group by type and get latest of each
@@ -397,7 +450,8 @@ export class ArtifactsRepository extends BaseRepository {
 
       if (error) {
         // Log but don't fail artifact creation for analytics errors
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'storeGenerationAnalytics',
           artifactId,
           projectId
@@ -427,10 +481,11 @@ export class ArtifactsRepository extends BaseRepository {
         .order('created_at', { ascending: false })
 
       if (error) {
-        permanentLogger.captureError('ARTIFACTS_REPO', error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ARTIFACTS_REPO', jsError, {
           operation: 'getAllArtifacts'
         })
-        throw error
+        throw jsError
       }
 
       timer.stop()

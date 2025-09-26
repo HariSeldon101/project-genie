@@ -6,6 +6,19 @@
 
 import { BaseUnifiedFormatter, DocumentMetadata, FormatterOptions } from './base-unified-formatter'
 import { Prince2PID } from '../schemas/prince2-pid'
+import {
+  createTimelineDiagram,
+  createGanttChart,
+  createFlowchart,
+  type TimelineData,
+  type GanttData,
+  type FlowchartData,
+  type FlowchartNode,
+  type FlowchartConnection,
+  FlowchartDirection,
+  NodeShape,
+  GanttTaskStatus
+} from '@/lib/utils/mermaid-helpers'
 
 export class UnifiedPIDFormatter extends BaseUnifiedFormatter<Prince2PID> {
   
@@ -506,15 +519,42 @@ export class UnifiedPIDFormatter extends BaseUnifiedFormatter<Prince2PID> {
 
   private generateTeamStructureChart(teamManagers: any[]): string {
     if (!this.options.includeCharts) return ''
-    
-    return this.createMermaidChart('graph', `
-graph TD
-    PB[Project Board]
-    PM[Project Manager]
-    PB --> PM
-    ${teamManagers.map((tm, i) => `
-    PM --> TM${i}["${tm}"]`).join('')}
-    `)
+
+    // Build flowchart data for org chart
+    const flowchartData: FlowchartData = {
+      title: 'Team Structure',
+      direction: FlowchartDirection.TOP_DOWN,
+      nodes: [
+        { id: 'PB', label: 'Project Board', shape: NodeShape.RECTANGLE },
+        { id: 'PM', label: 'Project Manager', shape: NodeShape.RECTANGLE }
+      ],
+      connections: [
+        { from: 'PB', to: 'PM' }
+      ]
+    }
+
+    // Add team managers
+    teamManagers.forEach((tm, i) => {
+      flowchartData.nodes.push({
+        id: `TM${i}`,
+        label: tm,
+        shape: NodeShape.ROUNDED
+      })
+      flowchartData.connections.push({
+        from: 'PM',
+        to: `TM${i}`
+      })
+    })
+
+    // Generate flowchart
+    const result = createFlowchart(flowchartData)
+
+    if (!result.isValid) {
+      console.warn('Org chart generation failed:', result.error)
+      return ''
+    }
+
+    return this.createMermaidChart('flowchart', result.definition)
   }
 
   private generateQualitySection(): string {
@@ -740,37 +780,66 @@ graph TD
 
   private generateProjectTimeline(stages: any[]): string {
     if (!this.options.includeCharts || stages.length === 0) return ''
-    
-    const timelineData = stages.map((stage, index) => {
-      const name = stage.name || stage
-      const date = stage.startDate || `Month ${index + 1}`
-      return `    Stage${index} : ${date} : ${name}`
-    }).join('\n')
-    
-    return this.createMermaidChart('timeline', `
-timeline
-    title Project Timeline
-${timelineData}
-    `)
+
+    // Convert stages to timeline entries
+    const timelineData: TimelineData = {
+      title: 'Project Timeline',
+      entries: stages.map((stage, index) => {
+        const name = stage.name || stage
+        const period = stage.startDate || `Phase ${index + 1}`
+        return {
+          period: period,
+          events: [name]
+        }
+      })
+    }
+
+    // Use centralized helper to generate timeline
+    const result = createTimelineDiagram(timelineData)
+
+    if (!result.isValid) {
+      console.warn('Timeline generation failed:', result.error)
+      return ''
+    }
+
+    return this.createMermaidChart('timeline', result.definition)
   }
 
   private generateMilestoneChart(milestones: any[]): string {
     if (!this.options.includeCharts || milestones.length === 0) return ''
-    
+
     const today = new Date()
-    const ganttData = milestones.map((m, i) => {
-      const name = m.name || m
-      const date = m.date || `${today.getFullYear()}-${String(today.getMonth() + i + 1).padStart(2, '0')}-01`
-      return `    ${name} :milestone, m${i}, ${date}, 0d`
-    }).join('\n')
-    
-    return this.createMermaidChart('gantt', `
-gantt
-    title Project Milestones
-    dateFormat YYYY-MM-DD
-    section Milestones
-${ganttData}
-    `)
+
+    // Convert milestones to Gantt data
+    const ganttData: GanttData = {
+      title: 'Project Milestones',
+      dateFormat: 'YYYY-MM-DD',
+      sections: [{
+        name: 'Milestones',
+        tasks: milestones.map((m, i) => {
+          const name = m.name || m
+          const date = m.date || `${today.getFullYear()}-${String(today.getMonth() + i + 1).padStart(2, '0')}-01`
+
+          return {
+            name: name,
+            id: `m${i}`,
+            startDate: date,
+            duration: '0d',
+            status: GanttTaskStatus.MILESTONE
+          }
+        })
+      }]
+    }
+
+    // Use centralized helper to generate Gantt chart
+    const result = createGanttChart(ganttData)
+
+    if (!result.isValid) {
+      console.warn('Gantt chart generation failed:', result.error)
+      return ''
+    }
+
+    return this.createMermaidChart('gantt', result.definition)
   }
 
   private generateProjectControlsSection(): string {

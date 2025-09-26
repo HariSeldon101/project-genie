@@ -171,39 +171,51 @@ export class CompanyIntelligenceRepository extends BaseRepository {
   }
 
   /**
-   * Create a new intelligence session
+   * Get or create an intelligence session
+   * CRITICAL: This is the ONLY method that should be used for session management
+   *
+   * Handles all edge cases:
+   * - Returns existing sessions
+   * - Reactivates inactive sessions
+   * - Creates new sessions only when needed
+   * - Handles race conditions gracefully
+   *
+   * @deprecated createSession() - DO NOT USE - causes constraint violations
    */
-  async createSession(
-    companyName: string,
+  async getOrCreateUserSession(
+    userId: string,
     domain: string
   ): Promise<SessionData> {
-    return this.execute('createSession', async (client) => {
-      const user = await this.getCurrentUser()
-
-      // Check for existing active session first
+    return this.execute('getOrCreateUserSession', async (client) => {
+      // Check for ANY existing session (not just active)
       const { data: existing } = await client
         .from('company_intelligence_sessions')
         .select('*')
         .eq('domain', domain)
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single()
+        .eq('user_id', userId)
+        .maybeSingle()
 
       if (existing) {
-        this.logger.info('Found existing session', {
-          sessionId: existing.id,
-          domain
-        })
+        // Reactivate if inactive
+        if (existing.status !== 'active') {
+          const { data: updated } = await client
+            .from('company_intelligence_sessions')
+            .update({ status: 'active' })
+            .eq('id', existing.id)
+            .select()
+            .single()
+          return updated
+        }
         return existing
       }
 
-      // Create new session
+      // Create new session - handle race conditions
       const { data, error } = await client
         .from('company_intelligence_sessions')
         .insert({
-          user_id: user.id,
-          company_name: companyName,
+          user_id: userId,
           domain,
+          company_name: domain.split('.')[0],
           status: 'active',
           phase: 1,
           version: 0,
@@ -212,6 +224,17 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         })
         .select()
         .single()
+
+      if (error && error.code === '23505') {
+        // Duplicate key - fetch existing (race condition)
+        const { data: raceSession } = await client
+          .from('company_intelligence_sessions')
+          .select('*')
+          .eq('domain', domain)
+          .eq('user_id', userId)
+          .single()
+        if (raceSession) return raceSession
+      }
 
       if (error) {
         throw new Error(`Failed to create session: ${error.message}`)

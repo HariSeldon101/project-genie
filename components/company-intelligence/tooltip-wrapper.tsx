@@ -1,12 +1,12 @@
 /**
  * Reusable Tooltip Wrapper Component
- * Provides Syncfusion tooltip functionality with text truncation
+ * Provides Radix UI tooltip functionality with text truncation
  */
 
 'use client'
 
 import React from 'react'
-import { TooltipComponent } from '@syncfusion/ej2-react-popups'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { cn } from '@/lib/utils'
 
 interface TooltipWrapperProps {
@@ -47,22 +47,51 @@ export function TooltipWrapper({
     className
   )
 
+  // Map Syncfusion positions to Radix sides
+  const sideMap: Record<string, 'top' | 'right' | 'bottom' | 'left'> = {
+    'TopLeft': 'top',
+    'TopCenter': 'top',
+    'TopRight': 'top',
+    'BottomLeft': 'bottom',
+    'BottomCenter': 'bottom',
+    'BottomRight': 'bottom',
+    'LeftTop': 'left',
+    'LeftCenter': 'left',
+    'LeftBottom': 'left',
+    'RightTop': 'right',
+    'RightCenter': 'right',
+    'RightBottom': 'right'
+  }
+
+  const side = sideMap[position] || 'top'
+
   return (
-    <TooltipComponent
-      content={content}
-      position={position}
-      showTipPointer={showArrow}
-      openDelay={openDelay}
-      closeDelay={closeDelay}
-      isSticky={isSticky}
-      cssClass={cssClass ? `e-tooltip-wrap ${cssClass}` : 'e-tooltip-wrap'}
-      width={maxWidth}
-      opensOn="Hover Focus"
-    >
-      <div className={wrapperClasses}>
-        {children}
-      </div>
-    </TooltipComponent>
+    <Tooltip.Provider delayDuration={openDelay}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <div className={wrapperClasses}>
+            {children}
+          </div>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            className={cn(
+              'z-50 overflow-hidden rounded-md bg-gray-900 px-3 py-1.5 text-xs text-white shadow-md animate-in fade-in-0 zoom-in-95',
+              'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
+              'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2',
+              'data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+              cssClass
+            )}
+            style={{ maxWidth }}
+            sideOffset={5}
+            side={side}
+          >
+            {content}
+            {showArrow && <Tooltip.Arrow className="fill-gray-900" />}
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   )
 }
 

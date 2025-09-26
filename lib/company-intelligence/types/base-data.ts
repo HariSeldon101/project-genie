@@ -5,7 +5,6 @@
  * Following Next.js/React best practices for immutable state
  */
 
-import { nanoid } from 'nanoid'
 
 export enum DataType {
   LINK = 'link',
@@ -189,7 +188,7 @@ export class DataItemFactory {
     source: DataSource = DataSource.SCRAPING
   ): LinkDataItem {
     return {
-      id: nanoid(),
+      id: crypto.randomUUID(),
       type: DataType.LINK,
       source,
       timestamp: Date.now(),
@@ -210,7 +209,7 @@ export class DataItemFactory {
     source: DataSource = DataSource.EXTRACTION
   ): TextDataItem {
     return {
-      id: nanoid(),
+      id: crypto.randomUUID(),
       type: DataType.TEXT,
       source,
       timestamp: Date.now(),
@@ -229,7 +228,7 @@ export class DataItemFactory {
     source: DataSource = DataSource.SCRAPING
   ): ImageDataItem {
     return {
-      id: nanoid(),
+      id: crypto.randomUUID(),
       type: DataType.IMAGE,
       source,
       timestamp: Date.now(),
@@ -247,7 +246,7 @@ export class DataItemFactory {
     source: DataSource = DataSource.EXTRACTION
   ): ContactDataItem {
     return {
-      id: nanoid(),
+      id: crypto.randomUUID(),
       type: DataType.CONTACT,
       source,
       timestamp: Date.now(),
@@ -287,7 +286,7 @@ export class DataItemFactory {
 
     // Default to unknown type
     return {
-      id: legacyData.id || nanoid(),
+      id: legacyData.id || crypto.randomUUID(),
       type: DataType.UNKNOWN,
       source: DataSource.SCRAPING,
       timestamp: legacyData.timestamp || Date.now(),

@@ -83,8 +83,10 @@ export class StreamWriter {
         // Start heartbeat to keep connection alive
         this.startHeartbeat()
 
-        permanentLogger.info('Stream started', { category: 'STREAM_WRITER', sessionId: this.sessionId,
-          correlationId: this.correlationId })
+        permanentLogger.info('STREAM_WRITER', 'Stream started', {
+          sessionId: this.sessionId,
+          correlationId: this.correlationId
+        })
 
         // Send initial connection event to confirm stream is open
         this.sendEvent(EventFactory.create(
@@ -105,10 +107,12 @@ export class StreamWriter {
       },
 
       cancel: (reason) => {
-        permanentLogger.info('Stream cancelled', { category: 'STREAM_WRITER', sessionId: this.sessionId,
+        permanentLogger.info('STREAM_WRITER', 'Stream cancelled', {
+          sessionId: this.sessionId,
           correlationId: this.correlationId,
           reason,
-          eventsSent: this.eventsSent })
+          eventsSent: this.eventsSent
+        })
         this.close()
       }
     })
@@ -177,8 +181,10 @@ export class StreamWriter {
    * Useful for sending initial state or bulk updates
    */
   async sendBatch(events: RealtimeEvent[]): Promise<void> {
-    permanentLogger.info('Sending batch of events', { category: 'STREAM_WRITER', sessionId: this.sessionId,
-      count: events.length })
+    permanentLogger.info('STREAM_WRITER', 'Sending batch of events', {
+      sessionId: this.sessionId,
+      count: events.length
+    })
 
     for (const event of events) {
       await this.sendEvent(event)
@@ -292,8 +298,10 @@ export class StreamWriter {
   private flushQueue(): void {
     if (this.eventQueue.length === 0) return
 
-    permanentLogger.info('Flushing event queue', { category: 'STREAM_WRITER', sessionId: this.sessionId,
-      queueSize: this.eventQueue.length })
+    permanentLogger.info('STREAM_WRITER', 'Flushing event queue', {
+      sessionId: this.sessionId,
+      queueSize: this.eventQueue.length
+    })
 
     while (this.eventQueue.length > 0 && this.controller) {
       const event = this.eventQueue.shift()
@@ -350,8 +358,10 @@ export class StreamWriter {
         this.controller.close()
       } catch (error) {
         // Controller might already be closed
-        permanentLogger.info('Controller already closed', { category: 'STREAM_WRITER', sessionId: this.sessionId,
-          error: error instanceof Error ? error.message : 'Already closed' })
+        permanentLogger.info('STREAM_WRITER', 'Controller already closed', {
+          sessionId: this.sessionId,
+          error: error instanceof Error ? error.message : 'Already closed'
+        })
       }
     }
 

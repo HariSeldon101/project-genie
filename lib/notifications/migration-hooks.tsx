@@ -40,7 +40,7 @@ export function addNotification(notification: {
  * Not needed in new system but kept for compatibility
  */
 export function removeNotification(id: string) {
-  permanentLogger.info('removeNotification called (no-op in new system)', { category: 'MIGRATION', id })
+  permanentLogger.info('MIGRATION', 'removeNotification called (no-op in new system)', { id })
 }
 
 /**
@@ -48,7 +48,7 @@ export function removeNotification(id: string) {
  * Handled by context in new system
  */
 export function clearAllNotifications() {
-  permanentLogger.info('clearAllNotifications called (handled by context)', { category: 'MIGRATION' })
+  permanentLogger.info('MIGRATION', 'clearAllNotifications called (handled by context)')
 }
 
 /**
@@ -76,7 +76,7 @@ export class MigratedPhaseToast {
     )
     
     if (data) {
-      permanentLogger.info('Success with data', { category: 'PHASE_TOAST', phase: this.phase, data })
+      permanentLogger.info('PHASE_TOAST', 'Success with data', { phase: this.phase, data })
     }
   }
 

@@ -2,14 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 
 export async function POST(request: NextRequest) {
+  console.log('[VALIDATE-DOMAIN] 1. API route called')
+
   return await permanentLogger.withRequest('validate_domain', async (requestId) => {
+    console.log('[VALIDATE-DOMAIN] 2. Inside withRequest wrapper')
+
     // Add breadcrumb for request start
     permanentLogger.breadcrumb('VALIDATION', 'Starting domain validation')
+    console.log('[VALIDATE-DOMAIN] 3. Breadcrumb added')
     
+    console.log('[VALIDATE-DOMAIN] 4. About to parse request body')
     const { domain } = await request.json()
+    console.log('[VALIDATE-DOMAIN] 5. Request body parsed:', domain)
     permanentLogger.breadcrumb('VALIDATION', 'Request body parsed', { domain })
-    
+
     if (!domain) {
+      console.log('[VALIDATE-DOMAIN] 6. No domain provided, returning error')
       return NextResponse.json(
         { valid: false, error: 'Domain is required' },
         { status: 400 }
@@ -32,9 +40,14 @@ export async function POST(request: NextRequest) {
       permanentLogger.breadcrumb('API_CALL', 'Attempting HTTPS connection', { cleanDomain })
       
       // Try to fetch the domain with a HEAD request to check if it's reachable
+      console.log('[VALIDATE-DOMAIN] 7. About to fetch domain:', `https://${cleanDomain}`)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
-      
+      const timeoutId = setTimeout(() => {
+        console.log('[VALIDATE-DOMAIN] 8. Timeout reached, aborting fetch')
+        controller.abort()
+      }, 5000) // 5 second timeout
+
+      console.log('[VALIDATE-DOMAIN] 9. Fetching with HEAD request...')
       const response = await fetch(`https://${cleanDomain}`, {
         method: 'HEAD',
         signal: controller.signal,
@@ -42,6 +55,7 @@ export async function POST(request: NextRequest) {
           'User-Agent': 'Mozilla/5.0 (compatible; DomainValidator/1.0)'
         }
       })
+      console.log('[VALIDATE-DOMAIN] 10. Fetch completed, status:', response.status)
       
       clearTimeout(timeoutId)
       permanentLogger.timing('fetch_https_end')

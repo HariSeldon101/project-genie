@@ -128,7 +128,7 @@ function processFile(filePath: string): boolean {
 }
 
 // Main execution
-console.log('🔧 Starting permanentLogger.error() → captureError() migration...\n')
+console.log('🔧 Starting permanentLogger.captureError() → captureError() migration...\n')
 
 for (const file of filesToUpdate) {
   processFile(file)

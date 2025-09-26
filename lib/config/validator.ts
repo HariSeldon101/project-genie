@@ -43,7 +43,8 @@ export class ConfigurationValidator {
     'ANTHROPIC_API_KEY',
     'DEEPSEEK_API_KEY',
     'GROQ_API_KEY',
-    'AI_GATEWAY_API_KEY'
+    'AI_GATEWAY_API_KEY',
+    'FIRECRAWL_API_KEY'
   ]
 
   // Service configuration mapping
@@ -69,8 +70,8 @@ export class ConfigurationValidator {
       required: false
     },
     {
-      name: 'Syncfusion',
-      keys: ['NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY'],
+      name: 'Firecrawl',
+      keys: ['FIRECRAWL_API_KEY'],
       required: false
     }
   ]

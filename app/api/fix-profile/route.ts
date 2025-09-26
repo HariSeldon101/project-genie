@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { ProfilesRepository } from '@/lib/repositories/profiles-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
@@ -8,7 +8,7 @@ export async function GET(request: Request) {
 
   try {
     // Create Supabase client using our server helper
-    const supabase = await createServerClient()
+    const supabase = await createClient()
 
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()

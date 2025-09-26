@@ -84,13 +84,27 @@ export async function POST(request: NextRequest) {
     try {
       const repository = CompanyIntelligenceRepository.getInstance()
 
+      // Get the current user first
+      const { createClient } = await import('@/lib/supabase/server')
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        permanentLogger.warn('SESSIONS_API', 'Authentication required for session creation')
+        return NextResponse.json(
+          { error: 'Authentication required', message: 'Please sign in to create sessions' },
+          { status: 401 }
+        )
+      }
+
       // Parse request body
       const body = await request.json()
       const { company_name, domain } = body
 
       permanentLogger.info('SESSIONS_API', 'Creating new session', {
         company_name,
-        domain
+        domain,
+        userId: user.id
       })
 
       // Validate required fields
@@ -105,8 +119,9 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Create session using repository (handles duplicates automatically)
-      const session = await repository.createSession(company_name, domain)
+      // Create session using the ONLY correct method
+      // This method handles all edge cases including duplicates and reactivation
+      const session = await repository.getOrCreateUserSession(user.id, domain)
 
       permanentLogger.info('SESSIONS_API', 'Session created successfully', {
         sessionId: session.id,

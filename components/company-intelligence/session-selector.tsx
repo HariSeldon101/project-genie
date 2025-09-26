@@ -47,10 +47,28 @@ import {
   Search,
   Filter
 } from 'lucide-react'
-import { useSessionManager } from '@/lib/company-intelligence/hooks/use-session-manager'
+// import { useSessionManager } from '@/lib/company-intelligence/hooks/use-session-manager' // Archived
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { formatDistanceToNow } from 'date-fns'
 import { TooltipWrapper } from './tooltip-wrapper'
+
+// Temporary placeholder for archived hook
+// TODO: Implement with CompanyIntelligenceRepository
+const useSessionManager = () => ({
+  state: {
+    sessions: [],
+    currentSession: null,
+    loading: false,
+    error: null
+  },
+  actions: {
+    listSessions: async () => {},
+    loadSession: async (id: string) => false,
+    saveSession: async (name: string, data: any) => null,
+    deleteSession: async (id: string) => false,
+    createSession: async () => null
+  }
+})
 
 interface SessionSelectorProps {
   currentDomain?: string

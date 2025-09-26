@@ -6,18 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
-import { ScrapingErrorHandler } from '@/lib/company-intelligence/error-handler'
 import { eventBus } from '@/lib/notifications/event-bus'
 import { EventPriority, EventSource } from '@/lib/notifications/types'
 // Using new unified event system via adapters for gradual migration
 // Using unified EventFactory and StreamReader from realtime-events
 import { EventFactory, StreamReader } from '@/lib/realtime-events'
-import { nanoid } from 'nanoid' // For ID generation
 import { getDeduplicationService } from '@/lib/notifications/utils/deduplication-service'
-import { 
-  Zap, 
-  Globe, 
-  Code, 
+import {
+  Zap,
+  Globe,
+  Code,
   Database,
   CheckCircle2,
   Plus,
@@ -29,8 +27,21 @@ import {
 import { TooltipWrapper } from '../tooltip-wrapper'
 import { ScraperSelector } from './scraper-selector'
 import { AdditiveResults } from './additive-results'
-// import { ScrapingSuggestions } from './scraping-suggestions' // Removed - AI Suggestions disabled
-import type { ScraperResult, ScrapingSuggestion } from '@/lib/company-intelligence/scrapers/additive/types'
+
+// Define types locally since additive scrapers were archived
+interface ScraperResult {
+  id: string
+  url: string
+  title?: string
+  content?: string
+  metadata?: Record<string, any>
+}
+
+interface ScrapingSuggestion {
+  url: string
+  reason: string
+  priority: 'high' | 'medium' | 'low'
+}
 
 interface ScrapingControlProps {
   domain: string
@@ -141,7 +152,7 @@ export function ScrapingControl({
   // Debouncing state to prevent duplicate clicks
   const [isDebouncing, setIsDebouncing] = useState(false)
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const correlationId = nanoid() // Generate unique correlation ID
+  const correlationId = crypto.randomUUID() // Generate unique correlation ID
   
   /**
    * Create unique event identifier for deduplication

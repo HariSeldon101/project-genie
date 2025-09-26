@@ -199,10 +199,12 @@ ${error.status === 429 ? '⏳ Rate Limited - Will Retry' : ''}
     
     console.error('\x1b[41m\x1b[37m%s\x1b[0m', message)
     
-    permanentLogger.info('LLM Call Failed', { category: 'LLM_ERROR', ...context,
+    permanentLogger.info('LLM_ERROR', 'LLM Call Failed', {
+      ...context,
       error: error.message || error,
       code: error.code,
-      status: error.status })
+      status: error.status
+    })
   }
   
   /**

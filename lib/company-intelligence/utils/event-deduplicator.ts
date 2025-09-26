@@ -30,7 +30,7 @@ export class EventDeduplicator {
     // Start auto-cleanup
     this.cleanupInterval = setInterval(() => this.cleanup(), cleanupIntervalMs)
     
-    permanentLogger.info('Deduplicator initialized', { category: 'EVENT_DEDUPLICATOR', ttlMs: this.ttlMs,
+    permanentLogger.info('EVENT_DEDUPLICATOR', 'Deduplicator initialized', { ttlMs: this.ttlMs,
       cleanupIntervalMs,
       maxSize: this.maxSize })
   }

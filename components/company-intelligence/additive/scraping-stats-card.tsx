@@ -13,7 +13,13 @@ import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TooltipWrapper } from '../tooltip-wrapper'
-import { ScrapingTotals } from '@/lib/company-intelligence/services/scraping-state-service'
+
+// Define type locally since service was archived
+interface ScrapingTotals {
+  totalPages: number
+  totalDataPoints: number
+  totalDiscoveredLinks: number
+}
 
 interface ScrapingStatsCardProps {
   stats: ScrapingTotals

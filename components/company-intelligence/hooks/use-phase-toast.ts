@@ -124,14 +124,17 @@ export function usePhaseToast() {
     
     // Check for duplicate
     if (deduplicationService.isDuplicate(deduplicationKey)) {
-      permanentLogger.info('Duplicate toast suppressed by centralized service', { category: 'TOAST', stage,
+      permanentLogger.info('TOAST', 'Duplicate toast suppressed by centralized service', {
+        stage,
         message,
-        deduplicationKey })
+        deduplicationKey
+      })
       return
     }
     
     // Log the toast
-    permanentLogger.info('Showing toast notification', { category: 'TOAST', stage,
+    permanentLogger.info('TOAST', 'Showing toast notification', {
+      stage,
       isError,
       message,
       deduplicationKey,

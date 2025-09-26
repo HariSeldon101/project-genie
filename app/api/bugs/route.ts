@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { BugsRepository } from '@/lib/repositories/bugs-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const timer = permanentLogger.timing('api.bugs.get')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   const timer = permanentLogger.timing('api.bugs.post')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

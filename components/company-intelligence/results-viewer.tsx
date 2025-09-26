@@ -38,7 +38,7 @@ import {
 } from 'lucide-react'
 import { UnifiedPackFormatter } from '@/lib/documents/formatters/unified-pack-formatter'
 import DOMPurify from 'dompurify'
-import mermaid from 'mermaid'
+import { MermaidDiagram } from '@/components/mermaid-diagram'
 
 interface ResultsViewerProps {
   result: any
@@ -58,30 +58,80 @@ export function ResultsViewer({
   const [viewFormat, setViewFormat] = useState(format)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [htmlContent, setHtmlContent] = useState('')
-  const [mermaidInitialized, setMermaidInitialized] = useState(false)
 
-  // Initialize Mermaid
-  useEffect(() => {
-    if (!mermaidInitialized) {
-      mermaid.initialize({
-        startOnLoad: true,
-        theme: 'default',
-        themeVariables: {
-          primaryColor: '#10b981',
-          primaryBorderColor: '#059669',
-          primaryTextColor: '#fff',
-          lineColor: '#6b7280',
-          secondaryColor: '#3b82f6',
-          tertiaryColor: '#8b5cf6',
-          background: '#ffffff',
-          mainBkg: '#f3f4f6',
-          secondBkg: '#e5e7eb',
-          tertiaryBkg: '#d1d5db'
-        }
-      })
-      setMermaidInitialized(true)
+  // Helper component to render HTML with mermaid diagrams
+  const HTMLContentWithMermaid = ({ content }: { content: string }) => {
+    // Parse HTML to find mermaid blocks
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(content, 'text/html')
+    const mermaidBlocks = doc.querySelectorAll('pre.mermaid, div.mermaid')
+
+    // If no mermaid blocks, render HTML directly
+    if (mermaidBlocks.length === 0) {
+      return <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
     }
-  }, [mermaidInitialized])
+
+    // Extract mermaid definitions and replace with placeholders
+    const mermaidDiagrams: { id: string; definition: string }[] = []
+    mermaidBlocks.forEach((block, index) => {
+      const id = `mermaid-${index}`
+      mermaidDiagrams.push({ id, definition: block.textContent || '' })
+      block.setAttribute('data-mermaid-id', id)
+      block.innerHTML = '' // Clear content, will be replaced with React component
+    })
+
+    // Convert back to HTML string
+    const processedHtml = doc.body.innerHTML
+
+    // Create elements array mixing HTML and Mermaid components
+    const elements: React.ReactNode[] = []
+    const parts = processedHtml.split(/(<[^>]+data-mermaid-id="[^"]+"[^>]*><\/[^>]+>)/g)
+
+    parts.forEach((part, index) => {
+      const mermaidMatch = part.match(/data-mermaid-id="([^"]+)"/)
+      if (mermaidMatch) {
+        const diagram = mermaidDiagrams.find(d => d.id === mermaidMatch[1])
+        if (diagram) {
+          elements.push(
+            <div key={`mermaid-${index}`} className="my-4">
+              <MermaidDiagram
+                definition={diagram.definition}
+                type="auto"
+                theme={{
+                  theme: 'default',
+                  themeVariables: {
+                    primaryColor: '#10b981',
+                    primaryBorderColor: '#059669',
+                    primaryTextColor: '#fff',
+                    lineColor: '#6b7280',
+                    secondaryColor: '#3b82f6',
+                    tertiaryColor: '#8b5cf6',
+                    background: '#ffffff',
+                    mainBkg: '#f3f4f6',
+                    secondBkg: '#e5e7eb',
+                    tertiaryBkg: '#d1d5db'
+                  }
+                }}
+                showControls={true}
+                lazy={true}
+                cache={true}
+              />
+            </div>
+          )
+        }
+      } else if (part.trim()) {
+        elements.push(
+          <div
+            key={`html-${index}`}
+            className="prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: part }}
+          />
+        )
+      }
+    })
+
+    return <>{elements}</>
+  }
 
   // Format result as HTML
   useEffect(() => {
@@ -97,11 +147,6 @@ export function ResultsViewer({
       })
       
       setHtmlContent(sanitized)
-
-      // Render Mermaid diagrams
-      setTimeout(() => {
-        mermaid.run()
-      }, 100)
     }
   }, [result, viewFormat])
 
@@ -458,10 +503,7 @@ export function ResultsViewer({
           {viewFormat === 'structured' && renderStructuredView()}
           
           {viewFormat === 'html' && (
-            <div 
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: htmlContent }}
-            />
+            <HTMLContentWithMermaid content={htmlContent} />
           )}
           
           {viewFormat === 'json' && (

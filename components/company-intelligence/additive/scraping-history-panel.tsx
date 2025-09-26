@@ -10,8 +10,20 @@
 
 import React from 'react'
 import { AdditiveResults } from './additive-results'
-import { ScraperRun } from '@/lib/company-intelligence/services/scraping-state-service'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
+
+// Define type locally since service was archived
+interface ScraperRun {
+  id: string
+  scraperId: string
+  scraperName: string
+  timestamp: number
+  pagesScraped: number
+  dataPoints: number
+  discoveredLinks: number
+  discoveredUrls?: string[]
+  duration: number
+}
 
 interface ScrapingHistoryPanelProps {
   history: ScraperRun[]

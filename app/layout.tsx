@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { SyncfusionInit } from './syncfusion-init';
 // New enterprise notification system
 import { NotificationProvider } from '@/lib/notifications/notification-context';
 import { NotificationInit } from './notification-init';
+// Error handling components - CLAUDE.md compliant
+import { ErrorBoundary } from '@/components/error-boundary';
+import { GlobalErrorHandler } from './global-error-handler';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,11 +41,13 @@ export default function RootLayout({
         className={bodyClassName}
         suppressHydrationWarning={true}
       >
-        <NotificationProvider>
-          <SyncfusionInit />
-          <NotificationInit />
-          {children}
-        </NotificationProvider>
+        <ErrorBoundary>
+          <NotificationProvider>
+            <NotificationInit />
+            <GlobalErrorHandler />
+            {children}
+          </NotificationProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

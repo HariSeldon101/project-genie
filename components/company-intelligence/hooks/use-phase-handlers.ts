@@ -69,6 +69,7 @@ export function usePhaseHandlers({
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',  // Include auth cookies
         body: JSON.stringify(payload)
       })
 
@@ -225,7 +226,8 @@ export function usePhaseHandlers({
 
     // Validate scraping results before calling onComplete
     if (phaseName === 'Scraping' && finalResult) {
-      permanentLogger.info('Validating scraping results', { category: 'STREAMING', hasFinalResult: !!finalResult,
+      permanentLogger.info('STREAMING', 'Validating scraping results', {
+        hasFinalResult: !!finalResult,
         finalResultKeys: Object.keys(finalResult || { }),
         hasPagesProperty: 'pages' in (finalResult || {}),
         pagesType: Array.isArray(finalResult?.pages) ? 'array' : typeof finalResult?.pages,
@@ -286,8 +288,10 @@ export function usePhaseHandlers({
         const firstUrl = pages[0]
         const url = new URL(firstUrl.startsWith('http') ? firstUrl : `https://${firstUrl}`)
         domain = url.hostname
-        permanentLogger.info('Domain extracted from URL', { category: 'PHASE_HANDLER', extractedDomain: domain,
-          fromUrl: firstUrl })
+        permanentLogger.info('PHASE_HANDLER', 'Domain extracted from URL', {
+          extractedDomain: domain,
+          fromUrl: firstUrl
+        })
       } catch (e) {
         permanentLogger.captureError('PHASE_HANDLER', new Error('Failed to extract domain from URL'), {
           error: e instanceof Error ? e.message : 'Unknown error',
@@ -306,86 +310,63 @@ export function usePhaseHandlers({
       return
     }
 
+    // V4 Scraping - simpler format, just needs domain
+    // Scraper will discover URLs automatically
     return executePhase(
       'Scraping',
-      '/api/company-intelligence/phases/scraping',
+      '/api/company-intelligence/v4/scrape',
       {
-        sessionId,
         domain,
-        pages,
-        options: {
-          mode: 'initial', // Only run Phase 1 (rapid scrape) initially
-          stream: true
+        scraperType: 'playwright', // Default to free option
+        config: {
+          maxPages: 50,
+          timeout: 60000
         }
       },
       {
         streaming: true,
         onProgress,
-        validateInput: () => pages.length > 0 || 'No pages selected for scraping'
+        validateInput: () => !!domain || 'Domain is required for scraping'
       }
     )
   }
 
   const startExtraction = async () => {
-    permanentLogger.info('Initiating extraction', { category: 'PHASE_HANDLER', sessionId,
+    permanentLogger.info('PHASE_HANDLER', 'Extraction phase not implemented in V4', {
+      sessionId,
       hasScrapingData: !!stageData.scraping,
-      scrapingDataCount: stageData.scraping?.pages?.length || 0 })
+      scrapingDataCount: stageData.scraping?.pages?.length || 0
+    })
 
-    return executePhase(
-      'Extraction',
-      '/api/company-intelligence/phases/extraction',
-      {
-        sessionId,
-        scrapingResults: stageData.scraping
-      },
-      {
-        validateInput: () => !!stageData.scraping || 'No scraping data available'
-      }
-    )
+    // V4 doesn't have separate extraction - it's part of scraping
+    // This is a placeholder for now
+    persistentToast.warning('Extraction is integrated into V4 scraping')
+    return Promise.resolve()
   }
 
   const startEnrichment = async () => {
     const dataToEnrich = stageData['data-review']?.selectedData || stageData.extraction
-    
-    permanentLogger.info('Initiating enrichment', {
-      category: 'PHASE_HANDLER',
+
+    permanentLogger.info('PHASE_HANDLER', 'Enrichment not implemented in V4', {
       sessionId,
       hasData: !!dataToEnrich,
       dataKeys: dataToEnrich ? Object.keys(dataToEnrich) : []
     })
 
-    return executePhase(
-      'Enrichment',
-      '/api/company-intelligence/phases/enrichment',
-      {
-        sessionId,
-        domain: stageData['site-analysis']?.domain,
-        extractedData: dataToEnrich,
-        scrapingResults: stageData.scraping
-      },
-      {
-        confirmCost: '$0.05',
-        validateInput: () => !!dataToEnrich || 'No data available for enrichment'
-      }
-    )
+    // V4 doesn't have enrichment yet - disabled enrichers are in lib/company-intelligence/enrichers/
+    persistentToast.warning('Enrichment features coming soon in V4')
+    return Promise.resolve()
   }
 
   const startGeneration = async () => {
-    permanentLogger.info('Initiating document generation', { category: 'PHASE_HANDLER', sessionId,
-      hasEnrichmentData: !!stageData.enrichment })
+    permanentLogger.info('PHASE_HANDLER', 'Generation not implemented in V4', {
+      sessionId,
+      hasEnrichmentData: !!stageData.enrichment
+    })
 
-    return executePhase(
-      'Document Generation',
-      '/api/company-intelligence/phases/generation',
-      {
-        sessionId,
-        enrichedData: stageData.enrichment || stageData.extraction
-      },
-      {
-        confirmCost: '$0.10',
-        validateInput: () => !!(stageData.enrichment || stageData.extraction) || 'No data available for generation'
-      }
-    )
+    // V4 focuses on scraping - generation will be re-added later
+    persistentToast.warning('Document generation coming soon in V4')
+    return Promise.resolve()
   }
 
   return {

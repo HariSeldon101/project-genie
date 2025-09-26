@@ -1,11 +1,29 @@
 /**
- * Logs Service - Business Logic Layer
- * Orchestrates repository and transformer
- * Uses ALL existing utility functions
+ * Logs Service - Business Logic and Orchestration Layer
+ *
+ * ARCHITECTURE PATTERN: Service Layer in Clean Architecture
+ *
+ * RESPONSIBILITIES:
+ * 1. Receive DTOs from API layer
+ * 2. Transform DTOs to repository params
+ * 3. Orchestrate repository calls
+ * 4. Apply business logic
+ * 5. Transform results back to API responses
+ *
+ * WHY TRANSFORMATION HERE?
+ * - Service layer is the boundary between external API and internal domain
+ * - Isolates API changes from database changes
+ * - Single place for transformation logic
+ * - Follows clean architecture principles
+ *
+ * DATA FLOW:
+ * API Route -> LogsApiDto -> [TRANSFORM HERE] -> LogsQueryParams -> Repository
+ *
  * @module logs-service
  */
 
 import { LogsRepository } from '@/lib/repositories/logs-repository'
+import type { LogsQueryParams } from '@/lib/repositories/logs-repository'
 import { LogsTransformer } from './logs-transformer'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 import {
@@ -20,13 +38,14 @@ import {
   exportToMarkdown,
   exportLogs
 } from '@/lib/utils/log-operations'
-import type { 
-  PaginationParams, 
-  PaginatedResponse, 
+import type {
+  PaginationParams,
+  PaginatedResponse,
   LogEntry,
   LogStats,
-  LogsApiResponse 
+  LogsApiResponse
 } from '../types/logs.types'
+import type { LogsApiDto } from '../types/api-dto.types'
 
 /**
  * Main service class for logs operations
@@ -34,35 +53,80 @@ import type {
  */
 export class LogsService {
   /**
+   * Transform API DTO to Repository Query Parameters
+   *
+   * PURPOSE: Convert flat API structure to nested repository structure
+   *
+   * WHY: API uses flat structure for REST simplicity (level, category as direct params)
+   *      Repository uses nested structure for query organization (filters.level, filters.category)
+   *
+   * THIS IS NOT A HACK - it's proper clean architecture:
+   * - Each layer has its own optimal structure
+   * - Service layer is responsible for translation
+   * - Maintains loose coupling between layers
+   * - Industry standard practice for DTO pattern
+   *
+   * @param apiDto - Flat structure from HTTP request
+   * @returns Repository params with nested filter structure
+   */
+  private static transformApiToRepository(apiDto: LogsApiDto): LogsQueryParams {
+    return {
+      cursor: apiDto.cursor,
+      pageSize: apiDto.pageSize,
+      // Transform flat filters to nested structure
+      // This is where the critical transformation happens!
+      filters: {
+        level: apiDto.level,
+        category: apiDto.category,
+        search: apiDto.search
+        // Note: Repository supports additional filters (action, dates)
+        // that aren't currently exposed in API
+      }
+    }
+  }
+
+  /**
    * Get paginated logs with all transformations
-   * @param params - Pagination and filter parameters
+   *
+   * FLOW:
+   * 1. Receive flat API DTO from route
+   * 2. Transform to nested repository params
+   * 3. Call repository with correct structure
+   * 4. Transform and enrich results for API response
+   *
+   * @param apiDto - API DTO with flat filter structure
    * @returns Complete API response with logs, stats, and pagination
    */
-  static async getPaginatedLogs(params: PaginationParams): Promise<LogsApiResponse> {
+  static async getPaginatedLogs(apiDto: LogsApiDto): Promise<LogsApiResponse> {
     const startTime = performance.now()
     
     try {
       // Add breadcrumb for request tracking
       permanentLogger.breadcrumb('logs-service', 'get-logs-start', {
-        params,
+        apiDto,
         timestamp: new Date().toISOString()
       })
 
-      // 1. Fetch from repository
+      // CRITICAL TRANSFORMATION: Convert API DTO to Repository format
+      // API sends flat structure, Repository expects nested
+      // This was the bug causing filters to not work!
+      const repoParams = this.transformApiToRepository(apiDto)
+
+      // 1. Fetch from repository with correctly formatted params
       const { logs: dbLogs, totalCount, hasMore, nextCursor } =
-        await LogsRepository.getInstance().getPaginatedLogs(params)
+        await LogsRepository.getInstance().getPaginatedLogs(repoParams)
 
       // 2. Transform to UI format
       const transformedLogs = LogsTransformer.transformLogs(dbLogs)
 
       // 3. Apply client-side filters if needed (for search)
       let filteredLogs = transformedLogs
-      if (params.search) {
-        filteredLogs = searchLogs(filteredLogs, params.search)
+      if (apiDto.search) {
+        filteredLogs = searchLogs(filteredLogs, apiDto.search)
       }
 
       // 4. Sort logs
-      const sortedLogs = sortLogs(filteredLogs, params.sortBy || 'time-desc')
+      const sortedLogs = sortLogs(filteredLogs, apiDto.sortBy || 'time-desc')
 
       // 5. Enrich with UI properties
       const enrichedLogs = sortedLogs.map(log => 
@@ -101,16 +165,16 @@ export class LogsService {
         stats,
         totalStats, // Include total unfiltered stats
         pagination: {
-          pageSize: params.pageSize || 50,
+          pageSize: apiDto.pageSize || 50,
           returnedCount: enrichedLogs.length,
           totalCount,
           hasMore,
           nextCursor,
-          cursor: params.cursor,
+          cursor: apiDto.cursor,
           filters: {
-            level: params.level,
-            category: params.category,
-            search: params.search
+            level: apiDto.level,
+            category: apiDto.category,
+            search: apiDto.search
           }
         },
         totalCount, // Also include at top level for backward compatibility
@@ -119,7 +183,7 @@ export class LogsService {
     } catch (error) {
       permanentLogger.captureError('logs-service', error as Error, {
         operation: 'getPaginatedLogs',
-        params
+        apiDto
       })
       
       // Return error response (no fallback data!)
@@ -217,21 +281,37 @@ export class LogsService {
   }
 
   /**
-   * Clear all logs
-   * Development only
+   * Clear all logs from database
+   *
+   * RESTORED FUNCTIONALITY: This was missing after repository migration
+   * Now properly delegates to repository method
+   *
+   * SECURITY: Only called in development environment
+   * API route verifies NODE_ENV before calling this
+   *
+   * @returns Object with deleted count for API response
+   * @throws Error if deletion fails (propagated to API for error handling)
    */
-  static async clearLogs(): Promise<void> {
+  static async clearLogs(): Promise<{ deletedCount: number }> {
     try {
-      // Clear logs functionality removed - not implemented in repository
-      
-      // Also clear memory logs
+      // Call the restored repository method
+      // This was the missing piece after migration!
+      const deletedCount = await LogsRepository.getInstance().deleteAllLogs()
+
+      // Also clear in-memory logs if available
       if ('clearLogs' in permanentLogger) {
         (permanentLogger as any).clearLogs()
       }
-      
-      // Don't log maintenance operations
+
+      permanentLogger.info('LOGS_SERVICE', 'All logs cleared', {
+        deletedCount,
+        timestamp: new Date().toISOString()
+      })
+
+      return { deletedCount }
     } catch (error) {
-      // Don't log maintenance operations - just propagate error
+      // Let API route handle error response
+      // Don't double-log since repository already logged
       throw error
     }
   }

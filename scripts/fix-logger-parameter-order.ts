@@ -2,7 +2,7 @@
 
 /**
  * Script to fix incorrect permanentLogger call parameter order
- * Changes from: permanentLogger.info('message', { category: 'CATEGORY', ...data })
+ * Changes from: permanentLogger.info('CATEGORY', 'message', { ...data })
  * To: permanentLogger.info('CATEGORY', 'message', { ...data })
  */
 

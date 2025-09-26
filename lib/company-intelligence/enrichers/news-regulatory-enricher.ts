@@ -56,7 +56,7 @@ export class NewsRegulatoryEnricher {
   ): Promise<EnrichmentResult> {
     const startTime = Date.now()
     
-    permanentLogger.info('Starting news enrichment', { category: 'NEWS_REGULATORY_ENRICHER', companyName,
+    permanentLogger.info('NEWS_REGULATORY_ENRICHER', 'Starting news enrichment', { companyName,
       domain,
       sessionId,
       isPublicCompany })
@@ -82,7 +82,7 @@ export class NewsRegulatoryEnricher {
         
         allNews.push(...newsItems)
         
-        permanentLogger.info('Source searched', { category: 'NEWS_REGULATORY_ENRICHER', source: source.name,
+        permanentLogger.info('NEWS_REGULATORY_ENRICHER', 'Source searched', { source: source.name,
           itemsFound: newsItems.length,
           totalSoFar: allNews.length })
       }
@@ -97,7 +97,7 @@ export class NewsRegulatoryEnricher {
       // Step 4: Analyze sentiment for each article
       const analyzedNews = await this.analyzeNewsSentiment(finalNews)
 
-      permanentLogger.info('News enrichment completed', { category: 'NEWS_REGULATORY_ENRICHER',
+      permanentLogger.info('NEWS_REGULATORY_ENRICHER', 'News enrichment completed', {
         companyName,
         totalArticles: analyzedNews.length,
         regulatoryCount: analyzedNews.filter(n => n.isRegulatory).length,
@@ -114,7 +114,7 @@ export class NewsRegulatoryEnricher {
       }
 
     } catch (error) {
-      permanentLogger.captureError('NEWS_REGULATORY_ENRICHER', error, {
+      permanentLogger.captureError('NEWS_REGULATORY_ENRICHER', error as Error, {
         message: 'Enrichment failed',
         companyName,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -139,7 +139,7 @@ export class NewsRegulatoryEnricher {
     domain: string,
     sessionId: string
   ): Promise<NewsItem[]> {
-    permanentLogger.info('Searching news source', { category: 'NEWS_REGULATORY_ENRICHER', source: source.name,
+    permanentLogger.info('NEWS_REGULATORY_ENRICHER', 'Searching news source', { source: source.name,
       companyName })
 
     const newsItems: NewsItem[] = []
@@ -185,7 +185,7 @@ export class NewsRegulatoryEnricher {
       }
 
     } catch (error) {
-      permanentLogger.captureError('NEWS_REGULATORY_ENRICHER', error, {
+      permanentLogger.captureError('NEWS_REGULATORY_ENRICHER', error as Error, {
         message: 'Source search failed',
         source: source.name,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -265,7 +265,7 @@ export class NewsRegulatoryEnricher {
       return newsItem
 
     } catch (error) {
-      permanentLogger.captureError('NEWS_REGULATORY_ENRICHER', error, {
+      permanentLogger.captureError('NEWS_REGULATORY_ENRICHER', error as Error, {
         message: 'Failed to parse result',
         source: source.name,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -566,7 +566,7 @@ export class NewsRegulatoryEnricher {
       }
     }
     
-    permanentLogger.info('Deduplicated news', { category: 'NEWS_REGULATORY_ENRICHER', original: newsItems.length,
+    permanentLogger.info('NEWS_REGULATORY_ENRICHER', 'Deduplicated news', { original: newsItems.length,
       unique: seen.size })
     
     return Array.from(seen.values())
@@ -669,7 +669,7 @@ export class NewsRegulatoryEnricher {
    */
   validateNewsItem(item: NewsItem): boolean {
     if (!item.title || !item.url || !item.source) {
-      permanentLogger.info('Validation failed', { category: 'NEWS_REGULATORY_ENRICHER', hasTitle: !!item.title,
+      permanentLogger.info('NEWS_REGULATORY_ENRICHER', 'Validation failed', { hasTitle: !!item.title,
         hasUrl: !!item.url,
         hasSource: !!item.source })
       return false

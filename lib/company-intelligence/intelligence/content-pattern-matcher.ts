@@ -217,7 +217,7 @@ export class ContentPatternMatcher {
       const path = urlObj.pathname
       const subdomain = urlObj.hostname.split('.')[0]
       
-      permanentLogger.info('Analyzing URL patterns', { category: 'INTELLIGENCE', url,
+      permanentLogger.info('INTELLIGENCE', 'Analyzing URL patterns', { url,
         path,
         subdomain,
         domain: this.domain })
@@ -254,14 +254,14 @@ export class ContentPatternMatcher {
       // Sort by confidence (highest first)
       matches.sort((a, b) => b.confidence - a.confidence)
       
-      permanentLogger.info('URL pattern analysis completed', { category: 'INTELLIGENCE',
+      permanentLogger.info('INTELLIGENCE', 'URL pattern analysis completed', {
         url,
         matchesFound: matches.length,
         topMatches: matches.slice(0, 3).map(m => ({ pageType: m.pageType, confidence: m.confidence }))
       })
       
     } catch (error) {
-      permanentLogger.captureError('INTELLIGENCE', error, {
+      permanentLogger.captureError('INTELLIGENCE', error as Error, {
         message: 'URL pattern analysis failed',
         url,
         domain: this.domain,
@@ -321,7 +321,7 @@ export class ContentPatternMatcher {
       // Sort by confidence (highest first)
       signals.sort((a, b) => b.confidence - a.confidence)
       
-      permanentLogger.info('Content signal analysis completed', { category: 'INTELLIGENCE',
+      permanentLogger.info('INTELLIGENCE', 'Content signal analysis completed', {
         url,
         signalsFound: signals.length,
         topSignals: signals.slice(0, 5).map(s => ({
@@ -332,7 +332,7 @@ export class ContentPatternMatcher {
       })
       
     } catch (error) {
-      permanentLogger.captureError('INTELLIGENCE', error, {
+      permanentLogger.captureError('INTELLIGENCE', error as Error, {
         message: 'Content signal analysis failed',
         url,
         domain: this.domain,
@@ -445,12 +445,12 @@ export class ContentPatternMatcher {
         }
       }
       
-      permanentLogger.info('Page structure analysis completed', { category: 'INTELLIGENCE', url,
+      permanentLogger.info('INTELLIGENCE', 'Page structure analysis completed', { url,
         elementCounts,
         structuralSignalsFound: structuralSignals.length })
       
     } catch (error) {
-      permanentLogger.captureError('INTELLIGENCE', error, {
+      permanentLogger.captureError('INTELLIGENCE', error as Error, {
         message: 'Page structure analysis failed',
         url,
         domain: this.domain,

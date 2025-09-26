@@ -72,7 +72,9 @@ export function CostAccumulator({
     // Poll for cost updates every 2 seconds when active
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/company-intelligence/sessions/${sessionId}/metrics`)
+        const response = await fetch(`/api/company-intelligence/sessions/${sessionId}/metrics`, {
+          credentials: 'include'  // Include auth cookies
+        })
         if (response.ok) {
           const data = await response.json()
           if (data.metrics) {

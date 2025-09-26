@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { ProjectsRepository } from '@/lib/repositories/projects-repository'
 import { StakeholdersRepository } from '@/lib/repositories/stakeholders-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
@@ -21,7 +21,7 @@ export async function GET(
     const params = await context.params
     const projectId = params.id
 
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

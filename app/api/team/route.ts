@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { TeamRepository } from '@/lib/repositories/team-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const timer = permanentLogger.timing('api.team.get')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   const timer = permanentLogger.timing('api.team.post')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

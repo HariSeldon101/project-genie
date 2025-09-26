@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/ssr'
+import { getBrowserClient } from '@/lib/auth/supabase-browser-client'
 import { useStripeCheckout } from '@/lib/hooks/use-stripe-checkout'
 import { STRIPE_PRICE_IDS } from '@/lib/stripe/config'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -96,10 +96,7 @@ export default function SettingsPage() {
 
   const loadSettings = async () => {
     try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
+      const supabase = getBrowserClient()
 
       const { data: user } = await supabase.auth.getUser()
       if (!user.user) {
@@ -142,10 +139,7 @@ export default function SettingsPage() {
   const saveProfile = async () => {
     setSaving(true)
     try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
+      const supabase = getBrowserClient()
 
       // Update auth metadata
       await supabase.auth.updateUser({

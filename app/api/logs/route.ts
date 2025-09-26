@@ -1,13 +1,29 @@
 /**
- * Logs API Route - Refactored to use Service Layer
+ * Logs API Route - API Layer
+ *
+ * ARCHITECTURE: Clean Architecture API Layer
+ *
+ * Receives flat HTTP query parameters and converts to LogsApiDto
+ * Service layer handles transformation to repository format
+ *
+ * FILTER FORMAT:
+ * - Receives comma-separated strings for multi-select filters
+ * - Converts to arrays for processing
+ * - Example: ?level=info,warn&category=API,GENERAL
+ *
+ * DATA FLOW:
+ * HTTP Request -> Parse to LogsApiDto -> LogsService -> Repository
+ *
  * Now a thin controller that delegates to services
  * Following SOLID principles - under 100 lines!
+ *
  * @module logs-api-refactored
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { LogsService } from '@/lib/logs/services/logs-service'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
+import type { LogsApiDto } from '@/lib/logs/types/api-dto.types'
 
 /**
  * GET /api/logs - Fetch paginated logs
@@ -29,24 +45,27 @@ export async function GET(request: NextRequest) {
     const levelParam = searchParams.get('level')
     const categoryParam = searchParams.get('category')
 
-    const params = {
+    // Create API DTO with FLAT structure
+    // Service layer will transform to NESTED structure for repository
+    const apiDto: LogsApiDto = {
       cursor: searchParams.get('cursor') || undefined,
       pageSize: parseInt(searchParams.get('pageSize') || '50'),
       // Parse comma-separated values into arrays for multi-select
       level: levelParam ? levelParam.split(',').filter(Boolean) : undefined,
       category: categoryParam ? categoryParam.split(',').filter(Boolean) : undefined,
       search: searchParams.get('search') || undefined,
-      sortBy: searchParams.get('sortBy') as any || 'time-desc'
+      sortBy: searchParams.get('sortBy') || 'time-desc'
     }
 
     // Log request
     permanentLogger.breadcrumb('logs-api', 'request', {
-      params,
+      apiDto,
       timestamp: new Date().toISOString()
     })
 
     // Delegate to service layer
-    const response = await LogsService.getPaginatedLogs(params)
+    // Service will transform flat DTO to nested repository params
+    const response = await LogsService.getPaginatedLogs(apiDto)
 
     // Check for errors
     if (response.error) {

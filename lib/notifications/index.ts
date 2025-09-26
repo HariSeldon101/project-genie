@@ -19,7 +19,8 @@ export {
 
 // Export utilities for streaming (replaces SSE adapter)
 export { StreamHandler } from './utils/stream-handler'
-export { EventFactory } from './utils/event-factory'
+// EventFactory moved to unified realtime-events system
+export { EventFactory } from '@/lib/realtime-events'
 export { NotificationIdGenerator } from './utils/id-generator'
 export { DeduplicationService, getDeduplicationService } from './utils/deduplication-service'
 

@@ -182,7 +182,41 @@ export function SiteAnalyzer({ domain, onAnalysisComplete }: SiteAnalyzerProps) 
   const [analysis, setAnalysis] = useState<SiteAnalysis | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDomainValid, setIsDomainValid] = useState(false)
-  
+
+  // Store abort controller in ref for cleanup
+  const abortControllerRef = React.useRef<AbortController | null>(null)
+  const componentMountedRef = React.useRef(true)
+
+  // Log component lifecycle and handle cleanup
+  useEffect(() => {
+    const mountTime = Date.now()
+    import('@/lib/utils/permanent-logger').then(({ permanentLogger }) => {
+      permanentLogger.breadcrumb('component_lifecycle', 'SiteAnalyzer mounted', {
+        domain,
+        timestamp: new Date().toISOString()
+      })
+    })
+
+    return () => {
+      componentMountedRef.current = false
+
+      // Abort any ongoing analysis when component unmounts
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+
+      import('@/lib/utils/permanent-logger').then(({ permanentLogger }) => {
+        permanentLogger.breadcrumb('component_lifecycle', 'SiteAnalyzer unmounting', {
+          domain,
+          duration: Date.now() - mountTime,
+          wasAnalyzing: isAnalyzing,
+          timestamp: new Date().toISOString()
+        })
+      })
+    }
+  }, []) // Empty deps array for mount/unmount only
+
   // Validate domain whenever it changes
   useEffect(() => {
     if (domain) {
@@ -259,50 +293,109 @@ export function SiteAnalyzer({ domain, onAnalysisComplete }: SiteAnalyzerProps) 
   }
 
   const analyzeSite = async () => {
+    console.log('[SITE-ANALYZER] 1. analyzeSite function called, domain:', domain)
+
+    // Import permanentLogger at the top of the component
+    const { permanentLogger } = await import('@/lib/utils/permanent-logger')
+    console.log('[SITE-ANALYZER] 2. permanentLogger imported')
+
+    const analysisTimer = permanentLogger.timing('site_analyzer_full', { domain })
+    console.log('[SITE-ANALYZER] 3. Timer started')
+
+    permanentLogger.breadcrumb('component_action', 'Site analysis started', {
+      domain,
+      component: 'SiteAnalyzer',
+      timestamp: new Date().toISOString()
+    })
+
     setIsAnalyzing(true)
     setError(null)
-    
+
+    // Create abort controller for timeout and store in ref for cleanup
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    const timeoutId = setTimeout(() => {
+      if (componentMountedRef.current) {
+        permanentLogger.warn('SITE_ANALYZER', 'Analysis timeout - aborting', { domain })
+        controller.abort()
+      }
+    }, 30000) // 30 second total timeout
+
     // Emit site analysis started event
     eventBus.emit(EventFactory.notification('Starting site analysis...', 'info'))
     eventBus.emit(EventFactory.phase('site-analysis', 'started', 'Analyzing website structure and technologies'))
-    
+
     // Validate domain format first
     const domainValidation = validateDomain(domain)
     if (!domainValidation.isValid) {
       const errorMsg = domainValidation.error || 'Invalid domain'
+      permanentLogger.warn('SITE_ANALYZER', 'Domain validation failed', {
+        domain,
+        error: errorMsg
+      })
       setError(errorMsg)
       persistentToast.error(errorMsg)
       eventBus.emit(EventFactory.notification(errorMsg, 'error'))
       eventBus.emit(EventFactory.phase('site-analysis', 'failed', errorMsg))
       setIsAnalyzing(false)
+      clearTimeout(timeoutId)
+      analysisTimer.stop()
       return
     }
-    
+
     // Now verify the domain actually exists and is reachable
     try {
+      permanentLogger.breadcrumb('api_call', 'Validating domain reachability', {
+        domain: domainValidation.normalizedDomain,
+        endpoint: '/api/company-intelligence/validate-domain'
+      })
+
+      console.log('[SITE-ANALYZER] 4. About to call validate-domain API')
+      console.log('[SITE-ANALYZER] 5. Domain:', domainValidation.normalizedDomain)
+
       const validationResponse = await fetch('/api/company-intelligence/validate-domain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: domainValidation.normalizedDomain })
+        credentials: 'include',  // Include auth cookies
+        body: JSON.stringify({ domain: domainValidation.normalizedDomain }),
+        signal: controller.signal // Add abort signal
       })
-      
+
+      console.log('[SITE-ANALYZER] 6. validate-domain response received:', validationResponse.status)
+
       const validationResult = await validationResponse.json()
-      
+
       if (!validationResult.valid) {
         const errorMessage = validationResult.suggestion || validationResult.error || 'Domain is not reachable'
+        permanentLogger.warn('SITE_ANALYZER', 'Domain not reachable', {
+          domain: domainValidation.normalizedDomain,
+          error: errorMessage
+        })
         setError(errorMessage)
         persistentToast.error(errorMessage)
         setIsAnalyzing(false)
+        clearTimeout(timeoutId)
+        analysisTimer.stop()
         return
       }
-      
+
       // Domain is valid and reachable, proceed with analysis
+      permanentLogger.breadcrumb('api_call', 'Starting site analysis', {
+        domain: validationResult.domain || domainValidation.normalizedDomain,
+        endpoint: '/api/company-intelligence/analyze-site'
+      })
+
       const response = await fetch('/api/company-intelligence/analyze-site', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: validationResult.domain || domainValidation.normalizedDomain })
+        credentials: 'include',  // Include auth cookies
+        body: JSON.stringify({ domain: validationResult.domain || domainValidation.normalizedDomain }),
+        signal: controller.signal // Add abort signal
       })
-      
+
+      clearTimeout(timeoutId) // Clear timeout if successful
+
       if (!response.ok) {
         // Try to get error message from response
         let errorMessage = 'Analysis failed'
@@ -314,26 +407,55 @@ export function SiteAnalyzer({ domain, onAnalysisComplete }: SiteAnalyzerProps) 
         }
         throw new Error(errorMessage)
       }
-      
+
       const data = await response.json()
       setAnalysis(data)
-      
+
+      const duration = analysisTimer.stop()
+      permanentLogger.info('SITE_ANALYZER', 'Analysis completed successfully', {
+        domain: validationResult.domain || domainValidation.normalizedDomain,
+        duration,
+        technologiesFound: data.technologies?.length || 0
+      })
+
       // Emit success events
       eventBus.emit(EventFactory.notification('Site analysis completed successfully!', 'success'))
       eventBus.emit(EventFactory.phase('site-analysis', 'completed', 'Site analysis complete'))
-      
+
       // Call completion handler immediately when analysis finishes
       onAnalysisComplete(data)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to analyze site'
-      setError(message)
-      persistentToast.error(message)
-      
-      // Emit error events
-      eventBus.emit(EventFactory.notification(message, 'error'))
-      eventBus.emit(EventFactory.phase('site-analysis', 'failed', message))
+      clearTimeout(timeoutId)
+      analysisTimer.stop()
+
+      // Check if it was aborted
+      if (err instanceof Error && err.name === 'AbortError') {
+        const timeoutError = new Error(`Site analysis timeout after 30 seconds for ${domain}`)
+        permanentLogger.captureError('SITE_ANALYZER', timeoutError, {
+          domain,
+          phase: 'analysis_timeout'
+        })
+        setError('Analysis timed out - the site may be slow or unreachable')
+        persistentToast.error('Analysis timed out')
+        eventBus.emit(EventFactory.notification('Analysis timed out', 'error'))
+        eventBus.emit(EventFactory.phase('site-analysis', 'failed', 'Timeout'))
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to analyze site'
+        permanentLogger.captureError('SITE_ANALYZER', err as Error, {
+          domain,
+          phase: 'analysis_error'
+        })
+        setError(message)
+        persistentToast.error(message)
+
+        // Emit error events
+        eventBus.emit(EventFactory.notification(message, 'error'))
+        eventBus.emit(EventFactory.phase('site-analysis', 'failed', message))
+      }
     } finally {
       setIsAnalyzing(false)
+      // Clear abort controller ref
+      abortControllerRef.current = null
     }
   }
 

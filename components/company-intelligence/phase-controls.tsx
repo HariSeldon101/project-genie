@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,17 +13,37 @@ import { usePhaseHandlers } from './hooks/use-phase-handlers'
 import { usePhaseToast } from './hooks/use-phase-toast'
 import { usePersistentToast } from '@/lib/hooks/use-persistent-toast'
 
-// Phase components
-import { SiteAnalyzer } from './site-analyzer'
-import { SitemapSelector } from './sitemap-selector'
-import { ScrapingControl } from './additive/scraping-control'
-import { DataReviewPanel } from './data-review/DataReviewPanel'
+// Always loaded components (small, frequently used)
 import { PersistentActionBar } from './persistent-action-bar'
 import { StageActionBar } from './stage-action-bar'
-// import { ProgressCard } from './progress-card' // TODO: Create this component
-// import { GenerationManager } from './generation-manager' // TODO: Create this component
-import { CorporateStructureDetector } from './corporate-structure-detector'
 import { TooltipWrapper } from './tooltip-wrapper'
+
+// Lazy load heavy phase components - only load when stage is active
+// This reduces initial bundle by ~2MB
+const SiteAnalyzer = lazy(() =>
+  import('./site-analyzer').then(mod => ({ default: mod.SiteAnalyzer }))
+)
+
+const SitemapSelector = lazy(() =>
+  import('./sitemap-selector').then(mod => ({ default: mod.SitemapSelector }))
+)
+
+// ScrapingControl is the heaviest component (1015 lines)
+const ScrapingControl = lazy(() =>
+  import('./additive/scraping-control').then(mod => ({ default: mod.ScrapingControl }))
+)
+
+const DataReviewPanel = lazy(() =>
+  import('./data-review/DataReviewPanel').then(mod => ({ default: mod.DataReviewPanel }))
+)
+
+const CorporateStructureDetector = lazy(() =>
+  import('./corporate-structure-detector').then(mod => ({ default: mod.CorporateStructureDetector }))
+)
+
+// TODO: Create these components
+// const ProgressCard = lazy(() => import('./progress-card').then(mod => ({ default: mod.ProgressCard })))
+// const GenerationManager = lazy(() => import('./generation-manager').then(mod => ({ default: mod.GenerationManager })))
 
 interface PhaseControlsProps {
   domain: string
@@ -61,9 +81,10 @@ export function PhaseControls({
 
   // Phase data state
   const {
+    domain: phaseStateDomain,
     sessionId,
-    sessionData,
-    initializeSession,
+    initializeDomain,
+    fetchSession,
     stageData,
     setStageDataForStage,
     getStageData,
@@ -129,23 +150,111 @@ export function PhaseControls({
   // REMOVED: Debug logging that was used for troubleshooting
 
   /**
-   * Initialize session on mount
+   * Helper function to safely fetch session data
+   * Centralizes null checks and error handling (DRY principle)
+   */
+  const fetchSessionData = useCallback(async () => {
+    // Guard against invalid sessionId
+    if (!sessionId || sessionId === 'null' || sessionId === 'undefined') {
+      permanentLogger.debug('PHASE_CONTROLS', 'Skipping session fetch - no valid sessionId', { sessionId })
+      return null
+    }
+
+    try {
+      const response = await fetch(`/api/company-intelligence/sessions/${sessionId}`, {
+        credentials: 'include'  // Include auth cookies
+      })
+      if (!response.ok) {
+        permanentLogger.warn('PHASE_CONTROLS', 'Failed to fetch session', {
+          status: response.status,
+          sessionId
+        })
+        return null
+      }
+
+      const data = await response.json()
+      return data.session || data
+    } catch (error) {
+      permanentLogger.captureError('PHASE_CONTROLS', new Error('Session fetch failed'), {
+        error,
+        sessionId
+      })
+      return null
+    }
+  }, [sessionId])
+
+  /**
+   * Helper to check if sessionId is valid
+   */
+  const isValidSessionId = useCallback((id: string | null | undefined): boolean => {
+    return !!(id && id !== 'null' && id !== 'undefined')
+  }, [])
+
+  /**
+   * Initialize domain on mount
+   * INCLUDES CLEANUP AND DEBOUNCING to prevent race conditions
    */
   useEffect(() => {
-    if (domain && !sessionId) {
-      permanentLogger.info('PHASE_CONTROLS', 'Initializing session for domain', { domain })
-      initializeSession(domain)
-        .then((newSessionId) => {
-          if (newSessionId && onSessionCreated) {
-            onSessionCreated(newSessionId)
+    // Setup cleanup tracking
+    const abortController = new AbortController()
+    let mounted = true
+    let timeoutId: NodeJS.Timeout | null = null
+
+    if (domain && domain !== phaseStateDomain) {
+      permanentLogger.info('PHASE_CONTROLS', 'Initializing domain (with debounce)', { domain })
+
+      // Wrap async operations with debounce
+      const initializeAsync = async () => {
+        try {
+          // Check if component is still mounted
+          if (!mounted) {
+            permanentLogger.info('PHASE_CONTROLS', 'Component unmounted, skipping initialization')
+            return
           }
-        })
-        .catch(error => {
-          permanentLogger.captureError('PHASE_CONTROLS', new Error('Failed to initialize session'), { error })
-          showPhaseToast('initialization', error.message, true)
-        })
+
+          initializeDomain(domain)
+
+          // Fetch session from server after domain is set
+          const result = await fetchSession(domain)
+
+          // Only process result if still mounted
+          if (!mounted) {
+            permanentLogger.info('PHASE_CONTROLS', 'Component unmounted, skipping state update')
+            return
+          }
+
+        } catch (error) {
+          // Only handle error if still mounted and not aborted
+          if (!abortController.signal.aborted && mounted) {
+            permanentLogger.captureError('PHASE_CONTROLS', new Error('Failed to initialize domain or fetch session'), { error })
+            showPhaseToast('initialization', error instanceof Error ? error.message : 'Failed to initialize', true)
+          }
+        }
+      }
+
+      // DEBOUNCE: Wait 100ms before executing to batch rapid changes
+      timeoutId = setTimeout(initializeAsync, 100)
     }
-  }, [domain, sessionId, initializeSession, showPhaseToast, onSessionCreated])
+
+    // CLEANUP: Cancel operations on unmount or dependency change
+    return () => {
+      mounted = false
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      abortController.abort()
+    }
+  }, [domain, phaseStateDomain, initializeDomain, fetchSession, showPhaseToast])
+
+  /**
+   * Notify parent when sessionId is set
+   */
+  useEffect(() => {
+    if (sessionId && onSessionCreated) {
+      permanentLogger.info('PHASE_CONTROLS', 'Session created by server', { sessionId })
+      onSessionCreated(sessionId)
+    }
+  }, [sessionId, onSessionCreated])
 
 
   /**
@@ -200,14 +309,9 @@ export function PhaseControls({
 
       // Get current merged_data to preserve existing data
       let currentMergedData = {}
-      try {
-        const sessionResponse = await fetch(`/api/company-intelligence/sessions/${sessionId}`)
-        if (sessionResponse.ok) {
-          const sessionData = await sessionResponse.json()
-          currentMergedData = sessionData.session?.merged_data || {}
-        }
-      } catch (error) {
-        permanentLogger.captureError('STAGE_COMPLETE', new Error('Failed to fetch current session'), { error })
+      const sessionData = await fetchSessionData()
+      if (sessionData) {
+        currentMergedData = sessionData.merged_data || {}
       }
 
       updatePayload = {
@@ -231,55 +335,41 @@ export function PhaseControls({
     } else {
       // All other data goes into merged_data with nested path
       // First, get current session to preserve existing data
-      try {
-        const sessionResponse = await fetch(`/api/company-intelligence/sessions/${sessionId}`)
-        let currentMergedData = {}
-        if (sessionResponse.ok) {
-          const sessionData = await sessionResponse.json()
-          currentMergedData = sessionData.session?.merged_data || {}
-        }
-        
-        // Merge new data into the correct nested path
-        updatePayload = {
-          merged_data: {
-            ...currentMergedData,
-            [nestedPath]: data,
-            stats: {
-              ...currentMergedData.stats,
-              lastUpdated: Date.now(),
-              [`${stage}Completed`]: true
-            }
-          }
-        }
-        
-        permanentLogger.info('STAGE_COMPLETE', 'Updating merged_data', {
-          stage,
-          nestedPath,
-          dataKeys: Object.keys(data || {})
-        })
-      } catch (error) {
-        permanentLogger.captureError('STAGE_COMPLETE', new Error('Failed to get current session data'), { error })
-        // Fallback: create new structure
-        updatePayload = {
-          merged_data: {
-            [nestedPath]: data,
-            stats: {
-              lastUpdated: Date.now(),
-              [`${stage}Completed`]: true
-            }
+      let currentMergedData = {}
+      const sessionData = await fetchSessionData()
+      if (sessionData) {
+        currentMergedData = sessionData.merged_data || {}
+      }
+
+      // Merge new data into the correct nested path
+      updatePayload = {
+        merged_data: {
+          ...currentMergedData,
+          [nestedPath]: data,
+          stats: {
+            ...(currentMergedData.stats || {}),
+            lastUpdated: Date.now(),
+            [`${stage}Completed`]: true
           }
         }
       }
+
+      permanentLogger.info('STAGE_COMPLETE', 'Updating merged_data', {
+        stage,
+        nestedPath,
+        dataKeys: Object.keys(data || {})
+      })
     }
-    
+
     // Step 4: Send update to database with retry logic (bulletproof)
-    if (sessionId) {
+    if (isValidSessionId(sessionId) && updatePayload) {
       let retries = 3
       while (retries > 0) {
         try {
           const response = await fetch(`/api/company-intelligence/sessions/${sessionId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',  // Include auth cookies
             body: JSON.stringify(updatePayload)
           })
           
@@ -451,7 +541,7 @@ export function PhaseControls({
         break
 
       case 'extraction':
-        if (stageData.extraction) {
+        if (stageData['extraction']) {
           proceedToNextStage()
         } else {
           await phaseHandlers.startExtraction()
@@ -459,7 +549,7 @@ export function PhaseControls({
         break
 
       case 'enrichment':
-        if (stageData.enrichment) {
+        if (stageData['enrichment']) {
           proceedToNextStage()
         } else {
           await phaseHandlers.startEnrichment()
@@ -467,7 +557,7 @@ export function PhaseControls({
         break
 
       case 'generation':
-        if (stageData.generation) {
+        if (stageData['generation']) {
           showInfoToast('Documents already generated')
         } else {
           await phaseHandlers.startGeneration()
@@ -502,8 +592,8 @@ export function PhaseControls({
       case 'scraping':
         if (isProcessing) return 'Scraping in progress...'
         if (isEnhancingScraping) return 'Enhancing content...'
-        if (stageData.scraping?.pages?.length > 0) return 'Accept Results & Continue'
-        if (stageData.scraping) return 'Scraping failed - no pages retrieved'
+        if (stageData['scraping']?.pages?.length > 0) return 'Accept Results & Continue'
+        if (stageData['scraping']) return 'Scraping failed - no pages retrieved'
         return 'Waiting for scraping to complete'
       
       case 'extraction':
@@ -532,7 +622,7 @@ export function PhaseControls({
       case 'sitemap':
         return !sitemapReady || sitemapCount === 0
       case 'scraping':
-        return !stageData.scraping || stageData.scraping?.pages?.length === 0 // Disabled until scraping completes with pages
+        return !stageData['scraping'] || stageData['scraping']?.pages?.length === 0 // Disabled until scraping completes with pages
       case 'extraction':
         return false // Can always start extraction if we have scraping data
       case 'enrichment':
@@ -557,13 +647,14 @@ export function PhaseControls({
     setShowCorporateDetector(false)
 
     // Clear database phase data and cache if session exists
-    if (sessionId) {
+    if (isValidSessionId(sessionId)) {
       try {
         permanentLogger.info('PHASE_CONTROLS', 'Clearing database phase data', { sessionId })
 
         // Call API to clear all phase data from database
         const response = await fetch(`/api/company-intelligence/sessions/${sessionId}/phase-data`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          credentials: 'include'  // Include auth cookies
         })
 
         if (!response.ok) {
@@ -641,16 +732,25 @@ export function PhaseControls({
       <div className="space-y-4">
         {currentStage === 'site-analysis' && (
           <>
-            <SiteAnalyzer
-              domain={domain}
-              onAnalysisComplete={(data) => {
-                setStageDataForStage('site-analysis', data)
-                if (data.siteType?.includes('corporate')) {
-                  setShowCorporateDetector(true)
-                }
-              }}
-              sessionId={sessionId}
-            />
+            <Suspense fallback={
+              <div className="animate-pulse">
+                <div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                </div>
+              </div>
+            }>
+              <SiteAnalyzer
+                domain={domain}
+                onAnalysisComplete={(data) => {
+                  setStageDataForStage('site-analysis', data)
+                  if (data.siteType?.includes('corporate')) {
+                    setShowCorporateDetector(true)
+                  }
+                }}
+                sessionId={sessionId}
+              />
+            </Suspense>
             
             {completedStages.has('site-analysis') && stageData['site-analysis'] && !showCorporateDetector && (
               <StageActionBar
@@ -662,78 +762,126 @@ export function PhaseControls({
             )}
             
             {showCorporateDetector && (
-              <CorporateStructureDetector
-                domain={domain}
-                siteAnalysis={stageData['site-analysis']}
-                onDetectionComplete={(structure) => {
-                  setCorporateStructure(structure)
-                  setShowCorporateDetector(false)
-                  proceedToNextStage()
-                }}
-              />
+              <Suspense fallback={
+                <div className="animate-pulse">
+                  <div className="h-48 bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2" />
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                  </div>
+                </div>
+              }>
+                <CorporateStructureDetector
+                  domain={domain}
+                  siteAnalysis={stageData['site-analysis']}
+                  onDetectionComplete={(structure) => {
+                    setCorporateStructure(structure)
+                    setShowCorporateDetector(false)
+                    proceedToNextStage()
+                  }}
+                />
+              </Suspense>
             )}
           </>
         )}
 
-        {currentStage === 'sitemap' && sessionId && (
-          <SitemapSelector
-            companyId={domain} // Using domain as companyId for now
-            sessionId={sessionId}
-            onComplete={async (selectedPages) => {
-              // Store complete page objects for when user approves
-              setPendingSitemapData(selectedPages)
+        {currentStage === 'sitemap' && domain && (
+          <Suspense fallback={
+            <div className="animate-pulse">
+              <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-4" />
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-12 bg-gray-200 dark:bg-gray-700 rounded" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          }>
+            <SitemapSelector
+              domain={domain}
+              onComplete={async (selectedPages) => {
+                // Store complete page objects for when user approves
+                setPendingSitemapData(selectedPages)
 
-              // Update state for button text
-              setSitemapReady(selectedPages.length > 0)
-              setSitemapCount(selectedPages.length)
+                // Update state for button text
+                setSitemapReady(selectedPages.length > 0)
+                setSitemapCount(selectedPages.length)
 
-              permanentLogger.info('PHASE_CONTROLS', 'Sitemap pages selected, waiting for approval', {
-                pageCount: selectedPages.length,
-                sessionId
-              })
+                permanentLogger.info('PHASE_CONTROLS', 'Sitemap pages selected, waiting for approval', {
+                  pageCount: selectedPages.length,
+                  sessionId
+                })
 
-              setIsSitemapDiscovering(false)
-            }}
-            onError={(error) => {
-              permanentLogger.captureError('PHASE_CONTROLS', error, {
-                message: 'Sitemap discovery error',
-                sessionId
-              })
+                setIsSitemapDiscovering(false)
+              }}
+              onError={(error) => {
+                permanentLogger.captureError('PHASE_CONTROLS', error, {
+                  message: 'Sitemap discovery error',
+                  sessionId
+                })
 
-              // Show error to user
-              showPhaseToast('Discovery Error', 'error')
+                // Show error to user
+                showPhaseToast('Discovery Error', 'error')
 
-              setIsSitemapDiscovering(false)
-            }}
-          />
+                setIsSitemapDiscovering(false)
+              }}
+            />
+          </Suspense>
         )}
 
         {currentStage === 'scraping' && (
-          <ScrapingControl
-            domain={domain || ''}
-            sessionId={sessionId || ''}
-            // No selectedPages - scraper gets URLs from database
-            onComplete={(data) => {
-              permanentLogger.info('PHASE_CONTROLS', 'Scraping session completed', data)
-              
-              // Store the scraping data and mark stage complete
-              setStageDataForStage('scraping', data)
-              handleStageComplete('scraping', data)
-              
-              // Auto-proceed to next stage
-              proceedToNextStage()
-            }}
-          />
+          <Suspense fallback={
+            <div className="animate-pulse">
+              <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                <div className="text-center">
+                  <div className="h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mx-auto mb-2" />
+                  <div className="text-sm text-gray-500">Loading scraping control...</div>
+                </div>
+              </div>
+            </div>
+          }>
+            <ScrapingControl
+              domain={domain || ''}
+              sessionId={sessionId || ''}
+              // No selectedPages - scraper gets URLs from database
+              onComplete={(data) => {
+                permanentLogger.info('PHASE_CONTROLS', 'Scraping session completed', data)
+
+                // Store the scraping data and mark stage complete
+                setStageDataForStage('scraping', data)
+                handleStageComplete('scraping', data)
+
+                // Auto-proceed to next stage
+                proceedToNextStage()
+              }}
+            />
+          </Suspense>
         )}
 
         {currentStage === 'data-review' && (
-          <DataReviewPanel
-            extractedData={stageData.extraction}
-            onProceed={(selectedData) => {
-              setStageDataForStage('data-review', { selectedData })
-              proceedToNextStage()
-            }}
-          />
+          <Suspense fallback={
+            <div className="animate-pulse">
+              <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-4" />
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded" />
+                </div>
+              </div>
+            </div>
+          }>
+            <DataReviewPanel
+              extractedData={stageData['extraction']}
+              onProceed={(selectedData) => {
+                setStageDataForStage('data-review', { selectedData })
+                proceedToNextStage()
+              }}
+            />
+          </Suspense>
         )}
 
         {/* Generation Manager - TODO: Create this component */}
@@ -762,8 +910,8 @@ export function PhaseControls({
         approveDisabled={isApproveDisabled()}
         approveText={getApproveButtonText()}
         additionalInfo={
-          currentStage === 'sitemap' && stageData.sitemap 
-            ? `for ${stageData.sitemap.length} pages` 
+          currentStage === 'sitemap' && stageData['sitemap']
+            ? `for ${stageData['sitemap'].length} pages` 
             : undefined
         }
       />

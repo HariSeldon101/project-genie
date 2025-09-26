@@ -83,7 +83,7 @@ export class SocialMediaEnricher {
   ): Promise<EnrichmentResult> {
     const startTime = Date.now()
     
-    permanentLogger.info('Starting social media enrichment', { category: 'SOCIAL_MEDIA_ENRICHER', companyName,
+    permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Starting social media enrichment', { companyName,
       domain,
       sessionId })
 
@@ -91,8 +91,7 @@ export class SocialMediaEnricher {
       // Step 1: Check homepage for social links (fastest method)
       const homepageProfiles = await this.extractSocialLinksFromHomepage(domain)
       
-      permanentLogger.info('Homepage social links found', {
-        category: 'SOCIAL_MEDIA_ENRICHER',
+      permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Homepage social links found', {
         count: homepageProfiles.length,
         platforms: homepageProfiles.map(p => p.platform)
       })
@@ -113,7 +112,7 @@ export class SocialMediaEnricher {
       // Step 4: Enrich each profile with metrics
       const enrichedProfiles = await this.enrichProfiles(allProfiles, sessionId)
 
-      permanentLogger.info('Social media enrichment completed', { category: 'SOCIAL_MEDIA_ENRICHER', companyName,
+      permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Social media enrichment completed', { companyName,
         totalProfiles: enrichedProfiles.length,
         platforms: enrichedProfiles.map(p => ({
           platform: p.platform,
@@ -132,7 +131,7 @@ export class SocialMediaEnricher {
       }
 
     } catch (error) {
-      permanentLogger.captureError('SOCIAL_MEDIA_ENRICHER', error, {
+      permanentLogger.captureError('SOCIAL_MEDIA_ENRICHER', error as Error, {
         message: 'Enrichment failed',
         companyName,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -192,7 +191,7 @@ export class SocialMediaEnricher {
               username: usernameMatch[2] || usernameMatch[1]
             })
             
-            permanentLogger.info('Found social profile on homepage', { category: 'SOCIAL_MEDIA_ENRICHER', platform: strategy.platform,
+            permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Found social profile on homepage', { platform: strategy.platform,
               url })
             
             break // Only take first match per platform
@@ -211,7 +210,7 @@ export class SocialMediaEnricher {
                 username: usernameMatch[2] || usernameMatch[1]
               })
               
-              permanentLogger.info('Found social profile in links', { category: 'SOCIAL_MEDIA_ENRICHER', platform: strategy.platform,
+              permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Found social profile in links', { platform: strategy.platform,
                 url: link })
             }
           }
@@ -221,7 +220,7 @@ export class SocialMediaEnricher {
       return profiles
 
     } catch (error) {
-      permanentLogger.captureError('SOCIAL_MEDIA_ENRICHER', error, {
+      permanentLogger.captureError('SOCIAL_MEDIA_ENRICHER', error as Error, {
         message: 'Homepage extraction failed',
         domain,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -238,7 +237,7 @@ export class SocialMediaEnricher {
     domain: string,
     existingProfiles: Partial<SocialProfile>[]
   ): Promise<Partial<SocialProfile>[]> {
-    permanentLogger.info('Searching for additional social profiles', { category: 'SOCIAL_MEDIA_ENRICHER',
+    permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Searching for additional social profiles', {
       companyName,
       existingPlatforms: existingProfiles.map(p => p.platform)
     })
@@ -286,7 +285,7 @@ export class SocialMediaEnricher {
                   username: usernameMatch[2] || usernameMatch[1]
                 })
                 
-                permanentLogger.info('Found social profile via search', { category: 'SOCIAL_MEDIA_ENRICHER', platform: strategy.platform,
+                permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Found social profile via search', { platform: strategy.platform,
                   query,
                   url })
                 
@@ -301,11 +300,11 @@ export class SocialMediaEnricher {
         }
 
       } catch (error) {
-        permanentLogger.captureError('SOCIAL_MEDIA_ENRICHER', error, {
-        message: 'Platform search failed',
-        platform: strategy.platform,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
-      })
+        permanentLogger.captureError('SOCIAL_MEDIA_ENRICHER', error as Error, {
+          message: 'Platform search failed',
+          platform: strategy.platform,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        })
       }
     }
 
@@ -326,7 +325,7 @@ export class SocialMediaEnricher {
       }
     }
     
-    permanentLogger.info('Deduplicated profiles', { category: 'SOCIAL_MEDIA_ENRICHER', original: profiles.length,
+    permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Deduplicated profiles', { original: profiles.length,
       unique: uniqueProfiles.size })
     
     return Array.from(uniqueProfiles.values())
@@ -374,18 +373,18 @@ export class SocialMediaEnricher {
         
         enrichedProfiles.push(enrichedProfile)
         
-        permanentLogger.info('Profile enriched', { category: 'SOCIAL_MEDIA_ENRICHER', platform: enrichedProfile.platform,
+        permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Profile enriched', { platform: enrichedProfile.platform,
           username: enrichedProfile.username,
           followers: enrichedProfile.followers,
           verified: enrichedProfile.verified })
 
       } catch (error) {
-        permanentLogger.captureError('SOCIAL_MEDIA_ENRICHER', error, {
-        message: 'Profile enrichment failed',
-        platform: profile.platform,
+        permanentLogger.captureError('SOCIAL_MEDIA_ENRICHER', error as Error, {
+          message: 'Profile enrichment failed',
+          platform: profile.platform,
           url: profile.profileUrl,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
-      })
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        })
         
         // Add basic profile even if enrichment fails
         enrichedProfiles.push(this.createBasicProfile(profile, sessionId))
@@ -608,7 +607,7 @@ export class SocialMediaEnricher {
    */
   validateProfile(profile: SocialProfile): boolean {
     if (!profile.profileUrl || !profile.platform || !profile.username) {
-      permanentLogger.info('Profile validation failed', { category: 'SOCIAL_MEDIA_ENRICHER', platform: profile.platform,
+      permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'Profile validation failed', { platform: profile.platform,
         hasUrl: !!profile.profileUrl,
         hasUsername: !!profile.username })
       return false
@@ -617,7 +616,7 @@ export class SocialMediaEnricher {
     // Check URL matches platform
     const strategy = this.platformStrategies.find(s => s.platform === profile.platform)
     if (strategy && !strategy.urlPattern.test(profile.profileUrl)) {
-      permanentLogger.info('URL pattern mismatch', { category: 'SOCIAL_MEDIA_ENRICHER', platform: profile.platform,
+      permanentLogger.info('SOCIAL_MEDIA_ENRICHER', 'URL pattern mismatch', { platform: profile.platform,
         url: profile.profileUrl })
       return false
     }

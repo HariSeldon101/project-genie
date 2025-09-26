@@ -77,7 +77,7 @@ export class SSEStreamManager {
    */
   async sendEvent(event: any): Promise<void> {
     // Log EVERY event attempt for debugging
-    permanentLogger.info('sendEvent called', { category: 'SSE_MANAGER', eventType: event.type,
+    permanentLogger.info('SSE_MANAGER', 'sendEvent called', { eventType: event.type,
       sessionId: this.sessionId,
       isClosed: this.isClosed,
       hasController: !!this.controller,
@@ -99,7 +99,7 @@ export class SSEStreamManager {
     const sseMessage = `data: ${JSON.stringify(event)}\n\n`
     const encoded = this.encoder.encode(sseMessage)
     
-    permanentLogger.info('Formatted SSE message', { category: 'SSE_MANAGER', messageLength: sseMessage.length,
+    permanentLogger.info('SSE_MANAGER', 'Formatted SSE message', { messageLength: sseMessage.length,
       encodedLength: encoded.length,
       sequence: event.sequence })
     
@@ -107,7 +107,7 @@ export class SSEStreamManager {
       if (this.controller) {
         permanentLogger.info('SSE_MANAGER', 'Enqueueing to controller', { eventType: event.type})
         this.controller.enqueue(encoded)
-        permanentLogger.info('Event SENT successfully', { category: 'SSE_MANAGER', eventType: event.type,
+        permanentLogger.info('SSE_MANAGER', 'Event SENT successfully', { eventType: event.type,
           sequence: event.sequence })
         
         permanentLogger.breadcrumb('sse_sent', `Event sent: ${event.type}`, {
@@ -116,7 +116,7 @@ export class SSEStreamManager {
         })
       } else {
         // Queue if controller not ready
-        permanentLogger.info('Controller NOT READY, queuing event', { category: 'SSE_MANAGER', eventType: event.type,
+        permanentLogger.info('SSE_MANAGER', 'Controller NOT READY, queuing event', { eventType: event.type,
           queueSize: this.eventQueue.length + 1 })
         this.eventQueue.push(event)
         permanentLogger.breadcrumb('sse_queued', `Event queued: ${event.type}`, {
@@ -141,7 +141,7 @@ export class SSEStreamManager {
   private flushQueue(): void {
     if (this.eventQueue.length === 0) return
     
-    permanentLogger.info('Flushing event queue', { category: 'SSE_MANAGER', sessionId: this.sessionId,
+    permanentLogger.info('SSE_MANAGER', 'Flushing event queue', { sessionId: this.sessionId,
       queueSize: this.eventQueue.length })
     
     while (this.eventQueue.length > 0) {
@@ -174,7 +174,7 @@ export class SSEStreamManager {
       }
     }
     
-    permanentLogger.info('Stream closed', { category: 'SSE_MANAGER', sessionId: this.sessionId,
+    permanentLogger.info('SSE_MANAGER', 'Stream closed', { sessionId: this.sessionId,
       totalEvents: this.sequenceNumber })
   }
   

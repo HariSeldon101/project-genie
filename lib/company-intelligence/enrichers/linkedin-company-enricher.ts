@@ -26,7 +26,7 @@ export class LinkedInCompanyEnricher {
   ): Promise<EnrichmentResult> {
     const startTime = Date.now()
     
-    permanentLogger.info('Starting LinkedIn enrichment', { category: 'LINKEDIN_ENRICHER', companyName,
+    permanentLogger.info('LINKEDIN_ENRICHER', 'Starting LinkedIn enrichment', { companyName,
       domain,
       sessionId })
 
@@ -46,7 +46,7 @@ export class LinkedInCompanyEnricher {
         }
       }
 
-      permanentLogger.info('LinkedIn URL discovered', { category: 'LINKEDIN_ENRICHER', companyName,
+      permanentLogger.info('LINKEDIN_ENRICHER', 'LinkedIn URL discovered', { companyName,
         linkedInUrl })
 
       // Step 2: Scrape LinkedIn company data
@@ -59,7 +59,7 @@ export class LinkedInCompanyEnricher {
       // Step 3: Enrich with additional searches if needed
       const enrichedData = await this.enrichLinkedInData(linkedInData, companyName)
 
-      permanentLogger.info('LinkedIn enrichment completed', { category: 'LINKEDIN_ENRICHER',
+      permanentLogger.info('LINKEDIN_ENRICHER', 'LinkedIn enrichment completed', {
         companyName,
         employeeCount: enrichedData.employeeCount,
         followers: enrichedData.followers,
@@ -77,7 +77,7 @@ export class LinkedInCompanyEnricher {
       }
 
     } catch (error) {
-      permanentLogger.captureError('LINKEDIN_ENRICHER', error, {
+      permanentLogger.captureError('LINKEDIN_ENRICHER', error as Error, {
         message: 'Enrichment failed',
         companyName,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -100,7 +100,7 @@ export class LinkedInCompanyEnricher {
     companyName: string,
     domain: string
   ): Promise<string | null> {
-    permanentLogger.info('Searching for LinkedIn page', { category: 'LINKEDIN_ENRICHER', companyName,
+    permanentLogger.info('LINKEDIN_ENRICHER', 'Searching for LinkedIn page', { companyName,
       domain })
 
     try {
@@ -129,7 +129,7 @@ export class LinkedInCompanyEnricher {
         // Look for LinkedIn company URLs
         const linkedInUrl = this.extractLinkedInUrl(results.items || [])
         if (linkedInUrl) {
-          permanentLogger.info('LinkedIn URL found', { category: 'LINKEDIN_ENRICHER', query,
+          permanentLogger.info('LINKEDIN_ENRICHER', 'LinkedIn URL found', { query,
             url: linkedInUrl })
           return linkedInUrl
         }
@@ -144,7 +144,7 @@ export class LinkedInCompanyEnricher {
       return null
 
     } catch (error) {
-      permanentLogger.captureError('LINKEDIN_ENRICHER', error, {
+      permanentLogger.captureError('LINKEDIN_ENRICHER', error as Error, {
         message: 'URL discovery failed',
         companyName,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -200,7 +200,7 @@ export class LinkedInCompanyEnricher {
       const match = linkedInRegex.exec(html)
 
       if (match) {
-        permanentLogger.info('Found LinkedIn link on homepage', { category: 'LINKEDIN_ENRICHER', domain,
+        permanentLogger.info('LINKEDIN_ENRICHER', 'Found LinkedIn link on homepage', { domain,
           url: match[1] })
         return match[1]
       }
@@ -208,7 +208,7 @@ export class LinkedInCompanyEnricher {
       return null
 
     } catch (error) {
-      permanentLogger.captureError('LINKEDIN_ENRICHER', error, {
+      permanentLogger.captureError('LINKEDIN_ENRICHER', error as Error, {
         message: 'Homepage check failed',
         domain,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -252,7 +252,7 @@ export class LinkedInCompanyEnricher {
       return linkedInData
 
     } catch (error) {
-      permanentLogger.captureError('LINKEDIN_ENRICHER', error, {
+      permanentLogger.captureError('LINKEDIN_ENRICHER', error as Error, {
         message: 'Scraping failed',
         url: linkedInUrl,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -273,8 +273,7 @@ export class LinkedInCompanyEnricher {
     const metadata = scrapedData.metadata || {}
     const html = scrapedData.html || ''
 
-    permanentLogger.info('Parsing LinkedIn data', {
-      category: 'LINKEDIN_ENRICHER',
+    permanentLogger.info('LINKEDIN_ENRICHER', 'Parsing LinkedIn data', {
       hasCheerio: !!$,
       metadataKeys: Object.keys(metadata)
     })
@@ -392,7 +391,7 @@ export class LinkedInCompanyEnricher {
       linkedInData.verified = $('.org-top-card__verified-badge').length > 0 ||
                              $('[data-test-id="verified-badge"]').length > 0
 
-      permanentLogger.info('Extracted LinkedIn details', { category: 'LINKEDIN_ENRICHER', name: linkedInData.name,
+      permanentLogger.info('LINKEDIN_ENRICHER', 'Extracted LinkedIn details', { name: linkedInData.name,
         industry: linkedInData.industry,
         employeeCount: linkedInData.employeeCount,
         followers: linkedInData.followers,
@@ -445,7 +444,7 @@ export class LinkedInCompanyEnricher {
     linkedInData: LinkedInCompanyData,
     companyName: string
   ): Promise<LinkedInCompanyData> {
-    permanentLogger.info('Enriching LinkedIn data', { category: 'LINKEDIN_ENRICHER',
+    permanentLogger.info('LINKEDIN_ENRICHER', 'Enriching LinkedIn data', {
       companyName,
       currentDataPoints: Object.keys(linkedInData).length
     })
@@ -466,12 +465,12 @@ export class LinkedInCompanyEnricher {
       // Calculate employee growth if we have historical data
       // This would require storing historical data or using LinkedIn API
       
-      permanentLogger.info('Enrichment completed', { category: 'LINKEDIN_ENRICHER', companyName,
+      permanentLogger.info('LINKEDIN_ENRICHER', 'Enrichment completed', { companyName,
         recentPosts: linkedInData.recentPosts.length,
         jobOpenings: linkedInData.jobOpenings })
 
     } catch (error) {
-      permanentLogger.captureError('LINKEDIN_ENRICHER', error, {
+      permanentLogger.captureError('LINKEDIN_ENRICHER', error as Error, {
         message: 'Enrichment enhancement failed',
         companyName,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ExcelExporter } from '@/lib/export/excel-exporter'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { ProjectsRepository } from '@/lib/repositories/projects-repository'
 import { TeamRepository } from '@/lib/repositories/team-repository'
 import { ArtifactsRepository } from '@/lib/repositories/artifacts-repository'
@@ -34,7 +34,7 @@ export async function GET(
     const timer = permanentLogger.timing('api.export.get')
 
     // Get user session using server client
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {

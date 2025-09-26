@@ -1,0 +1,175 @@
+Vercel CLI 46.0.1
+Retrieving project…
+Deploying hariseldon101s-projects/project-genie
+Uploading [--------------------] (0.0B/90.2KB)
+Uploading [=======-------------] (32.7KB/90.2KB)
+Uploading [==========----------] (48.7KB/90.2KB)
+Uploading [=================---] (77.9KB/90.2KB)
+Uploading [====================] (90.2KB/90.2KB)
+Inspect: https://vercel.com/hariseldon101s-projects/project-genie/Dh2BkL4HXY8eW8ge8oLu5oojNF8t [4s]
+Production: https://project-genie-q9qtnyqkb-hariseldon101s-projects.vercel.app [4s]
+https://project-genie-q9qtnyqkb-hariseldon101s-projects.vercel.appQueued
+Building
+Error: Command "npm run build" exited with 1
+
+2025-09-17T10:25:55.699Z  Running build in Washington, D.C., USA (East) – iad1
+2025-09-17T10:25:55.699Z  Build machine configuration: 2 cores, 8 GB
+2025-09-17T10:25:55.740Z  Retrieving list of deployment files...
+2025-09-17T10:25:56.332Z  Downloading 700 deployment files...
+2025-09-17T10:26:04.590Z  Restored build cache from previous deployment (HuyYVv6uR5ccsFrVgb8KwDdxWN1o)
+2025-09-17T10:26:05.600Z  Running "vercel build"
+2025-09-17T10:26:06.012Z  Vercel CLI 47.1.1
+2025-09-17T10:26:08.236Z  Warning: Detected "engines": { "node": ">=18.17.0" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
+2025-09-17T10:26:08.254Z  Installing dependencies...
+2025-09-17T10:26:20.502Z  
+2025-09-17T10:26:20.503Z  > project-genie@0.1.0 prepare
+2025-09-17T10:26:20.503Z  > husky
+2025-09-17T10:26:20.503Z  
+2025-09-17T10:26:20.721Z  .git can't be found
+2025-09-17T10:26:20.721Z  added 147 packages, removed 3 packages, and changed 28 packages in 12s
+2025-09-17T10:26:20.722Z  
+2025-09-17T10:26:20.722Z  387 packages are looking for funding
+2025-09-17T10:26:20.722Z    run `npm fund` for details
+2025-09-17T10:26:20.763Z  Detected Next.js version: 15.5.0
+2025-09-17T10:26:20.771Z  Running "npm run build"
+2025-09-17T10:26:20.883Z  
+2025-09-17T10:26:20.883Z  > project-genie@0.1.0 prebuild
+2025-09-17T10:26:20.883Z  > npm run manifest:update && npm run db:types && npm run check:logger
+2025-09-17T10:26:20.883Z  
+2025-09-17T10:26:20.996Z  
+2025-09-17T10:26:20.996Z  > project-genie@0.1.0 manifest:update
+2025-09-17T10:26:20.996Z  > tsx scripts/update-manifest.ts
+2025-09-17T10:26:20.997Z  
+2025-09-17T10:26:21.625Z  🔍 Scanning project structure...
+2025-09-17T10:26:21.626Z  📦 Discovering enrichers...
+2025-09-17T10:26:22.110Z  📦 Discovering extractors...
+2025-09-17T10:26:22.423Z  🔍 Finding unused components...
+2025-09-17T10:26:25.642Z  📊 Checking database tables...
+2025-09-17T10:26:26.108Z  🌐 Mapping API endpoints...
+2025-09-17T10:26:26.113Z  🚩 Checking feature flags...
+2025-09-17T10:26:26.130Z  📈 Calculating metrics...
+2025-09-17T10:26:26.190Z  🎯 Identifying quick wins...
+2025-09-17T10:26:26.191Z  ✅ PROJECT_MANIFEST.json updated successfully!
+2025-09-17T10:26:26.191Z  
+2025-09-17T10:26:26.191Z  📊 Manifest Summary:
+2025-09-17T10:26:26.192Z  ═══════════════════════════════════════
+2025-09-17T10:26:26.192Z  📦 Enrichers: 1 enabled, 8 disabled
+2025-09-17T10:26:26.192Z  🎨 Components: 96 active, 18 unused
+2025-09-17T10:26:26.192Z  💾 Database: 0 populated, 0 empty tables
+2025-09-17T10:26:26.192Z  🌐 API Endpoints: 61 total
+2025-09-17T10:26:26.219Z  📝 Lines of Code: 162,585
+2025-09-17T10:26:26.219Z  
+2025-09-17T10:26:26.219Z  🎯 Quick Wins Available:
+2025-09-17T10:26:26.220Z     • Enable 8 enrichers (2 hours, Very High impact)
+2025-09-17T10:26:26.220Z     • Use unused UI components (30 minutes per component, Medium impact)
+2025-09-17T10:26:26.220Z  
+2025-09-17T10:26:26.220Z  ✨ Manifest saved to PROJECT_MANIFEST.json
+2025-09-17T10:26:26.350Z  
+2025-09-17T10:26:26.351Z  > project-genie@0.1.0 db:types
+2025-09-17T10:26:26.351Z  > supabase gen types typescript --local > lib/database.types.ts || echo 'Using remote types generation'
+2025-09-17T10:26:26.351Z  
+2025-09-17T10:26:26.357Z  sh: line 1: supabase: command not found
+2025-09-17T10:26:26.357Z  Using remote types generation
+2025-09-17T10:26:26.472Z  
+2025-09-17T10:26:26.472Z  > project-genie@0.1.0 check:logger
+2025-09-17T10:26:26.472Z  > npx tsx scripts/check-logger-usage.ts
+2025-09-17T10:26:26.472Z  
+2025-09-17T10:26:27.264Z  🔍 Checking logger usage patterns...
+2025-09-17T10:26:27.264Z  
+2025-09-17T10:26:27.319Z  Checking 514 files...
+2025-09-17T10:26:27.320Z  
+2025-09-17T10:26:27.384Z  
+2025-09-17T10:26:27.385Z  📊 VALIDATION RESULTS:
+2025-09-17T10:26:27.385Z  
+2025-09-17T10:26:27.385Z  ❌ Found 23 logger usage issues:
+2025-09-17T10:26:27.385Z  
+2025-09-17T10:26:27.385Z  
+2025-09-17T10:26:27.385Z  📁 scripts/validate-build.ts:
+2025-09-17T10:26:27.385Z    Line 39: Uses permanentLogger.error() - method does not exist! Use captureError() instead
+2025-09-17T10:26:27.385Z      message: 'permanentLogger.error() does not exist! Use captureError() instead.'
+2025-09-17T10:26:27.386Z    Line 43: Uses permanentLogger.log() - use info/warn/debug instead
+2025-09-17T10:26:27.386Z      message: 'permanentLogger.log() does not exist! Use info() instead.'
+2025-09-17T10:26:27.386Z  
+2025-09-17T10:26:27.386Z  📁 scripts/identify-logger-breaking-changes.ts:
+2025-09-17T10:26:27.386Z    Line 29: Uses logger.error() - should import as permanentLogger and use captureError()
+2025-09-17T10:26:27.387Z      if (line.includes('permanentLogger.captureError(') || line.includes('logger.error(')) {
+2025-09-17T10:26:27.391Z  
+2025-09-17T10:26:27.391Z  📁 lib/repositories/base-repository.ts:
+2025-09-17T10:26:27.391Z    Line 68: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.391Z      this.logger.captureError(
+2025-09-17T10:26:27.391Z    Line 138: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.391Z      this.logger.captureError(
+2025-09-17T10:26:27.391Z    Line 223: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.391Z      this.logger.captureError(
+2025-09-17T10:26:27.391Z  
+2025-09-17T10:26:27.392Z  📁 lib/notifications/utils/stream-handler.ts:
+2025-09-17T10:26:27.392Z    Line 48: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.392Z      this.logger.captureError('STREAM_HANDLER', new Error('No response body'), {
+2025-09-17T10:26:27.392Z    Line 104: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.392Z      this.logger.captureError('STREAM_HANDLER', new Error('Stream processing error'), {
+2025-09-17T10:26:27.392Z    Line 177: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.392Z      this.logger.captureError('STREAM_HANDLER', new Error('Failed to parse data'), {
+2025-09-17T10:26:27.392Z    Line 205: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.393Z      this.logger.captureError('STREAM_HANDLER', new Error('Failed to parse JSON line'), {
+2025-09-17T10:26:27.393Z  
+2025-09-17T10:26:27.393Z  📁 lib/company-intelligence/core/session-manager.ts:
+2025-09-17T10:26:27.393Z    Line 71: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.393Z      this.logger.captureError('SESSION_MANAGER', error as Error, {
+2025-09-17T10:26:27.393Z    Line 112: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.393Z      this.logger.captureError('SESSION_MANAGER', error as Error, {
+2025-09-17T10:26:27.393Z    Line 169: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.394Z      this.logger.captureError('SESSION_MANAGER', new Error('Failed to serialize merged_data'), {
+2025-09-17T10:26:27.394Z    Line 206: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.394Z      this.logger.captureError('SESSION_MANAGER', error as Error, {
+2025-09-17T10:26:27.394Z    Line 247: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.394Z      this.logger.captureError('SESSION_MANAGER', error as Error, {
+2025-09-17T10:26:27.394Z    Line 283: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.397Z      this.logger.captureError('UNKNOWN', new Error('Session not found'), { sessionId })
+2025-09-17T10:26:27.398Z    Line 346: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.398Z      this.logger.captureError('SESSION_MANAGER', error, {
+2025-09-17T10:26:27.398Z  
+2025-09-17T10:26:27.398Z  📁 lib/company-intelligence/core/execution-lock-manager.ts:
+2025-09-17T10:26:27.398Z    Line 119: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.398Z      this.logger.captureError('EXECUTION_LOCK', error as Error, {
+2025-09-17T10:26:27.398Z    Line 151: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.399Z      this.logger.captureError('EXECUTION_LOCK', error as Error, {
+2025-09-17T10:26:27.399Z    Line 192: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.399Z      this.logger.captureError('EXECUTION_LOCK', error as Error, {
+2025-09-17T10:26:27.399Z    Line 242: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.399Z      this.logger.captureError('EXECUTION_LOCK', error as Error, {
+2025-09-17T10:26:27.399Z    Line 268: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.399Z      this.logger.captureError('EXECUTION_LOCK', error as Error, {
+2025-09-17T10:26:27.400Z    Line 353: Uses logger.captureError() - should import as permanentLogger
+2025-09-17T10:26:27.400Z      this.logger.captureError('EXECUTION_LOCK', error as Error, {
+2025-09-17T10:26:27.400Z  
+2025-09-17T10:26:27.400Z  
+2025-09-17T10:26:27.400Z  ⚠️  VALIDATION WARNING: 23 issues found
+2025-09-17T10:26:27.400Z  
+2025-09-17T10:26:27.400Z  To fix these issues:
+2025-09-17T10:26:27.400Z  1. Replace permanentLogger.error() with permanentLogger.captureError()
+2025-09-17T10:26:27.400Z  2. Replace logger.captureError() with permanentLogger.captureError()
+2025-09-17T10:26:27.401Z  3. Import as { permanentLogger } not { logger }
+2025-09-17T10:26:27.401Z  4. Use specific methods (info/warn/debug) instead of log()
+2025-09-17T10:26:27.401Z  5. Ensure category parameter comes first in all logging calls
+2025-09-17T10:26:27.401Z  
+2025-09-17T10:26:27.401Z  ⚠️  Build continuing despite logger issues (temporary)
+2025-09-17T10:26:27.401Z  
+2025-09-17T10:26:27.423Z  
+2025-09-17T10:26:27.423Z  > project-genie@0.1.0 build
+2025-09-17T10:26:27.423Z  > next build
+2025-09-17T10:26:27.423Z  
+2025-09-17T10:26:28.529Z     ▲ Next.js 15.5.0
+2025-09-17T10:26:28.529Z     - Environments: .env
+2025-09-17T10:26:28.529Z  
+2025-09-17T10:26:28.631Z     Creating an optimized production build ...
+2025-09-17T10:27:21.123Z  <w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (108kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+2025-09-17T10:27:21.948Z  Failed to compile.
+2025-09-17T10:27:21.948Z  
+2025-09-17T10:27:21.949Z  ./app/(dashboard)/test-pdf/page.tsx
+2025-09-17T10:27:21.949Z  Module not found: Can't resolve './comprehensive-test-data'
+2025-09-17T10:27:21.949Z  
+2025-09-17T10:27:21.949Z  https://nextjs.org/docs/messages/module-not-found
+2025-09-17T10:27:21.949Z  
+2025-09-17T10:27:22.084Z  
+2025-09-17T10:27:22.085Z  > Build failed because of webpack errors
+2025-09-17T10:27:22.281Z  Error: Command "npm run build" exited with 1

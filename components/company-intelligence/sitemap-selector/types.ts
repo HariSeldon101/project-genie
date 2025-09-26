@@ -53,8 +53,7 @@ export interface SelectionState {
  * Only includes what the component needs, nothing more
  */
 export interface SitemapSelectorProps {
-  companyId: string  // Domain or company identifier
-  sessionId: string  // Database session ID
+  domain: string  // Domain to discover pages for
   onComplete: (pageIds: string[]) => Promise<void> // Page IDs or URLs
   onError: (error: Error) => void
   className?: string // For container styling

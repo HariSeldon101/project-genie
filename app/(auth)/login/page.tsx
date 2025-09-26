@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createBrowserClient } from '@supabase/ssr'
+import { getBrowserClient } from '@/lib/auth/supabase-browser-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,10 +25,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [showLinkedInModal, setShowLinkedInModal] = useState(false)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = getBrowserClient()
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()

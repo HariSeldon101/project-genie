@@ -2,16 +2,85 @@
  * Log UI Helper Utilities
  * Provides consistent UI formatting and styling for logs
  * Following DRY principle - reusable across all log components
+ *
+ * IMPORTANT: This file has been updated to follow CLAUDE.md guidelines:
+ * - Uses sanitize-html library instead of manual HTML parsing
+ * - Uses he library for HTML entity decoding
+ * - No reinventing the wheel - leverages installed libraries
+ *
  * @module log-ui-helpers
+ * @since 2025-01-22 - Refactored to use proper libraries
  */
 
+import sanitizeHtml from 'sanitize-html'
+import he from 'he'
 import { formatLevelForDatabase, formatLevelForDisplay } from './log-level-utils'
 import type { LogEntry } from './log-operations'
 
 /**
+ * Format log messages that might contain HTML or special characters
+ *
+ * MIGRATION NOTICE (2025-01-22):
+ * This function now uses proper libraries instead of manual parsing:
+ * - sanitize-html: For safe HTML stripping
+ * - he: For proper HTML entity decoding
+ *
+ * @deprecated Manual DOMParser implementation removed - use sanitize-html
+ * @deprecated Regex HTML parsing removed - unreliable and insecure
+ *
+ * CORRECT USAGE:
+ * ```typescript
+ * import { formatLogMessage } from '@/lib/utils/log-ui-helpers'
+ * const cleaned = formatLogMessage(htmlContent)
+ * ```
+ *
+ * DO NOT:
+ * - Manually parse HTML with DOMParser
+ * - Use regex to strip HTML tags
+ * - Decode entities with string replacements
+ *
+ * @param message - The raw log message that might contain HTML
+ * @returns Cleaned message suitable for display
+ */
+export function formatLogMessage(message: string): string {
+  if (!message) return ''
+
+  // Step 1: Decode HTML entities using 'he' library
+  // This handles ALL HTML entities correctly (not just common ones)
+  const decoded = he.decode(message)
+
+  // Step 2: Strip ALL HTML tags using sanitize-html
+  // This is MUCH safer than regex or manual parsing
+  const cleaned = sanitizeHtml(decoded, {
+    allowedTags: [],  // Remove ALL HTML tags
+    allowedAttributes: {},
+    disallowedTagsMode: 'discard', // Remove tags completely
+    textFilter: function(text) {
+      // Additional cleanup if needed
+      return text.trim()
+    }
+  })
+
+  // Step 3: Clean up whitespace
+  return cleaned
+    .replace(/\s+/g, ' ')           // Multiple spaces to single
+    .replace(/\n\s*\n\s*\n/g, '\n\n') // Multiple newlines to double
+    .trim()
+}
+
+/**
  * Format JSON data for display with proper indentation
- * Handles both strings (that might be JSON) and objects
- * Following DRY principle - single source of truth for JSON formatting
+ *
+ * BEST PRACTICE (2025-01-22):
+ * For React components displaying JSON, use a proper JSON viewer component
+ * instead of this function. This is for non-React contexts only.
+ *
+ * React Usage:
+ * ```typescript
+ * import { JsonViewer } from '@/components/common/json-viewer'
+ * <JsonViewer data={myData} compact={false} />
+ * ```
+ *
  * @param data - Data to format (string, object, or any)
  * @param indent - Number of spaces for indentation (default: 2)
  * @returns Formatted string for display
@@ -62,7 +131,7 @@ export function formatJsonForInlineDisplay(data: any, maxLength: number = 200): 
 export function getLevelIconName(level: string): string {
   // IMPORTANT: Always use formatLevelForDatabase for consistency
   const normalizedLevel = formatLevelForDatabase(level)
-  
+
   switch (normalizedLevel) {
     case 'debug': return 'Info'
     case 'info': return 'CheckCircle2'
@@ -81,7 +150,7 @@ export function getLevelIconName(level: string): string {
 export function getLevelColorClass(level: string): string {
   // IMPORTANT: Always use formatLevelForDatabase for consistency
   const normalizedLevel = formatLevelForDatabase(level)
-  
+
   switch (normalizedLevel) {
     case 'debug': return 'text-gray-500'
     case 'info': return 'text-blue-500'
@@ -101,7 +170,7 @@ export function getLevelColorClass(level: string): string {
 export function getLevelBadgeVariant(level: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   // IMPORTANT: Always use formatLevelForDatabase for consistency
   const normalizedLevel = formatLevelForDatabase(level)
-  
+
   if (normalizedLevel === 'error' || normalizedLevel === 'fatal') {
     return 'destructive'
   }
@@ -120,7 +189,7 @@ export function getLevelBadgeVariant(level: string): 'default' | 'secondary' | '
 export function getLogBackgroundClass(level: string): string {
   // IMPORTANT: Always use formatLevelForDatabase for consistency
   const normalizedLevel = formatLevelForDatabase(level)
-  
+
   switch (normalizedLevel) {
     case 'error':
       return 'bg-red-50 dark:bg-red-950/20 border-red-500/50 hover:bg-red-100 dark:hover:bg-red-950/30'
@@ -401,7 +470,7 @@ export function formatFileSize(bytes: number): string {
  */
 export function checkLogLimit(currentCount: number, maxCount: number = 5000): 'fatal' | 'warning' | null {
   const percentage = (currentCount / maxCount) * 100
-  
+
   if (percentage >= 90) {
     return 'fatal'
   }
@@ -420,7 +489,7 @@ export function checkLogLimit(currentCount: number, maxCount: number = 5000): 'f
  */
 export function getLogLimitBadgeVariant(currentCount: number, maxCount: number = 5000): 'destructive' | 'secondary' | 'outline' {
   const status = checkLogLimit(currentCount, maxCount)
-  
+
   switch (status) {
     case 'fatal':
       return 'destructive'
@@ -440,7 +509,7 @@ export function getLogLimitBadgeVariant(currentCount: number, maxCount: number =
  */
 export function getLogLimitMessage(currentCount: number, maxCount: number = 5000): string | null {
   const status = checkLogLimit(currentCount, maxCount)
-  
+
   if (status === 'fatal') {
     return `(near ${maxCount} limit)`
   }

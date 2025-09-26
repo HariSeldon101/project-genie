@@ -57,13 +57,15 @@ export interface TimingEntry {
   metadata?: TimingMetadata
 }
 
-// Error details structure
+// Error details structure (supports both JS Error and Supabase PostgrestError)
 export interface ErrorDetails {
   name: string
   message: string
   stack?: string
-  code?: string
+  code?: string           // PostgreSQL error code (e.g., '23505' for unique violation)
   statusCode?: number
+  details?: string        // Supabase PostgrestError details
+  hint?: string           // Supabase PostgrestError hint for fixing
 }
 
 // Error context for captureError

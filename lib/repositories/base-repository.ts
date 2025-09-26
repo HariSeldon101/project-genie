@@ -10,8 +10,9 @@
  * @module repositories
  */
 
-import { createClient } from '@/lib/supabase/server'
+import { getPooledClient } from '@/lib/supabase/connection-pool'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/database.types'
 
@@ -32,6 +33,81 @@ export abstract class BaseRepository {
    */
   protected repositoryName: string
 
+  /**
+   * Type-safe logger wrapper that automatically includes repository name as category
+   *
+   * IMPORTANT (2025-01-22): This wrapper ensures compliance with CLAUDE.md logger signatures.
+   * The permanentLogger requires (category, message, data) but many repositories were calling
+   * it with just (message, data), causing data to be stringified as the message.
+   *
+   * CORRECT USAGE:
+   * ```typescript
+   * // Use the wrapper methods that auto-include category
+   * this.log.info('Operation completed', { userId: '123' })
+   * this.log.error(error, { context: 'Failed to fetch' })
+   * ```
+   *
+   * DO NOT:
+   * ```typescript
+   * // Don't call permanentLogger directly
+   * this.logger.info('message', data) // WRONG - missing category!
+   * ```
+   *
+   * Available methods follow CLAUDE.md exact signatures:
+   * - info(message, data?) - Normal operations
+   * - warn(message, data?) - Recoverable issues
+   * - debug(message, data?) - Debug info (dev only)
+   * - captureError(error, context?) - Error conditions (NO .error() method exists!)
+   * - breadcrumb(action, message, data?) - User journey tracking
+   * - timing(label, metadata?) - Performance measurement
+   */
+  protected log = {
+    info: (message: string, data?: any) => {
+      // Generate proper category: REPO_COMPANY_INTELLIGENCE format
+      const category = 'REPO_' + this.repositoryName
+        .replace(/Repository$/i, '')
+        .replace(/([a-z])([A-Z])/g, '$1_$2')
+        .toUpperCase()
+
+      return this.logger.info(category, message, data)
+    },
+
+    warn: (message: string, data?: any) => {
+      const category = 'REPO_' + this.repositoryName
+        .replace(/Repository$/i, '')
+        .replace(/([a-z])([A-Z])/g, '$1_$2')
+        .toUpperCase()
+
+      return this.logger.warn(category, message, data)
+    },
+
+    debug: (message: string, data?: any) => {
+      const category = 'REPO_' + this.repositoryName
+        .replace(/Repository$/i, '')
+        .replace(/([a-z])([A-Z])/g, '$1_$2')
+        .toUpperCase()
+
+      return this.logger.debug(category, message, data)
+    },
+
+    // IMPORTANT: No .error() method exists per CLAUDE.md line 108
+    // Must use captureError instead
+    captureError: (error: Error, context?: any) => {
+      const category = 'REPO_' + this.repositoryName
+        .replace(/Repository$/i, '')
+        .replace(/([a-z])([A-Z])/g, '$1_$2')
+        .toUpperCase()
+
+      return this.logger.captureError(category, error, context)
+    },
+
+    breadcrumb: (action: string, message: string, data?: any) =>
+      this.logger.breadcrumb(action, message, data),
+
+    timing: (label: string, metadata?: any) =>
+      this.logger.timing(label, metadata)
+  }
+
   constructor() {
     // Set repository name from class name for logging context
     this.repositoryName = this.constructor.name
@@ -39,7 +115,7 @@ export abstract class BaseRepository {
 
   /**
    * Get Supabase client with proper authentication context
-   * Handles SSR authentication via cookies (critical for auth to work)
+   * Uses connection pool singleton to prevent creating hundreds of connections
    * Type safety is enforced through Database types
    *
    * @returns Promise<SupabaseClient<Database>> Typed authenticated Supabase client
@@ -49,16 +125,19 @@ export abstract class BaseRepository {
     const startTime = performance.now()
 
     try {
-      // Create client with cookie-based auth for SSR
-      const client = await createClient()
+      // Use pooled connection instead of creating new one
+      // This dramatically reduces database connection overhead
+      const client = await getPooledClient()
 
-      // Log breadcrumb for debugging auth issues
+      // Log breadcrumb for debugging (much faster now)
       this.logger.breadcrumb(
-        this.repositoryName,
-        'supabase-client-created',
+        'db_client_acquired',  // Descriptive action - WHAT happened
+        `Reused pooled Supabase client for ${this.repositoryName}`,
         {
+          repository: this.repositoryName,  // Repository in data for tracking
           duration: performance.now() - startTime,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          pooled: true
         }
       )
 
@@ -71,7 +150,7 @@ export abstract class BaseRepository {
         {
           operation: 'getClient',
           duration: performance.now() - startTime,
-          context: 'Failed to create Supabase client'
+          context: 'Failed to get pooled Supabase client'
         }
       )
       throw error
@@ -95,11 +174,12 @@ export abstract class BaseRepository {
 
     // Add breadcrumb at operation start
     this.logger.breadcrumb(
-      this.repositoryName,
-      `${operation}-start`,
+      'db_operation_start',  // Action describing WHAT happened
+      `Starting ${operation} in ${this.repositoryName}`,
       {
-        timestamp: new Date().toISOString(),
-        operation
+        repository: this.repositoryName,
+        operation,
+        timestamp: new Date().toISOString()
       }
     )
 
@@ -112,19 +192,14 @@ export abstract class BaseRepository {
 
       // Log timing for performance monitoring
       const duration = performance.now() - startTime
-      this.logger.timing(
-        `${this.repositoryName}.${operation}`,
-        {
-          duration,
-          success: true
-        }
-      )
 
-      // Add success breadcrumb
+      // Add success breadcrumb with timing
       this.logger.breadcrumb(
-        this.repositoryName,
-        `${operation}-complete`,
+        'db_operation_complete',  // Action describing WHAT happened
+        `Completed ${operation} in ${this.repositoryName}`,
         {
+          repository: this.repositoryName,
+          operation,
           duration,
           timestamp: new Date().toISOString()
         }
@@ -134,10 +209,17 @@ export abstract class BaseRepository {
     } catch (error) {
       const duration = performance.now() - startTime
 
+      // Convert Supabase errors to proper JavaScript Error instances
+      // This is CRITICAL for proper error logging (CLAUDE.md requirement)
+      const jsError = error instanceof Error ? error :
+                      (error && typeof error === 'object' && 'message' in error) ?
+                      convertSupabaseError(error) :
+                      new Error(String(error))
+
       // Capture error with full context and breadcrumbs
       this.logger.captureError(
         this.repositoryName,
-        error as Error,
+        jsError,
         {
           operation,
           duration,
@@ -148,7 +230,7 @@ export abstract class BaseRepository {
 
       // CRITICAL: Always throw errors - never return fallback data
       // This ensures errors are visible and can be fixed
-      throw error
+      throw jsError
     }
   }
 
@@ -170,9 +252,10 @@ export abstract class BaseRepository {
 
       // Log user retrieval for debugging
       this.logger.breadcrumb(
-        this.repositoryName,
-        'user-authenticated',
+        'user_authenticated',  // Action describing WHAT happened
+        `User authenticated via ${this.repositoryName}`,
         {
+          repository: this.repositoryName,
           userId: user.id,
           email: user.email
         }
@@ -198,9 +281,13 @@ export abstract class BaseRepository {
     const startTime = performance.now()
 
     this.logger.breadcrumb(
-      this.repositoryName,
-      `${operation}-transaction-start`,
-      { timestamp: new Date().toISOString() }
+      'db_transaction_start',  // Action describing WHAT happened
+      `Starting transaction ${operation} in ${this.repositoryName}`,
+      {
+        repository: this.repositoryName,
+        operation,
+        timestamp: new Date().toISOString()
+      }
     )
 
     try {
@@ -209,9 +296,11 @@ export abstract class BaseRepository {
       const result = await fn(client)
 
       this.logger.breadcrumb(
-        this.repositoryName,
-        `${operation}-transaction-complete`,
+        'db_transaction_complete',  // Action describing WHAT happened
+        `Completed transaction ${operation} in ${this.repositoryName}`,
         {
+          repository: this.repositoryName,
+          operation,
           duration: performance.now() - startTime,
           success: true
         }

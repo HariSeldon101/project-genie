@@ -3,7 +3,7 @@
  * Production-ready script to fix ALL incorrect permanentLogger signatures
  *
  * TESTED PATTERN:
- * Wrong: permanentLogger.info('message', { category: 'CATEGORY', ...data })
+ * Wrong: permanentLogger.info('CATEGORY', 'message', { ...data })
  * Right: permanentLogger.info('CATEGORY', 'message', { ...data })
  *
  * SAFETY FEATURES:

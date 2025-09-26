@@ -27,7 +27,7 @@ export const UI_TO_DB_STAGE_MAP: Record<Stage, string> = {
 // Map stages to their database field names - FIXED to use actual DB columns
 export const STAGE_TO_FIELD_MAP: Record<Stage, string> = {
   'site-analysis': 'merged_data',    // ✅ Use actual column
-  'sitemap': 'discovered_urls',      // ✅ Special case for URLs
+  'sitemap': 'merged_data',          // ✅ URLs now stored in merged_data.sitemap
   'scraping': 'merged_data',         // ✅ Use actual column
   'extraction': 'merged_data',       // ✅ Use actual column
   'data-review': 'merged_data',      // ✅ Use actual column
@@ -38,7 +38,7 @@ export const STAGE_TO_FIELD_MAP: Record<Stage, string> = {
 // NEW: Helper to get nested path within merged_data
 export const STAGE_TO_NESTED_PATH: Record<Stage, string> = {
   'site-analysis': 'site_analysis',
-  'sitemap': '',  // Special case - goes to discovered_urls
+  'sitemap': 'sitemap',  // Now stored in merged_data.sitemap
   'scraping': 'pages',
   'extraction': 'extractedData',
   'data-review': 'reviewData',
@@ -142,11 +142,13 @@ export function useStageNavigation() {
 
     const nextIndex = currentStageIndex + 1
     
-    permanentLogger.info('Attempting to proceed to next stage', { category: 'STAGE_NAV', currentStage,
+    permanentLogger.info('STAGE_NAV', 'Attempting to proceed to next stage', {
+      currentStage,
       currentIndex: currentStageIndex,
       nextIndex,
       hasNextStage: nextIndex < STAGES.length,
-      hasAutoStart: !!autoStartCallback })
+      hasAutoStart: !!autoStartCallback
+    })
 
     if (nextIndex >= STAGES.length) {
       permanentLogger.info('STAGE_NAV', 'No more stages available')
@@ -157,8 +159,10 @@ export function useStageNavigation() {
     setIsTransitioning(true)
     const nextStage = STAGES[nextIndex].id
     
-    permanentLogger.info('Transitioning to next stage', { category: 'STAGE_NAV', from: currentStage,
-      to: nextStage })
+    permanentLogger.info('STAGE_NAV', 'Transitioning to next stage', {
+      from: currentStage,
+      to: nextStage
+    })
 
     // Transition to next stage with phase labels
     const currentLabel = currentStage.toUpperCase().replace('-', '_')
@@ -191,10 +195,12 @@ export function useStageNavigation() {
   const goToPreviousStage = useCallback(() => {
     const prevIndex = currentStageIndex - 1
     
-    permanentLogger.info('Attempting to go to previous stage', { category: 'STAGE_NAV', currentStage,
+    permanentLogger.info('STAGE_NAV', 'Attempting to go to previous stage', {
+      currentStage,
       currentIndex: currentStageIndex,
       prevIndex,
-      hasPrevStage: prevIndex >= 0 })
+      hasPrevStage: prevIndex >= 0
+    })
 
     if (prevIndex < 0) {
       permanentLogger.info('STAGE_NAV', 'No previous stage available')
@@ -202,8 +208,10 @@ export function useStageNavigation() {
     }
 
     const prevStage = STAGES[prevIndex]
-    permanentLogger.info('Going back to previous stage', { category: 'STAGE_NAV', from: currentStage,
-      to: prevStage.id })
+    permanentLogger.info('STAGE_NAV', 'Going back to previous stage', {
+      from: currentStage,
+      to: prevStage.id
+    })
 
     const currentLabel = currentStage.toUpperCase().replace('-', '_')
     const prevLabel = prevStage.id.toUpperCase().replace('-', '_')
@@ -243,8 +251,10 @@ export function useStageNavigation() {
       return false
     }
 
-    permanentLogger.info('Jumping to stage', { category: 'STAGE_NAV', from: currentStage,
-      to: targetStage })
+    permanentLogger.info('STAGE_NAV', 'Jumping to stage', {
+      from: currentStage,
+      to: targetStage
+    })
 
     setCurrentStage(targetStage)
     return true
@@ -296,9 +306,11 @@ export function useStageNavigation() {
    */
   const getProgressPercentage = useCallback(() => {
     const percentage = Math.round((completedStages.size / STAGES.length) * 100)
-    permanentLogger.info('Calculated progress', { category: 'STAGE_NAV', completedCount: completedStages.size,
+    permanentLogger.info('STAGE_NAV', 'Calculated progress', {
+      completedCount: completedStages.size,
       totalStages: STAGES.length,
-      percentage })
+      percentage
+    })
     return percentage
   }, [completedStages])
 

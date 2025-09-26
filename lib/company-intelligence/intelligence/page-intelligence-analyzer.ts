@@ -44,7 +44,7 @@ export class PageIntelligenceAnalyzer {
     this.structuredDataExtractor = new StructuredDataExtractor(domain)
     this.contentPatternMatcher = new ContentPatternMatcher(domain)
     
-    permanentLogger.info('PageIntelligenceAnalyzer initialized', { category: 'INTELLIGENCE', domain,
+    permanentLogger.info('INTELLIGENCE', 'PageIntelligenceAnalyzer initialized', { domain,
       config: this.config })
   }
 
@@ -70,7 +70,7 @@ export class PageIntelligenceAnalyzer {
     
     this.session = session
     
-    permanentLogger.info('Intelligence session started', { category: 'INTELLIGENCE', sessionId: session.sessionId,
+    permanentLogger.info('INTELLIGENCE', 'Intelligence session started', { sessionId: session.sessionId,
       domain: this.domain })
     
     return session
@@ -83,7 +83,7 @@ export class PageIntelligenceAnalyzer {
     const startTime = Date.now()
     
     try {
-      permanentLogger.info('Starting page analysis', { category: 'INTELLIGENCE', url, 
+      permanentLogger.info('INTELLIGENCE', 'Starting page analysis', { url,
         domain: this.domain,
         hasHtml: !!html })
 
@@ -111,7 +111,7 @@ export class PageIntelligenceAnalyzer {
       if (this.config.enableUrlPatterns) {
         try {
           result.urlPatterns = this.contentPatternMatcher.analyzeUrlPatterns(url)
-          permanentLogger.info('URL pattern analysis completed', { category: 'INTELLIGENCE', url,
+          permanentLogger.info('INTELLIGENCE', 'URL pattern analysis completed', { url,
             patternsFound: result.urlPatterns.length })
         } catch (error) {
           const errorMsg = `URL pattern analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -127,7 +127,7 @@ export class PageIntelligenceAnalyzer {
           const structuralSignals = this.contentPatternMatcher.analyzePageStructure(html, url)
           result.contentSignals = [...contentSignals, ...structuralSignals]
           
-          permanentLogger.info('Content analysis completed', { category: 'INTELLIGENCE', url,
+          permanentLogger.info('INTELLIGENCE', 'Content analysis completed', { url,
             contentSignals: contentSignals.length,
             structuralSignals: structuralSignals.length })
         } catch (error) {
@@ -141,7 +141,7 @@ export class PageIntelligenceAnalyzer {
       if (this.config.enableStructuredData && html) {
         try {
           result.structuredData = this.structuredDataExtractor.extractStructuredData(html, url)
-          permanentLogger.info('Structured data extraction completed', { category: 'INTELLIGENCE', url,
+          permanentLogger.info('INTELLIGENCE', 'Structured data extraction completed', { url,
             jsonLdCount: result.structuredData.jsonLd?.length || 0,
             hasOrganization: !!result.structuredData.organization,
             hasProducts: !!result.structuredData.products?.length,
@@ -157,7 +157,7 @@ export class PageIntelligenceAnalyzer {
       if (this.config.enableMetaExtraction && html) {
         try {
           result.metaData = this.structuredDataExtractor.extractMetaData(html, url)
-          permanentLogger.info('Meta data extraction completed', { category: 'INTELLIGENCE',
+          permanentLogger.info('INTELLIGENCE', 'Meta data extraction completed', {
             url,
             fieldsExtracted: Object.keys(result.metaData).filter(k => result.metaData[k as keyof typeof result.metaData] !== undefined).length
           })
@@ -191,7 +191,7 @@ export class PageIntelligenceAnalyzer {
         this.updateSessionStats(result)
       }
 
-      permanentLogger.info('Page analysis completed', { category: 'INTELLIGENCE', url,
+      permanentLogger.info('INTELLIGENCE', 'Page analysis completed', { url,
         pageType: result.pageType,
         confidence: result.confidence,
         processingTime: result.processingTimeMs,
@@ -221,7 +221,7 @@ export class PageIntelligenceAnalyzer {
         this.session.pagesAnalyzed++
       }
 
-      permanentLogger.captureError('INTELLIGENCE', error, {
+      permanentLogger.captureError('INTELLIGENCE', error as Error, {
         message: 'Page analysis failed',
         url,
         domain: this.domain,
@@ -239,7 +239,7 @@ export class PageIntelligenceAnalyzer {
   public async analyzePages(urls: string[]): Promise<PageClassificationResult[]> {
     const results: PageClassificationResult[] = []
     
-    permanentLogger.info('Starting batch page analysis', { category: 'INTELLIGENCE', urlCount: urls.length,
+    permanentLogger.info('INTELLIGENCE', 'Starting batch page analysis', { urlCount: urls.length,
       domain: this.domain })
 
     // Process pages with limited concurrency to avoid overwhelming servers
@@ -275,7 +275,7 @@ export class PageIntelligenceAnalyzer {
       }
     }
 
-    permanentLogger.info('Batch analysis completed', { category: 'INTELLIGENCE',
+    permanentLogger.info('INTELLIGENCE', 'Batch analysis completed', {
       urlCount: urls.length,
       successfulAnalyses: results.filter(r => r.pageType !== 'unknown').length,
       domain: this.domain
@@ -382,7 +382,7 @@ export class PageIntelligenceAnalyzer {
       summary.contentStrategy.blogFrequency = 'low'
     }
 
-    permanentLogger.info('Intelligence summary generated', { category: 'INTELLIGENCE',
+    permanentLogger.info('INTELLIGENCE', 'Intelligence summary generated', {
       domain: this.domain,
       totalPages: summary.totalPages,
       overallConfidence: summary.overallConfidence,
@@ -420,7 +420,7 @@ export class PageIntelligenceAnalyzer {
 
       const html = await response.text()
       
-      permanentLogger.info('Page HTML fetched successfully', { category: 'INTELLIGENCE',
+      permanentLogger.info('INTELLIGENCE', 'Page HTML fetched successfully', {
         url,
         htmlLength: html.length,
         contentType: response.headers.get('content-type')

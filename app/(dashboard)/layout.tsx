@@ -6,6 +6,10 @@ import { permanentLogger } from '@/lib/utils/permanent-logger'
 // New enterprise notification system - only in dashboard
 import { NotificationListV2 } from '@/components/ui/notification-list-v2'
 
+// Simple monitoring widget - shows DB stats and LLM limits in header
+// Replaced SupabaseDBMonitor with unified DbMonitorWidget (Jan 23, 2025)
+import { DbMonitorWidget } from '@/components/monitoring/db-monitor-widget'
+
 export const dynamic = 'force-dynamic'
 
 // ✅ CLAUDE.md Compliance:
@@ -52,6 +56,7 @@ export default async function DashboardLayout({
 
     return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+
       <div className="flex h-screen">
         <DashboardNav />
 
@@ -61,7 +66,11 @@ export default async function DashboardLayout({
               <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
                 Project Genie
               </h1>
-              <UserMenu user={user} />
+              <div className="flex items-center gap-4">
+                {/* Simple DB monitor widget - shows real-time stats */}
+                {process.env.NODE_ENV === 'development' && <DbMonitorWidget />}
+                <UserMenu user={user} />
+              </div>
             </div>
           </header>
 

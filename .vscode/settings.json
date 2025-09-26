@@ -1,0 +1,15 @@
+{
+  "markdown.preview.mermaid.enabled": true,
+  "markdown-mermaid.theme": "default",
+  "markdown-preview-enhanced.enableScriptExecution": true,
+  "markdown-preview-enhanced.mermaidTheme": "default",
+  "markdown-preview-enhanced.enableTypographer": true,
+  "[markdown]": {
+    "editor.quickSuggestions": {
+      "other": true,
+      "comments": false,
+      "strings": false
+    }
+  },
+  "claudeCodeChat.permissions.yoloMode": true
+}

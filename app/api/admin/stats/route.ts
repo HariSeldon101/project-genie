@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { ProfilesRepository } from '@/lib/repositories/profiles-repository'
 import { ProjectsRepository } from '@/lib/repositories/projects-repository'
 import { ArtifactsRepository } from '@/lib/repositories/artifacts-repository'
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   const timer = permanentLogger.timing('api.admin.stats.get')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     timestamp: new Date().toISOString()
   })
 
-  permanentLogger.info('logs-stream', 'Stream initiated', {
+  permanentLogger.info('LOGS_STREAM', 'Stream initiated', {
     correlationId,
     sessionId,
     filters: { level: levelFilter, category: categoryFilter }
@@ -207,9 +207,10 @@ export async function GET(request: NextRequest) {
   }
 
   // ========== POLLING SETUP ==========
-  // Poll for new logs every 2 seconds
-  // This is more efficient than continuous querying
-  pollInterval = setInterval(fetchAndSendLogs, 2000)
+  // Poll for new logs every 5 seconds (reduced from 2s for better performance)
+  // This reduces SSE load by 60% while still providing near-real-time updates
+  const pollIntervalMs = parseInt(process.env.NEXT_PUBLIC_LOG_POLL_INTERVAL || '5000')
+  pollInterval = setInterval(fetchAndSendLogs, pollIntervalMs)
 
   // ========== CLEANUP HANDLER ==========
   // Handle client disconnect and cleanup
@@ -262,7 +263,7 @@ export async function GET(request: NextRequest) {
       correlationId
     })
 
-    permanentLogger.info('logs-stream', 'Stream terminated', {
+    permanentLogger.info('LOGS_STREAM', 'Stream terminated', {
       correlationId,
       duration: sessionDuration,
       lastLogId

@@ -113,9 +113,10 @@ export class DocumentStorage {
         // Use repository to store artifact - NO ID generation in app
         const artifact = await this.artifactsRepo.createArtifact(insertData)
 
-        permanentLogger.database('INSERT', 'artifacts', true, undefined, {
+        permanentLogger.breadcrumb('database', 'Artifact stored successfully', {
           artifactId: artifact.id,
-          type: doc.metadata.type
+          type: doc.metadata.type,
+          table: 'artifacts'
         })
         DevLogger.logSuccess(`Stored ${doc.metadata.type}`, { artifactId: artifact.id })
         artifactIds.push(artifact.id)
@@ -201,7 +202,11 @@ export class DocumentStorage {
         content: updatedContent
       })
 
-      permanentLogger.database('UPDATE', 'artifacts', true, undefined, { artifactId })
+      permanentLogger.breadcrumb('database', 'Artifact updated', {
+        artifactId,
+        table: 'artifacts',
+        operation: 'UPDATE'
+      })
     } catch (error) {
       permanentLogger.captureError('STORAGE', error as Error, {
         operation: 'storeAIInsights',

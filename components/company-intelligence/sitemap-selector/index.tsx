@@ -23,13 +23,9 @@ import type { SitemapSelectorProps } from './types'
  * Main sitemap selector component
  * Follows Single Responsibility Principle - only orchestrates
  */
-export const SitemapSelector: React.FC<SitemapSelectorProps> = ({
-  companyId,
-  sessionId,
-  onComplete,
-  onError,
-  className
-}) => {
+export const SitemapSelector: React.FC<SitemapSelectorProps> = (props) => {
+  // Extract props directly
+  const { domain, onComplete, onError, className } = props
   // Track component lifecycle timing
   const startTime = useRef(performance.now())
   const hasError = useRef(false)
@@ -37,8 +33,7 @@ export const SitemapSelector: React.FC<SitemapSelectorProps> = ({
   // Log component mount
   useEffect(() => {
     permanentLogger.info('SITEMAP_SELECTOR', 'Component mounted', {
-      companyId,
-      sessionId,
+      domain,
       timestamp: safeTimestampToISO(Date.now())
     })
 
@@ -50,10 +45,10 @@ export const SitemapSelector: React.FC<SitemapSelectorProps> = ({
         hadError: hasError.current
       })
     }
-  }, [companyId, sessionId])
+  }, [domain])
 
-  // Initialize discovery stream - database-first, no domain
-  const { pages, state } = useDiscoveryStream(companyId, sessionId)
+  // Initialize discovery stream - server manages sessions
+  const { pages, state } = useDiscoveryStream(domain)
 
   // Initialize selection management
   const {
@@ -120,12 +115,11 @@ export const SitemapSelector: React.FC<SitemapSelectorProps> = ({
       hasError.current = true
       permanentLogger.captureError('SITEMAP_SELECTOR', state.error, {
         phase: state.phase,
-        companyId,
-        sessionId
+        domain
       })
       onError(state.error)
     }
-  }, [state.error, state.phase, companyId, sessionId, onError])
+  }, [state.error, state.phase, domain, onError])
 
   // Main render - semantic HTML structure
   return (

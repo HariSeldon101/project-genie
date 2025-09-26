@@ -355,21 +355,25 @@ export default function LogsPage() {
       // CRITICAL: NO SILENT FAILURES - Log and show error
       console.error('Error fetching logs:', error)
       const errorMessage = error instanceof Error ? error.message : String(error)
-      
-      permanentLogger.captureError('log-fetch-error', error as Error, { 
+
+      permanentLogger.captureError('log-fetch-error', error as Error, {
         source,
         filters,
         errorMessage,
         duration: performance.now() - fetchStartTime
       })
-      
+
+      // Show user-visible feedback via toast
+      toast.error(errorMessage.includes('Failed to fetch')
+        ? 'Server connection lost. Ensure development server is running.'
+        : `Error fetching logs: ${errorMessage}`)
+
       // Set error state to show user
       setLogs([])
       setBreadcrumbs([])
       setTimings([])
-      
-      // Could set an error state here to display to user
-      // For now, the empty state will show
+
+      // Empty state will show in UI
     } finally {
       const totalDuration = performance.now() - fetchStartTime
       permanentLogger.timing('logs-fetch-total', totalDuration, { source })

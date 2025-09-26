@@ -14,6 +14,7 @@
 import { BaseRepository } from './base-repository'
 import { PhaseDataRepository } from './phase-data-repository'
 import { CacheManager } from './cache-manager'
+import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
@@ -104,62 +105,192 @@ export class CompanyIntelligenceRepository extends BaseRepository {
   // ==========================================
 
   /**
-   * Create a new intelligence gathering session
-   * Checks for existing active session first to prevent duplicates
+   * ⚠️ DEPRECATED: Use getOrCreateUserSession() instead
+   * This method is kept for reference only and should NOT be used.
+   * It doesn't properly handle the unique constraint on user_id + domain
+   * and will cause duplicate key violations.
    *
-   * @param companyName - Name of the company being analysed
-   * @param domain - Company domain (e.g., example.com)
-   * @returns Promise<SessionData> Created or existing session
+   * @deprecated Since 2025-09-21 - Use getOrCreateUserSession() instead
    */
-  async createSession(companyName: string, domain: string): Promise<SessionData> {
-    return this.execute('createSession', async (client) => {
-      // Get authenticated user first
-      const user = await this.getCurrentUser()
+  // Method removed to prevent accidental usage
 
-      // Check for existing active session to prevent duplicates
-      const { data: existing, error: checkError } = await client
+  /**
+   * 🔑 PRIMARY SESSION MANAGEMENT METHOD
+   * Get or create active session for current user and domain
+   *
+   * This is the ONLY method that should be used for session management.
+   * It properly handles all edge cases and database constraints.
+   *
+   * ✅ FEATURES:
+   * - Idempotent: Can be called multiple times safely
+   * - Handles existing sessions (returns them)
+   * - Reactivates inactive sessions automatically
+   * - Creates new sessions only when needed
+   * - Race condition safe (handles concurrent calls)
+   * - Respects unique constraint on user_id + domain
+   *
+   * ❌ NEVER USE:
+   * - createSession() - deprecated, causes constraint violations
+   * - Direct database inserts - bypasses business logic
+   *
+   * 🎯 DATABASE CONSTRAINT:
+   * The company_intelligence_sessions table has a UNIQUE constraint on (user_id, domain)
+   * This method gracefully handles violations of this constraint.
+   *
+   * 📝 ALGORITHM:
+   * 1. Check for ANY existing session (active or inactive)
+   * 2. If found and inactive -> reactivate it
+   * 3. If found and active -> return it
+   * 4. If not found -> create new session
+   * 5. If creation fails with duplicate key -> fetch and return existing (race condition handling)
+   *
+   * @param userId - Authenticated user ID from Supabase auth
+   * @param domain - Company domain (e.g., example.com) - will be normalized
+   * @returns Promise<SessionData> Always returns a valid session (existing or new)
+   * @throws Error if userId or domain is missing, or if database operation fails
+   */
+  async getOrCreateUserSession(userId: string, domain: string): Promise<SessionData> {
+    return this.execute('getOrCreateUserSession', async (client) => {
+
+      // CRITICAL: Validate required parameters - NO DEFENSIVE FALLBACKS
+      // We want errors to surface immediately, not silently fail
+      if (!userId) {
+        throw new Error('User ID is required for session creation')
+      }
+
+      if (!domain) {
+        throw new Error('Domain is required for session creation')
+      }
+
+      // STEP 1: Check for ANY existing session (not just active)
+      // This prevents constraint violations by finding all sessions
+      const { data: existing } = await client
         .from('company_intelligence_sessions')
         .select('*')
         .eq('domain', domain)
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .single()
+        .eq('user_id', userId)
+        .maybeSingle()  // Returns null if not found, no error
 
-      // Return existing session if found (no error for single() when found)
-      if (existing && !checkError) {
-        this.logger.info('Existing active session found', {
+      if (existing) {
+        // STEP 2: Handle existing sessions
+
+        // Case A: Session exists but is not active - reactivate it
+        // This handles scenarios where sessions were aborted/failed/completed
+        if (existing.status !== 'active') {
+          this.log.info('Reactivating existing session', {
+            sessionId: existing.id,
+            domain,
+            userId,
+            previousStatus: existing.status
+          })
+
+          const { data: updated, error } = await client
+            .from('company_intelligence_sessions')
+            .update({
+              status: 'active',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existing.id)
+            .select()
+            .single()
+
+          if (error) {
+            // CLAUDE.md: Convert Supabase error properly
+            const jsError = convertSupabaseError(error)
+            this.log.captureError(jsError, {
+              message: 'Failed to reactivate session',
+              sessionId: existing.id,
+              domain,
+              userId
+            })
+            throw jsError
+          }
+
+          return updated as SessionData
+        }
+
+        // Case B: Session is already active - return it as-is
+        this.log.info('Found existing active session for user', {
           sessionId: existing.id,
-          domain
+          domain,
+          userId
         })
         return existing as SessionData
       }
 
-      // Create new session with Supabase auto-generating UUID
+      // STEP 3: No existing session - create new one
+      // Auto-generate company name from domain for convenience
+      const companyName = domain.split('.')[0]
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase())
+
       const { data, error } = await client
         .from('company_intelligence_sessions')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           company_name: companyName,
           domain,
           status: 'active',
           phase: 1,
           version: 0,
           merged_data: {},
-          execution_history: [],
-          discovered_urls: []
-          // id is auto-generated by Supabase using gen_random_uuid()
+          execution_history: []
+          // NOTE: id is auto-generated by PostgreSQL using gen_random_uuid()
+          // NEVER generate UUIDs in application code
         })
         .select()
         .single()
 
       if (error) {
-        throw new Error(`Failed to create session: ${error.message}`)
+        // STEP 4: Handle race conditions gracefully
+        // Another request may have created a session between our check and insert
+
+        // PostgreSQL unique constraint violation code is '23505'
+        // This is EXPECTED in concurrent scenarios and not an error
+        // Note: We check the raw error code before conversion
+        if (error.code === '23505') {
+          this.log.info('Session already exists (race condition resolved)', {
+            domain,
+            userId,
+            errorCode: error.code
+          })
+
+          // Try to fetch the session that was created by the other request
+          const { data: existingSession } = await client
+            .from('company_intelligence_sessions')
+            .select('*')
+            .eq('domain', domain)
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .maybeSingle()
+
+          if (existingSession) {
+            this.log.info('Returning existing session after duplicate key violation', {
+              sessionId: existingSession.id,
+              domain,
+              userId
+            })
+            return existingSession as SessionData
+          }
+        }
+
+        // STEP 5: Genuine error - not a race condition
+        // CLAUDE.md: Convert Supabase error properly
+        const jsError = convertSupabaseError(error)
+        this.log.captureError(jsError, {
+          message: 'Failed to create session',
+          domain,
+          userId,
+          errorCode: error.code
+        })
+        throw jsError
       }
 
-      this.logger.info('New session created', {
+      // Success - new session created
+      this.log.info('Created new session for user', {
         sessionId: data.id,
         domain,
-        companyName
+        userId
       })
 
       return data as SessionData
@@ -179,10 +310,14 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         .from('company_intelligence_sessions')
         .select('*')
         .eq('id', sessionId)
-        .single()
+        .maybeSingle()
 
       if (error) {
-        throw new Error(`Session not found: ${error.message}`)
+        throw new Error(`Failed to retrieve session: ${error.message}`)
+      }
+
+      if (!data) {
+        throw new Error(`Session not found: ${sessionId}`)
       }
 
       return data as SessionData
@@ -213,7 +348,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to update session: ${error.message}`)
       }
 
-      this.logger.info('Session updated', {
+      this.log.info('Session updated', {
         sessionId,
         updatedFields: Object.keys(updates)
       })
@@ -270,7 +405,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to update merged data: ${error.message}`)
       }
 
-      this.logger.info('Merged data updated', {
+      this.log.info('Merged data updated', {
         sessionId,
         dataKeys: Object.keys(data || {})
       })
@@ -297,7 +432,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to update phase: ${error.message}`)
       }
 
-      this.logger.info('Session phase updated', {
+      this.log.info('Session phase updated', {
         sessionId,
         phase
       })
@@ -332,7 +467,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
 
       // If unique constraint violation, session is already locked
       if (error && this.isUniqueViolation(error)) {
-        this.logger.info('Lock already exists', {
+        this.log.info('Lock already exists', {
           sessionId,
           lockId
         })
@@ -352,7 +487,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         })
         .eq('id', sessionId)
 
-      this.logger.info('Lock acquired', {
+      this.log.info('Lock acquired', {
         sessionId,
         lockId
       })
@@ -379,7 +514,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to release lock: ${error.message}`)
       }
 
-      this.logger.info('Lock released', {
+      this.log.info('Lock released', {
         sessionId,
         lockId
       })
@@ -450,7 +585,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to create pack: ${error.message}`)
       }
 
-      this.logger.info('Pack created', {
+      this.log.info('Pack created', {
         packId: data.id,
         sessionId,
         packType
@@ -532,7 +667,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to store page intelligence: ${error.message}`)
       }
 
-      this.logger.info('Page intelligence stored', {
+      this.log.info('Page intelligence stored', {
         sessionId,
         url: pageData.url
       })
@@ -585,7 +720,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to store financial data: ${error.message}`)
       }
 
-      this.logger.info('Financial data stored', {
+      this.log.info('Financial data stored', {
         sessionId,
         dataKeys: Object.keys(data)
       })
@@ -611,7 +746,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to store social profiles: ${error.message}`)
       }
 
-      this.logger.info('Social profiles stored', {
+      this.log.info('Social profiles stored', {
         sessionId,
         platforms: Object.keys(profiles)
       })
@@ -637,7 +772,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to store LinkedIn data: ${error.message}`)
       }
 
-      this.logger.info('LinkedIn data stored', {
+      this.log.info('LinkedIn data stored', {
         sessionId,
         employeeCount: data.employee_count
       })
@@ -783,7 +918,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
     // Also clear phase data cache
     this.phaseDataRepo.clearSessionCache(sessionId)
 
-    this.logger.info('Session cache cleared', {
+    this.log.info('Session cache cleared', {
       sessionId
     })
   }
@@ -800,7 +935,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
 
     keysToDelete.forEach(key => this.cache.delete(key))
 
-    this.logger.info('Session cache cleared', {
+    this.log.info('Session cache cleared', {
       sessionId,
       clearedKeys: keysToDelete.length
     })
@@ -814,7 +949,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
     this.sessionCache.clear()
     this.phaseDataRepo.clearAllCache()
 
-    this.logger.info('All cache cleared')
+    this.log.info('All cache cleared')
   }
 
 
@@ -845,7 +980,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
         throw new Error(`Failed to bulk insert pages: ${error.message}`)
       }
 
-      this.logger.info('Pages bulk inserted', {
+      this.log.info('Pages bulk inserted', {
         sessionId,
         pageCount: pages.length
       })
@@ -876,7 +1011,7 @@ export class CompanyIntelligenceRepository extends BaseRepository {
 
       const deletedCount = data?.length || 0
 
-      this.logger.info('Old sessions cleaned up', {
+      this.log.info('Old sessions cleaned up', {
         deletedCount,
         daysOld,
         cutoffDate: cutoffDate.toISOString()

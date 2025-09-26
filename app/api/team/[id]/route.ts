@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { TeamRepository } from '@/lib/repositories/team-repository'
 import { ProjectsRepository } from '@/lib/repositories/projects-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
@@ -18,7 +18,7 @@ export async function PUT(
   const timer = permanentLogger.timing('api.team.member.put')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -92,7 +92,7 @@ export async function DELETE(
   const timer = permanentLogger.timing('api.team.member.delete')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

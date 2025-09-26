@@ -456,12 +456,7 @@
   }
 }
 
-/* Syncfusion Styles */
-@import "@syncfusion/ej2-base/styles/material.css";
-@import "@syncfusion/ej2-react-popups/styles/material.css";
-@import "@syncfusion/ej2-navigations/styles/material.css";
-@import "@syncfusion/ej2-buttons/styles/material.css";
-@import "@syncfusion/ej2-inputs/styles/material.css";
+/* Syncfusion Styles - Removed as no longer needed */
 
 .e-tooltip-wrap {
   max-width: 400px;

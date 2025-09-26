@@ -41,7 +41,8 @@ import {
   formatLogForClipboard,
   formatLogForLLMAnalysis,
   copyToClipboard,
-  formatJsonForDisplay
+  formatJsonForDisplay,
+  formatLogMessage
 } from '@/lib/utils/log-ui-helpers'
 import type { LogEntry as LogEntryType } from '@/lib/utils/log-operations'
 import { formatDistanceToNow } from 'date-fns'
@@ -358,7 +359,7 @@ export const LogEntry = memo(function LogEntry({
 
             {/* Log message content section */}
             <section className="mt-1">
-              <p className="text-sm break-words whitespace-pre-wrap overflow-wrap-anywhere">{log.message}</p>
+              <p className="text-sm break-words whitespace-pre-wrap overflow-wrap-anywhere">{formatLogMessage(log.message)}</p>
 
             {/* Inline Breadcrumbs for ALL Error Logs - Always Visible */}
             {isErrorLog(log) && breadcrumbs && breadcrumbs.length > 0 && (

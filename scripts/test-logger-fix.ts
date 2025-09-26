@@ -7,17 +7,17 @@
 const testCases = [
   {
     name: 'Simple case with category only',
-    input: `permanentLogger.info('Stream closed', { category: 'STREAM_WRITER', sessionId: this.sessionId })`,
+    input: `permanentLogger.info('STREAM_WRITER', 'Stream closed', { sessionId: this.sessionId })`,
     expected: `permanentLogger.info('STREAM_WRITER', 'Stream closed', { sessionId: this.sessionId })`
   },
   {
     name: 'Case with trailing comma after category',
-    input: `permanentLogger.info('Client disconnected (abort signal)', { category: 'STREAM_WRITER', sessionId, correlationId })`,
+    input: `permanentLogger.info('STREAM_WRITER', 'Client disconnected (abort signal)', { sessionId, correlationId })`,
     expected: `permanentLogger.info('STREAM_WRITER', 'Client disconnected (abort signal)', { sessionId, correlationId })`
   },
   {
     name: 'Case with spread operator',
-    input: `permanentLogger.info('LLM Call Failed', { category: 'LLM_ERROR', ...context, duration: 123 })`,
+    input: `permanentLogger.info('LLM_ERROR', 'LLM Call Failed', { ...context, duration: 123 })`,
     expected: `permanentLogger.info('LLM_ERROR', 'LLM Call Failed', { ...context, duration: 123 })`
   },
   {

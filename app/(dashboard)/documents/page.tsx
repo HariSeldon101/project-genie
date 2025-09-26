@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,10 +9,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  FileText, 
-  Download, 
-  Eye, 
+import {
+  FileText,
+  Download,
+  Eye,
   Search,
   Filter,
   Calendar,
@@ -29,8 +30,45 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DocumentViewer } from '@/components/documents/document-viewer'
-import { ResizableModal } from '@/components/ui/resizable-modal'
+
+// Lazy load heavy document components
+const DirectPDFDownloadButton = dynamic(
+  () => import('@/components/documents/pdf-download-button').then(mod => ({
+    default: mod.DirectPDFDownloadButton
+  })),
+  {
+    loading: () => (
+      <Button disabled className="opacity-50">
+        <Download className="mr-2 h-4 w-4" />
+        Loading...
+      </Button>
+    )
+  }
+)
+
+const DocumentViewer = dynamic(
+  () => import('@/components/documents/document-viewer').then(mod => ({
+    default: mod.DocumentViewer
+  })),
+  {
+    loading: () => (
+      <div className="h-96 bg-gray-50 dark:bg-gray-800 animate-pulse rounded-lg flex items-center justify-center">
+        <div className="text-gray-500">Loading document viewer...</div>
+      </div>
+    ),
+    ssr: false // Document viewer needs browser APIs
+  }
+)
+
+const ResizableModal = dynamic(
+  () => import('@/components/ui/resizable-modal').then(mod => ({
+    default: mod.ResizableModal
+  })),
+  {
+    loading: () => null,
+    ssr: false
+  }
+)
 
 interface Document {
   id: string
@@ -211,69 +249,9 @@ export default function AllDocumentsPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
-  const exportDocument = async (doc: Document, format: 'json' | 'markdown' | 'pdf' = 'json') => {
+  const exportDocument = async (doc: Document, format: 'json' | 'markdown' = 'json') => {
     try {
-      if (format === 'pdf') {
-        console.log('📥 Exporting PDF for document:', {
-          type: doc.type,
-          id: doc.id,
-          projectName: doc.project?.name
-        })
-        
-        // Use new PDF generation API
-        const requestBody = {
-          documentType: doc.type, // Already in correct format from DB
-          content: doc.content,
-          projectName: doc.project?.name || 'Project',  // Use actual project name, not document title
-          companyName: 'Your Company',
-          options: {
-            pageNumbers: true,
-            watermarkText: 'Project Genie',
-            useCache: !isDevelopment, // Disable caching during development
-            forceRegenerate: isDevelopment // Always regenerate during development
-          },
-          artifactId: doc.id
-        }
-        
-        console.log('📤 Sending PDF request:', requestBody)
-        
-        const response = await fetch('/api/pdf/generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Include cookies for authentication
-          body: JSON.stringify(requestBody)
-        })
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          console.error('❌ PDF generation error:', errorData)
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
-        }
-        
-        // Get the PDF blob
-        const blob = await response.blob()
-        console.log('✅ PDF blob received, size:', blob.size)
-        
-        // Create download link with cleaner filename
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        // Create filename like: "project-name-pid.pdf" or "project-name-business-case.pdf"
-        const projectSlug = (doc.project?.name || 'project').replace(/[^a-z0-9]/gi, '-').toLowerCase()
-        const docTypeSlug = doc.type.replace(/[^a-z0-9]/gi, '-').toLowerCase()
-        link.download = `${projectSlug}-${docTypeSlug}.pdf`
-        
-        // Trigger download
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        
-        // Clean up
-        URL.revokeObjectURL(url)
-        return
-      }
+      // Note: PDF export is now handled by DirectPDFDownloadButton component
 
       let content: string
       let mimeType: string
@@ -691,9 +669,14 @@ export default function AllDocumentsPage() {
                           <FileText className="h-4 w-4 mr-2" />
                           Download as Markdown
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => exportDocument(doc, 'pdf')}>
-                          <FileSpreadsheet className="h-4 w-4 mr-2" />
-                          Download as PDF
+                        <DropdownMenuItem asChild>
+                          <DirectPDFDownloadButton
+                            document={doc}
+                            buttonText="Download as PDF"
+                            showIcon={true}
+                            variant="ghost"
+                            size="sm"
+                          />
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => exportDocument(doc, 'json')}>
                           <FileText className="h-4 w-4 mr-2" />
@@ -723,8 +706,8 @@ export default function AllDocumentsPage() {
         isOpen={!!selectedDoc}
         onClose={() => setSelectedDoc(null)}
         title={selectedDoc?.title}
-        defaultWidth={window.innerWidth * 0.85}
-        defaultHeight={window.innerHeight * 0.85}
+        defaultWidth={1400}  // SSR-safe: Fixed default instead of window access
+        defaultHeight={800}  // SSR-safe: Fixed default instead of window access
         minWidth={600}
         minHeight={400}
       >

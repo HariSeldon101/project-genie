@@ -31,6 +31,125 @@ export class ProfilesRepository extends BaseRepository {
   }
 
   /**
+   * Get profile by ID - returns null if not found (doesn't throw)
+   * Used for checking profile existence
+   */
+  async getProfile(userId: string): Promise<Profile | null> {
+    const timer = permanentLogger.timing('repository.getProfile')
+
+    return this.execute('getProfile', async (client) => {
+      permanentLogger.breadcrumb('repository', 'Checking if profile exists', {
+        userId,
+        timestamp: Date.now()
+      })
+
+      const { data, error } = await client
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        // Check if it's a "not found" error
+        if (error.code === 'PGRST116') {
+          permanentLogger.breadcrumb('repository', 'Profile not found', {
+            userId
+          })
+          timer.stop()
+          return null
+        }
+
+        // Real error - log and throw
+        permanentLogger.captureError('PROFILES_REPO', error, {
+          operation: 'getProfile',
+          userId
+        })
+        throw error
+      }
+
+      timer.stop()
+      return data
+    })
+  }
+
+  /**
+   * Upsert profile - creates or updates
+   * Used as fallback when database trigger fails
+   */
+  async upsertProfile(profile: ProfileInsert): Promise<Profile> {
+    const timer = permanentLogger.timing('repository.upsertProfile')
+
+    return this.execute('upsertProfile', async (client) => {
+      permanentLogger.breadcrumb('repository', 'Upserting profile', {
+        userId: profile.id,
+        operation: 'INSERT ON CONFLICT UPDATE',
+        timestamp: Date.now()
+      })
+
+      const { data, error } = await client
+        .from('profiles')
+        .upsert({
+          ...profile,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (error) {
+        permanentLogger.captureError('PROFILES_REPO', error, {
+          operation: 'upsertProfile',
+          userId: profile.id
+        })
+        throw error
+      }
+
+      if (!data) {
+        throw new Error('Upsert failed - no data returned')
+      }
+
+      const duration = timer.stop()
+      permanentLogger.breadcrumb('repository', 'Profile upserted', {
+        userId: profile.id,
+        duration
+      })
+
+      return data
+    })
+  }
+
+  /**
+   * Delete profile - for account deletion
+   */
+  async deleteProfile(userId: string): Promise<void> {
+    const timer = permanentLogger.timing('repository.deleteProfile')
+
+    return this.execute('deleteProfile', async (client) => {
+      permanentLogger.breadcrumb('repository', 'Deleting profile', {
+        userId,
+        timestamp: Date.now()
+      })
+
+      const { error } = await client
+        .from('profiles')
+        .delete()
+        .eq('id', userId)
+
+      if (error) {
+        permanentLogger.captureError('PROFILES_REPO', error, {
+          operation: 'deleteProfile',
+          userId
+        })
+        throw error
+      }
+
+      timer.stop()
+      permanentLogger.breadcrumb('repository', 'Profile deleted', {
+        userId
+      })
+    })
+  }
+
+  /**
    * Get current user's profile
    * CRITICAL: No fallback data - throws if profile doesn't exist
    * Profile is guaranteed to exist via database trigger on user creation

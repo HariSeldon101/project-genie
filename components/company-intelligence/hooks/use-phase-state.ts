@@ -2,98 +2,111 @@ import { useState, useCallback, useRef } from 'react'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { Stage } from './use-stage-navigation'
 
-interface SessionData {
-  id: string
-  domain: string
-  createdAt: string
-  updatedAt: string
-}
-
 /**
  * Centralized state management for phase data
- * Handles session management and data persistence
+ * Server handles all session management - client only tracks domain
  */
 export function usePhaseState() {
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [sessionData, setSessionData] = useState<SessionData | null>(null)
+  const [domain, setDomain] = useState<string | null>(null)
+  const [sessionId, setSessionId] = useState<string | null>(null)  // Reference only, not for management
   const [stageData, setStageData] = useState<Record<string, any>>({})
   const [isProcessing, setIsProcessing] = useState(false)
 
   // Track data changes for debugging
   const dataHistory = useRef<Array<{ timestamp: string, stage: string, action: string, data: any }>>([])
 
+  // Request deduplication - prevents race conditions from multiple concurrent calls
+  const fetchSessionPromiseRef = useRef<Promise<any> | null>(null)
+
   // Sliding window configuration
   const MAX_STAGES_IN_MEMORY = 2 // Keep only 2 stages in memory at once
 
   /**
-   * Initialize or update session
+   * Initialize domain for phase operations
+   * Server automatically manages sessions based on domain + authenticated user
    */
-  const initializeSession = useCallback(async (domain: string) => {
-    permanentLogger.info('PHASE_STATE', 'Initializing session', { domain, existingSessionId: sessionId})
-    
-    try {
-      // Extract company name from domain (e.g., "bigfluffy.ai" -> "BigFluffy")
-      const company_name = domain
-        .split('.')[0]
-        .replace(/-/g, ' ')
-        .replace(/\b\w/g, l => l.toUpperCase())
-      
-      // Create session in database using new clean schema
-      // IMPORTANT: Using company_name field per new schema, NOT session_name
-      const response = await fetch('/api/company-intelligence/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          domain,
-          company_name  // Using company_name per new clean schema
-          // Status defaults to 'active' in database
-        })
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        permanentLogger.captureError('PHASE_STATE', new Error('Failed to create session'), { 
-          status: response.status, 
-          error: errorData,
-          domain,
-          company_name,
-          details: errorData.details || 'No details available'
-        })
-        
-        // Provide more specific error messages
-        if (response.status === 401) {
-          throw new Error('Authentication required - Please sign in to continue')
-        } else if (response.status === 400) {
-          throw new Error(errorData.error || 'Invalid session data')
-        } else {
-          throw new Error(errorData.error || `Failed to create session (${response.status})`)
-        }
-      }
-      
-      const data = await response.json()
-      const session = data.session || data // Handle both response formats
-      
-      permanentLogger.info('Session initialized', {
-        category: 'PHASE_STATE',
-        sessionId: session.id,
-        domain: session.domain,
-        company_name: session.company_name
-      })
-      
-      setSessionId(session.id)
-      setSessionData({
-        id: session.id,
-        domain: session.domain,
-        createdAt: session.created_at,
-        updatedAt: session.updated_at
-      })
-      
-      return session.id
-    } catch (error) {
-      permanentLogger.captureError('PHASE_STATE', new Error('Failed to initialize session'), { error, domain })
-      throw error
+  const initializeDomain = useCallback((newDomain: string) => {
+    permanentLogger.info('PHASE_STATE', 'Initializing domain', { domain: newDomain })
+
+    if (!newDomain) {
+      throw new Error('Domain is required')
     }
-  }, [sessionId])
+
+    setDomain(newDomain)
+
+    // Clear any existing stage data when domain changes
+    if (newDomain !== domain) {
+      setStageData({})
+      setSessionId(null)  // Clear reference sessionId
+    }
+
+    permanentLogger.info('Domain initialized', {
+      category: 'PHASE_STATE',
+      domain: newDomain
+    })
+  }, [domain])
+
+  /**
+   * Fetch or create session from server
+   * Called after domain is set to get the sessionId
+   * INCLUDES REQUEST DEDUPLICATION to prevent race conditions
+   */
+  const fetchSession = useCallback(async (domain: string) => {
+    if (!domain) {
+      throw new Error('Domain is required to fetch session')
+    }
+
+    // REQUEST DEDUPLICATION: If already fetching, return existing promise
+    if (fetchSessionPromiseRef.current) {
+      permanentLogger.info('PHASE_STATE', 'Returning existing fetch promise (deduplication)', { domain })
+      return fetchSessionPromiseRef.current
+    }
+
+    // Create new promise and store it to prevent concurrent calls
+    fetchSessionPromiseRef.current = (async () => {
+      try {
+        permanentLogger.info('PHASE_STATE', 'Fetching session from server', { domain })
+
+        const response = await fetch('/api/company-intelligence/sessions/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // Include auth cookies
+          body: JSON.stringify({ domain })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to initialize session')
+        }
+
+        const result = await response.json()
+
+        // Store the sessionId
+        setSessionId(result.sessionId)
+
+        permanentLogger.info('PHASE_STATE', 'Session fetched successfully', {
+          sessionId: result.sessionId,
+          domain: result.domain,
+          isNew: result.isNew,
+          phase: result.phase
+        })
+
+        return result
+
+      } catch (error) {
+        permanentLogger.captureError('PHASE_STATE', error as Error, {
+          action: 'fetchSession',
+          domain
+        })
+        throw error
+      } finally {
+        // Clear the promise ref after completion (success or failure)
+        fetchSessionPromiseRef.current = null
+      }
+    })()
+
+    return fetchSessionPromiseRef.current
+  }, [])
 
   /**
    * Store data for a specific stage
@@ -231,48 +244,54 @@ export function usePhaseState() {
   }, [sessionId, stageData])
 
   /**
-   * Load stage data from database (replaces sessionStorage restore)
-   * Only loads the most recent stages to maintain sliding window
+   * Execute a phase operation
+   * Server automatically manages sessions based on domain
    */
-  const loadStageDataFromDB = useCallback(async (stageToLoad?: Stage) => {
-    if (!sessionId) {
-      permanentLogger.info('PHASE_STATE', 'Cannot load: no session ID')
-      return false
+  const executePhase = useCallback(async (phase: string, params: any = {}) => {
+    if (!domain) {
+      throw new Error('Domain not initialized')
     }
 
     try {
-      // Fetch stage data from database via API
-      const response = await fetch(`/api/company-intelligence/sessions/${sessionId}/phase-data${stageToLoad ? `?stage=${stageToLoad}` : ''}`)
+      setIsProcessing(true)
+
+      const response = await fetch(`/api/company-intelligence/phases/${phase}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include auth cookies
+        body: JSON.stringify({
+          domain,  // Only send domain, server handles session
+          ...params
+        })
+      })
 
       if (!response.ok) {
-        throw new Error(`Failed to load stage data: ${response.status}`)
+        const error = await response.json()
+        throw new Error(error.error || `${phase} phase failed`)
       }
 
-      const data = await response.json()
+      const result = await response.json()
 
-      if (data && Object.keys(data).length > 0) {
-        permanentLogger.info('PHASE_STATE', 'Loaded stage data from database', {
-          sessionId,
-          stages: Object.keys(data),
-          stageToLoad
-        })
-
-        if (stageToLoad) {
-          // Load specific stage
-          setStageDataForStage(stageToLoad, data[stageToLoad])
-        } else {
-          // Load all stages (respecting sliding window)
-          setStageData(data)
-        }
-
-        return true
+      // Store sessionId reference if returned
+      if (result.sessionId && !sessionId) {
+        setSessionId(result.sessionId)
       }
+
+      permanentLogger.info('PHASE_STATE', 'Phase executed successfully', {
+        phase,
+        domain,
+        sessionId: result.sessionId
+      })
+
+      return result
+
     } catch (error) {
-      permanentLogger.captureError('PHASE_STATE', new Error('Failed to load stage data from DB'), { error, sessionId, stageToLoad })
+      permanentLogger.captureError('PHASE_STATE', error as Error, { phase, domain })
+      throw error
+    } finally {
+      setIsProcessing(false)
     }
-
-    return false
-  }, [sessionId, setStageDataForStage])
+  }, [domain, sessionId])
 
   /**
    * Update processing state with logging
@@ -326,11 +345,12 @@ export function usePhaseState() {
   }, [stageData])
 
   return {
-    // Session
-    sessionId,
-    sessionData,
-    initializeSession,
-    
+    // Domain management
+    domain,
+    initializeDomain,
+    fetchSession,  // Fetch session from server
+    sessionId,  // Reference only, not for management
+
     // Stage data
     stageData,
     setStageDataForStage,
@@ -339,13 +359,15 @@ export function usePhaseState() {
     clearAllStageData,
     hasStageData,
     getStagesWithData,
-    
+
     // Processing state
     isProcessing,
     setIsProcessing: updateProcessingState,
-    
+
+    // Phase execution
+    executePhase,
+
     // Utilities
-    loadStageDataFromDB,
     getDataHistory
   }
 }

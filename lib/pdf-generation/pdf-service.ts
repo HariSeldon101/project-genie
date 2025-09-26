@@ -3,7 +3,7 @@
  * Orchestrates HTML formatting and PDF generation
  */
 
-import { PuppeteerPDFGenerator } from './generators/puppeteer-generator'
+import { PlaywrightPDFGenerator } from './generators/playwright-generator'
 import { createUnifiedFormatter } from './unified-formatter-adapter'
 import { 
   BaseHTMLFormatter,
@@ -28,11 +28,11 @@ import {
 } from './types'
 
 export class PDFService {
-  private generator: PuppeteerPDFGenerator
+  private generator: PlaywrightPDFGenerator
   private formatters: Map<DocumentType, typeof BaseHTMLFormatter>
-  
+
   constructor() {
-    this.generator = new PuppeteerPDFGenerator()
+    this.generator = new PlaywrightPDFGenerator()
     this.formatters = new Map()
     
     // Register all formatters (PID and Business Case now use unified formatters)

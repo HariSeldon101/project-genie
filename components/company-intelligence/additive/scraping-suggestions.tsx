@@ -18,7 +18,13 @@ import {
   Target
 } from 'lucide-react'
 import { TooltipWrapper } from '../tooltip-wrapper'
-import type { ScrapingSuggestion } from '@/lib/company-intelligence/scrapers/additive/types'
+
+// Define type locally since additive scrapers were archived
+interface ScrapingSuggestion {
+  url: string
+  reason: string
+  priority: 'high' | 'medium' | 'low'
+}
 
 interface ScrapingSuggestionsProps {
   suggestions: ScrapingSuggestion[]

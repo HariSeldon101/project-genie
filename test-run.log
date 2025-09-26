@@ -1,0 +1,20 @@
+[dotenv@17.2.1] injecting env (28) from .env.local -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+🧪 PROJECT DOCUMENT GENERATION TEST
+Testing Mermaid diagram rendering in document viewers
+============================================================
+🚀 Initializing Project Document Test
+   Browser Mode: VISIBLE (headed)
+   Slow Motion: 100ms delay
+-----------------------------------
+
+🔐 Logging in to application
+  Filling login form...
+  Submitting login...
+✅ Login successful, redirected to: http://localhost:3000/dashboard
+
+📁 Creating new project
+❌ Console Error: Error loading dashboard: TypeError: Failed to fetch
+    at loadDashboardData (webpack-internal:///(app-pages-browser)/./app/(dashboard)/dashboard/page.tsx:57:43)
+  Checking for demo selector...
+  Clicking "Use This Demo" button...
+  Step 1: Entering project details

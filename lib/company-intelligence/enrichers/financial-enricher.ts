@@ -23,7 +23,7 @@ export class FinancialEnricher {
   
   constructor(sessionId: string) {
     this.sessionId = sessionId
-    permanentLogger.info('Initializing Financial Enricher', { category: 'FINANCIAL_ENRICHER', sessionId,
+    permanentLogger.info('FINANCIAL_ENRICHER', 'Initializing Financial Enricher', { sessionId,
       cacheTimeout: this.cacheTimeout })
   }
   
@@ -32,7 +32,7 @@ export class FinancialEnricher {
    */
   async enrich(companyName: string, domain: string): Promise<EnrichmentResult> {
     const startTime = Date.now()
-    permanentLogger.info('Starting financial enrichment', { category: 'FINANCIAL_ENRICHER', companyName,
+    permanentLogger.info('FINANCIAL_ENRICHER', 'Starting financial enrichment', { companyName,
       domain,
       sessionId: this.sessionId })
     
@@ -64,7 +64,7 @@ export class FinancialEnricher {
         }
       }
       
-      permanentLogger.info('Ticker discovered', { category: 'FINANCIAL_ENRICHER', companyName,
+      permanentLogger.info('FINANCIAL_ENRICHER', 'Ticker discovered', { companyName,
         ticker })
       
       // Step 2: Fetch market data for public company
@@ -80,7 +80,7 @@ export class FinancialEnricher {
       }
       
       const duration = Date.now() - startTime
-      permanentLogger.info('Financial enrichment complete', { category: 'FINANCIAL_ENRICHER', companyName,
+      permanentLogger.info('FINANCIAL_ENRICHER', 'Financial enrichment complete', { companyName,
         ticker,
         isPublic: true,
         hasMarketData: !!financialData,
@@ -100,7 +100,7 @@ export class FinancialEnricher {
       }
       
     } catch (error) {
-      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error as Error, {
         message: 'Financial enrichment failed',
         companyName,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -120,7 +120,7 @@ export class FinancialEnricher {
    * Discover stock ticker using web search
    */
   private async discoverTicker(companyName: string, domain: string): Promise<string | null> {
-    permanentLogger.info('Discovering ticker', { category: 'FINANCIAL_ENRICHER', companyName,
+    permanentLogger.info('FINANCIAL_ENRICHER', 'Discovering ticker', { companyName,
       domain })
     
     try {
@@ -164,7 +164,7 @@ export class FinancialEnricher {
                 
                 if (filtered.length > 0) {
                   const ticker = filtered[0].trim()
-                  permanentLogger.info('Ticker found', { category: 'FINANCIAL_ENRICHER', ticker,
+                  permanentLogger.info('FINANCIAL_ENRICHER', 'Ticker found', { ticker,
                     source: 'web_search' })
                   
                   // Verify ticker is valid
@@ -187,7 +187,7 @@ export class FinancialEnricher {
       }
       
     } catch (error) {
-      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error as Error, {
         message: 'Ticker discovery failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -318,7 +318,7 @@ export class FinancialEnricher {
         financialData.currency = this.getCurrencyForExchange(financialData.exchange)
       }
       
-      permanentLogger.info('Market data fetched', { category: 'FINANCIAL_ENRICHER', ticker,
+      permanentLogger.info('FINANCIAL_ENRICHER', 'Market data fetched', { ticker,
         hasPrice: !!financialData.sharePrice,
         hasMarketCap: !!financialData.marketCap,
         hasPE: !!financialData.peRatio,
@@ -327,7 +327,7 @@ export class FinancialEnricher {
       return financialData
       
     } catch (error) {
-      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error as Error, {
         message: 'Market data fetch failed',
         ticker,
         errorMessage: error instanceof Error ? error.message : 'Unknown'
@@ -370,7 +370,7 @@ export class FinancialEnricher {
    * Extract investor relations information from website
    */
   private async extractInvestorRelations(domain: string, ticker?: string): Promise<InvestorRelations | null> {
-    permanentLogger.info('Extracting IR information', { category: 'FINANCIAL_ENRICHER', domain,
+    permanentLogger.info('FINANCIAL_ENRICHER', 'Extracting IR information', { domain,
       ticker })
     
     try {
@@ -460,7 +460,7 @@ export class FinancialEnricher {
         irData.latestEarningsDate = new Date(earningsMatch[1])
       }
       
-      permanentLogger.info('IR data extracted', { category: 'FINANCIAL_ENRICHER', irPageUrl,
+      permanentLogger.info('FINANCIAL_ENRICHER', 'IR data extracted', { irPageUrl,
         annualReports: irData.annualReports.length,
         quarterlyReports: irData.quarterlyReports.length,
         hasEarningsDate: !!irData.latestEarningsDate })
@@ -468,7 +468,7 @@ export class FinancialEnricher {
       return irData
       
     } catch (error) {
-      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error as Error, {
         message: 'IR extraction failed',
         domain,
         errorMessage: error instanceof Error ? error.message : 'Unknown'
@@ -481,7 +481,7 @@ export class FinancialEnricher {
    * Fetch regulatory filings (SEC, etc.)
    */
   private async fetchRegulatoryFilings(ticker: string, exchange?: string): Promise<RegulatoryFiling[]> {
-    permanentLogger.info('Fetching regulatory filings', { category: 'FINANCIAL_ENRICHER', ticker,
+    permanentLogger.info('FINANCIAL_ENRICHER', 'Fetching regulatory filings', { ticker,
       exchange })
     
     const filings: RegulatoryFiling[] = []
@@ -531,14 +531,14 @@ export class FinancialEnricher {
         // Similar search logic for LSE
       }
       
-      permanentLogger.info('Regulatory filings fetched', { category: 'FINANCIAL_ENRICHER',
+      permanentLogger.info('FINANCIAL_ENRICHER', 'Regulatory filings fetched', {
         ticker,
         count: filings.length,
         types: [...new Set(filings.map(f => f.type))]
       })
       
     } catch (error) {
-      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error as Error, {
         message: 'Regulatory filing fetch failed',
         ticker,
         errorMessage: error instanceof Error ? error.message : 'Unknown'

@@ -8,20 +8,35 @@ import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 
-console.log('🔍 Running build-time validation...')
+console.log('🔍 Running COMPREHENSIVE build-time validation...')
 
-// 1. TYPE CHECK
-console.log('\n📝 1. Running TypeScript validation...')
+// 1. TYPE CHECK WITH STRICT MODE
+console.log('\n📝 1. Running STRICT TypeScript validation...')
 try {
-  execSync('npx tsc --noEmit', { stdio: 'inherit' })
+  execSync('npx tsc --noEmit --skipLibCheck false', { stdio: 'inherit' })
   console.log('✅ TypeScript validation passed')
 } catch (error) {
   console.error('❌ TypeScript errors found!')
+  console.error('⚠️  Fix TypeScript errors before committing!')
   process.exit(1)
 }
 
-// 2. LINT CHECK
-console.log('\n🧹 2. Running ESLint validation...')
+// 2. NEXT.JS BUILD CHECK (Critical for catching module resolution errors!)
+console.log('\n🏗️  2. Running Next.js build check...')
+console.log('   This catches import errors that TypeScript misses...')
+try {
+  // Run build but don't output the results (just check for errors)
+  execSync('next build --no-lint 2>&1', { stdio: 'pipe' })
+  console.log('✅ Next.js build check passed - all modules resolve correctly!')
+} catch (error) {
+  console.error('❌ BUILD FAILED! Module resolution or build errors found!')
+  console.error('⚠️  Run "npm run build" to see full error details')
+  console.error('⚠️  This MUST be fixed before deployment!')
+  process.exit(1)
+}
+
+// 3. LINT CHECK
+console.log('\n🧹 3. Running ESLint validation...')
 try {
   execSync('npm run lint', { stdio: 'inherit' })
   console.log('✅ ESLint validation passed')
@@ -30,7 +45,7 @@ try {
   process.exit(1)
 }
 
-// 3. CUSTOM VALIDATION: Check for forbidden patterns
+// 4. CUSTOM VALIDATION: Check for forbidden patterns
 console.log('\n🔎 3. Checking for forbidden patterns...')
 
 const forbiddenPatterns = [

@@ -48,7 +48,7 @@ export class StructuredDataExtractor {
       
       const processingTime = Date.now() - startTime
       
-      permanentLogger.info('Structured data extraction completed', { category: 'INTELLIGENCE', url,
+      permanentLogger.info('INTELLIGENCE', 'Structured data extraction completed', { url,
         processingTime,
         jsonLdCount: structuredData.jsonLd?.length || 0,
         microdataCount: structuredData.microdata?.length || 0,
@@ -57,7 +57,7 @@ export class StructuredDataExtractor {
       return structuredData
       
     } catch (error) {
-      permanentLogger.captureError('INTELLIGENCE', error, {
+      permanentLogger.captureError('INTELLIGENCE', error as Error, {
         message: 'Failed to extract structured data',
         url,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -112,7 +112,7 @@ export class StructuredDataExtractor {
       
       const processingTime = Date.now() - startTime
       
-      permanentLogger.info('Meta data extraction completed', { category: 'INTELLIGENCE',
+      permanentLogger.info('INTELLIGENCE', 'Meta data extraction completed', {
         url,
         processingTime,
         extractedFields: Object.keys(metaData).filter(k => metaData[k as keyof MetaTagData] !== undefined).length
@@ -121,7 +121,7 @@ export class StructuredDataExtractor {
       return metaData
       
     } catch (error) {
-      permanentLogger.captureError('INTELLIGENCE', error, {
+      permanentLogger.captureError('INTELLIGENCE', error as Error, {
         message: 'Failed to extract meta data',
         url,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -161,11 +161,11 @@ export class StructuredDataExtractor {
         }
       }
       
-      permanentLogger.info('JSON-LD extraction completed', { category: 'INTELLIGENCE', domain: this.domain,
+      permanentLogger.info('INTELLIGENCE', 'JSON-LD extraction completed', { domain: this.domain,
         blocksFound: jsonLdData.length })
       
     } catch (error) {
-      permanentLogger.captureError('INTELLIGENCE', error, {
+      permanentLogger.captureError('INTELLIGENCE', error as Error, {
         message: 'JSON-LD extraction failed',
         domain: this.domain,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
@@ -208,11 +208,11 @@ export class StructuredDataExtractor {
         }
       }
       
-      permanentLogger.info('Microdata extraction completed', { category: 'INTELLIGENCE', domain: this.domain,
+      permanentLogger.info('INTELLIGENCE', 'Microdata extraction completed', { domain: this.domain,
         itemsFound: microdataItems.length })
       
     } catch (error) {
-      permanentLogger.captureError('INTELLIGENCE', error, {
+      permanentLogger.captureError('INTELLIGENCE', error as Error, {
         message: 'Microdata extraction failed',
         domain: this.domain,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'

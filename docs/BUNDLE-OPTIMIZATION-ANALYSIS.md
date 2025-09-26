@@ -46,7 +46,7 @@ The `/company-intelligence` page is currently taking **28.7 seconds** to compile
 | Component | Import Location | Modules | Issue |
 |-----------|----------------|---------|-------|
 | Scraping Infrastructure | `ScrapingControl` | ~500 | Loaded even when not scraping |
-| Browser Automation | Via scrapers | ~300 | Puppeteer/Playwright references |
+| Browser Automation | Via scrapers | ~300 | Playwright references (Puppeteer removed) |
 | AI/LLM Services | Multiple imports | ~200 | All providers loaded upfront |
 | Database Services | Supabase clients | ~200 | Multiple instances |
 | Notification System | Event bus, SSE | ~300 | Entire system loaded |

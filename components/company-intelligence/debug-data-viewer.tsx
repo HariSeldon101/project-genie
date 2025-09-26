@@ -110,7 +110,9 @@ export function DebugDataViewer({ sessionId }: DebugDataViewerProps) {
       setError(null)
 
       // Fetch session data from API endpoint
-      const response = await fetch(`/api/company-intelligence/sessions/${sessionId}`)
+      const response = await fetch(`/api/company-intelligence/sessions/${sessionId}`, {
+        credentials: 'include'  // Include auth cookies
+      })
 
       if (!response.ok) {
         if (response.status === 404) {

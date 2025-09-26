@@ -11,7 +11,6 @@
  * @module realtime-events/factories
  */
 
-import { nanoid } from 'nanoid'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 import {
   RealtimeEvent,
@@ -66,7 +65,7 @@ export class EventFactory {
 
     // Create the event with all required fields
     const event: RealtimeEvent<T> = {
-      id: nanoid(),
+      id: crypto.randomUUID(),
       type,
       timestamp: Date.now(),
       correlationId,
@@ -556,7 +555,7 @@ export class EventFactory {
       return this.correlationMap.get(sessionId)!
     }
 
-    const correlationId = nanoid()
+    const correlationId = crypto.randomUUID()
 
     if (sessionId) {
       this.correlationMap.set(sessionId, correlationId)
@@ -632,7 +631,7 @@ export class EventFactory {
                       legacyData
 
     return {
-      id: legacyData.id || nanoid(),
+      id: legacyData.id || crypto.randomUUID(),
       type: legacyData.type || type || EventType.DATA,
       timestamp: legacyData.timestamp || Date.now(),
       correlationId: legacyData.correlationId || this.getCorrelationId(),

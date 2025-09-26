@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe, PRICING } from '@/lib/stripe/client'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { SubscriptionsRepository } from '@/lib/repositories/subscriptions-repository'
 import { parseJsonRequest, createErrorResponse } from '@/lib/utils/request-parser'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Get user session using server client
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user session using server client
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {

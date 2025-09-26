@@ -77,7 +77,7 @@ async function main() {
   for (const file of files) {
     // Check if file contains error() calls
     const content = await fs.readFile(file, 'utf-8')
-    if (content.includes('permanentLogger.error(') {
+    if (content.includes('permanentLogger.captureError(') {
       const fixed = await fixFile(file)
       if (fixed) fixedCount++
     }

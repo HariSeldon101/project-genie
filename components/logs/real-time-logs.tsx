@@ -142,7 +142,7 @@ export function RealTimeLogs({
           success: true
         })
 
-        permanentLogger.info('real-time-logs', 'Connected to log stream', {
+        permanentLogger.info('REAL_TIME_LOGS', 'Connected to log stream', {
           url,
           duration: connectionDuration
         })
@@ -154,7 +154,7 @@ export function RealTimeLogs({
         pingIntervalRef.current = setInterval(() => {
           // Check if we've received data recently
           if (lastUpdate && Date.now() - lastUpdate.getTime() > 10000) {
-            permanentLogger.warn('real-time-logs', 'No data for 10s, reconnecting')
+            permanentLogger.warn('REAL_TIME_LOGS', 'No data for 10s, reconnecting')
             reconnect()
           }
         }, 10000)
@@ -218,7 +218,7 @@ export function RealTimeLogs({
 
             case 'status':
               // Status update
-              permanentLogger.info('real-time-logs', 'Status update', {
+              permanentLogger.info('REAL_TIME_LOGS', 'Status update', {
                 status: sseEvent.data,
                 correlationId: sseEvent.correlationId
               })
@@ -235,7 +235,7 @@ export function RealTimeLogs({
 
             case 'complete':
               // Stream completed
-              permanentLogger.info('real-time-logs', 'Stream completed', {
+              permanentLogger.info('REAL_TIME_LOGS', 'Stream completed', {
                 data: sseEvent.data,
                 correlationId: sseEvent.correlationId
               })
@@ -248,14 +248,14 @@ export function RealTimeLogs({
             case 'warning':
               // Warning message
               const warningData = sseEvent.data as { message: string }
-              permanentLogger.warn('real-time-logs', warningData.message, {
+              permanentLogger.warn('REAL_TIME_LOGS', warningData.message, {
                 correlationId: sseEvent.correlationId
               })
               break
 
             default:
               // Unknown event type
-              permanentLogger.warn('real-time-logs', 'Unknown event type', {
+              permanentLogger.warn('REAL_TIME_LOGS', 'Unknown event type', {
                 type: sseEvent.type,
                 correlationId: sseEvent.correlationId
               })
@@ -344,7 +344,7 @@ export function RealTimeLogs({
     setIsConnecting(false)
 
     // Log disconnection
-    permanentLogger.info('real-time-logs', 'Disconnected from log stream', {
+    permanentLogger.info('REAL_TIME_LOGS', 'Disconnected from log stream', {
       correlationId,
       stats
     })
@@ -372,7 +372,7 @@ export function RealTimeLogs({
     // Schedule reconnect with backoff
     const delay = Math.min(5000, 1000 * Math.pow(2, stats.eventsReceived === 0 ? 0 : 1))
 
-    permanentLogger.info('real-time-logs', `Scheduling reconnect in ${delay}ms`)
+    permanentLogger.info('REAL_TIME_LOGS', `Scheduling reconnect in ${delay}ms`)
 
     reconnectTimeoutRef.current = setTimeout(() => {
       connect()
@@ -384,7 +384,7 @@ export function RealTimeLogs({
    */
   const clearLogs = useCallback(() => {
     setLogs([])
-    permanentLogger.info('real-time-logs', 'Logs cleared by user')
+    permanentLogger.info('REAL_TIME_LOGS', 'Logs cleared by user')
   }, [])
 
   // ========== LIFECYCLE MANAGEMENT ==========

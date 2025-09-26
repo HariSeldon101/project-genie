@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { ProfilesRepository } from '@/lib/repositories/profiles-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   const timer = permanentLogger.timing('api.profile.avatar.post')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -134,7 +134,7 @@ export async function DELETE(request: NextRequest) {
   const timer = permanentLogger.timing('api.profile.avatar.delete')
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

@@ -13,7 +13,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { parseJsonRequest, createErrorResponse } from '@/lib/utils/request-parser'
-import { DiscoveryOrchestrator } from '@/lib/company-intelligence/orchestrators/discovery-orchestrator'
+// import { DiscoveryOrchestrator } from '@/lib/company-intelligence/orchestrators/discovery-orchestrator' // Archived
+import { CompanyIntelligenceRepository } from '@/lib/repositories/company-intelligence-repository'
+import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
 // Maximum duration for the request
@@ -58,6 +60,33 @@ export async function POST(request: NextRequest) {
     timestamp: new Date().toISOString()
   })
 
+  // Get authenticated user and set userId for logging
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Security: Require authentication for company intelligence features
+  if (!user) {
+    permanentLogger.warn(routeCategory, 'Authentication required for company intelligence', {
+      url: request.url,
+      timestamp: new Date().toISOString()
+    })
+
+    return NextResponse.json(
+      {
+        error: 'Authentication required',
+        message: 'Please sign in to use company intelligence features'
+      },
+      { status: 401 }
+    )
+  }
+
+  // Set user ID for all subsequent logging
+  permanentLogger.setUserId(user.id)
+  permanentLogger.breadcrumb('auth', 'User authenticated for discovery', {
+    userId: user.id,
+    email: user.email
+  })
+
   try {
     // Use the new shared request parser with schema validation
     // This replaces the unsafe await request.json() call
@@ -81,55 +110,52 @@ export async function POST(request: NextRequest) {
     // Type-safe access to validated body
     const body = parseResult.data!
 
+    // Get or create session automatically based on authenticated user
+    const repository = CompanyIntelligenceRepository.getInstance()
+    const session = await repository.getOrCreateUserSession(user.id, body.domain)
+
     // Log successful request with timing
     permanentLogger.info(routeCategory, 'Discovery request validated', {
       domain: body.domain,
-      sessionId: body.sessionId,
+      sessionId: session.id,  // Server-managed session
+      userId: user.id,
       enableIntelligence: body.enableIntelligence,
       parseTimeMs: parseResult.timing?.parseMs,
       validationTimeMs: parseResult.timing?.validationMs
     })
 
-    // Create orchestrator with request parameters
-    const orchestrator = new DiscoveryOrchestrator(body)
+    // V4 SIMPLIFICATION: Sitemap discovery not needed
+    // V4 scrapers discover URLs automatically during scraping
+    permanentLogger.info('FETCH_SITEMAP_ROUTE', 'V4: Sitemap phase not needed', {
+      sessionId: session.id,
+      domain: body.domain,
+      message: 'V4 scrapers discover URLs automatically'
+    })
 
-    // Check if client wants streaming response
-    const acceptHeader = request.headers.get('accept')
-    const wantsStream = acceptHeader?.includes('text/event-stream')
-
-    if (wantsStream) {
-      // Return streaming response
-      permanentLogger.info('FETCH_SITEMAP_ROUTE', 'Returning streaming response')
-
-      return new Response(
-        orchestrator.executeWithStream(request.signal),
-        {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
-        }
-      )
-    }
-
-    // Execute standard discovery
-    const result = await orchestrator.execute()
+    // Return simplified response for V4
+    const pages: any[] = []  // Empty - scrapers will find URLs
+    const sitemapFound = false  // Not relevant in V4
 
     // Log completion with detailed timing
     const totalTimeMs = Date.now() - startTime
     permanentLogger.info(routeCategory, 'Discovery complete', {
       domain: body.domain,
-      pagesFound: result.pages.length,
-      sitemapFound: result.sitemapFound,
+      pagesFound: pages.length,
+      sitemapFound: sitemapFound,
       parseTimeMs: parseResult.timing?.parseMs,
       discoveryTimeMs: totalTimeMs - (parseResult.timing?.parseMs || 0),
       totalTimeMs
     })
 
     // Return JSON response with timing information
+    // Transform to match expected format
     return NextResponse.json({
-      ...result,
+      sessionId: session.id,  // Include server-managed session ID
+      domain: result.domain,
+      pages: pages,
+      sitemapFound: sitemapFound,
+      success: result.success,
+      metadata: result.metadata,
       timing: {
         parseMs: parseResult.timing?.parseMs,
         discoveryMs: totalTimeMs - (parseResult.timing?.parseMs || 0),
@@ -140,12 +166,21 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     // Comprehensive error logging with breadcrumbs
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorStack = error instanceof Error ? error.stack : undefined
     const totalTimeMs = Date.now() - startTime
+
+    // Log the full error details to console for debugging
+    console.error('❌ [FETCH_SITEMAP] Error details:', {
+      message: errorMessage,
+      stack: errorStack,
+      error: error
+    })
 
     permanentLogger.captureError(routeCategory, error as Error, {
       method: 'POST',
       path: '/api/company-intelligence/fetch-sitemap',
       errorMessage,
+      errorStack,
       totalTimeMs,
       breadcrumbs: permanentLogger.getBreadcrumbs ? permanentLogger.getBreadcrumbs() : []
     })
@@ -155,6 +190,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: errorMessage,
+        details: errorStack, // Include stack trace for debugging
         timing: { totalMs: totalTimeMs },
         // Include request ID for support/debugging
         requestId: request.headers.get('x-request-id') || 'unknown'

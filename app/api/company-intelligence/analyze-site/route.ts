@@ -3,6 +3,7 @@ import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { PageIntelligenceAnalyzer } from '@/lib/company-intelligence/intelligence/page-intelligence-analyzer'
 import { createClient } from '@/lib/supabase/server'
 import { CompanyIntelligenceRepository } from '@/lib/repositories/company-intelligence-repository'
+import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
 
 export const maxDuration = 60 // Increased timeout for intelligence analysis
 
@@ -39,12 +40,23 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
-    if (authError || !user) {
-      permanentLogger.captureError('AUTH', new Error('User not authenticated for site analysis'), { 
-        error: authError?.message,
+    if (authError) {
+      // CLAUDE.md: Convert Supabase error properly
+      const jsError = convertSupabaseError(authError)
+      permanentLogger.captureError('AUTH', jsError, {
+        endpoint: '/api/company-intelligence/analyze-site',
         domain
       })
-      return NextResponse.json({ error: 'Unauthorized - Please log in' }, { status: 401 })
+      return NextResponse.json({ error: 'Authentication failed' }, { status: 401 })
+    }
+
+    if (!user) {
+      // No user but no error - this is a valid "not authenticated" case
+      permanentLogger.warn('AUTH', 'No authenticated user for site analysis', {
+        endpoint: '/api/company-intelligence/analyze-site',
+        domain
+      })
+      return NextResponse.json({ error: 'Authentication required - Please log in' }, { status: 401 })
     }
     
     permanentLogger.info('AUTH', 'User authenticated for site analysis', {
@@ -201,6 +213,14 @@ export async function POST(request: NextRequest) {
             session = updatedSession
           } catch (updateError) {
             permanentLogger.captureError('SESSION', updateError as Error, {
+              sessionId: existingSession.id,
+              operation: 'updateSession'
+            })
+
+            // Don't fail completely, but use the existing session
+            // Since it already exists, we can continue with it
+            session = existingSession
+            permanentLogger.warn('SESSION', 'Using existing session without update', {
               sessionId: existingSession.id
             })
           }
@@ -211,15 +231,17 @@ export async function POST(request: NextRequest) {
             userId: user.id
           })
           
-          // Create new session using repository
+          // Create new session using the CORRECT method
+          // CRITICAL: Always use getOrCreateUserSession to handle constraints properly
           try {
-            const newSession = await repository.createSession(
-              `Research: ${cleanDomain}`,
+            const newSession = await repository.getOrCreateUserSession(
+              user.id,
               cleanDomain
             )
 
             // Update with analysis results
-            const updatedNewSession = await repository.updateMergedData(newSession.id, {
+            // Fixed: 2025-09-22 18:50 Paris - updateMergedData returns void, not a session
+            await repository.updateMergedData(newSession.id, {
               site_analysis: result,
               stats: {
                 totalPages: 0,
@@ -231,20 +253,40 @@ export async function POST(request: NextRequest) {
               extractedData: {}
             })
 
-            session = updatedNewSession
+            session = newSession  // Use the original session, not undefined
           } catch (sessionError) {
+            // CLAUDE.md: No graceful degradation - properly handle and return error
             permanentLogger.captureError('SESSION', sessionError as Error, {
-              domain: cleanDomain
+              domain: cleanDomain,
+              userId: user.id,
+              operation: 'getOrCreateUserSession'
             })
+
+            // Return proper error response instead of continuing with null session
+            return NextResponse.json(
+              {
+                error: 'Failed to initialize session',
+                details: sessionError instanceof Error ? sessionError.message : 'Session creation failed'
+              },
+              { status: 500 }
+            )
           }
         }
-        
-        const sessionError = !session
-        
+
+        // Session should always exist here, but add safety check
         if (!session) {
-          permanentLogger.captureError('SESSION', new Error('No session available'), {
-            domain: cleanDomain
+          // This should not happen if getOrCreateUserSession works correctly
+          const error = new Error('Session unexpectedly null after creation')
+          permanentLogger.captureError('SESSION', error, {
+            domain: cleanDomain,
+            userId: user.id,
+            critical: true
           })
+
+          return NextResponse.json(
+            { error: 'Session initialization failed unexpectedly' },
+            { status: 500 }
+          )
         } else {
           sessionId = session.id
           permanentLogger.info('SESSION', 'Company intelligence session created', {
@@ -355,13 +397,16 @@ export async function POST(request: NextRequest) {
     }
     
   } catch (error) {
-    totalTimer.end()
+    // Fixed: 2025-09-22 18:35 Paris - KISS fix for meaningful errors
+    totalTimer.stop()  // Fixed: was .end() which doesn't exist
     permanentLogger.captureError('SITE_ANALYSIS', error as Error, {
       message: 'Site analysis failed',
       breadcrumbs: true // Include breadcrumbs in error context
     })
     return NextResponse.json(
-      { error: 'Failed to analyze site' },
+      {
+        error: error instanceof Error ? error.message : String(error)  // Show actual error
+      },
       { status: 500 }
     )
   } finally {
