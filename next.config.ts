@@ -31,18 +31,37 @@ const nextConfig: NextConfig = {
 
   // Webpack configuration
   webpack: (config, { dev, isServer }) => {
-    // STAGING BYPASS: Polyfill browser globals for server-side rendering
+    // Handle browser-only modules properly
     if (isServer) {
-      config.resolve = {
-        ...config.resolve,
-        fallback: {
-          ...config.resolve?.fallback,
-          self: false,
-          window: false,
-          document: false,
-          navigator: false,
-          location: false,
-        }
+      // Don't resolve browser-only modules on the server
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        // Mermaid and its dependencies
+        'mermaid': false,
+        'd3': false,
+        'dagre-d3': false,
+        'cytoscape': false,
+        // Scraping/browser automation (if used in CI)
+        'playwright': false,
+        'puppeteer': false,
+        '@firecrawl/sdk': false,
+        // Any other browser-only libraries
+        'pdfjs-dist': false
+      }
+
+      // Also add fallbacks for browser globals
+      config.resolve.fallback = {
+        ...config.resolve?.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        http: false,
+        https: false,
+        zlib: false,
+        path: false,
+        os: false
       }
     }
 

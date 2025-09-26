@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { TooltipWrapper } from '@/components/company-intelligence/tooltip-wrapper'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
-import { mermaidService } from '@/lib/services/mermaid-service'
+// Only import types at module level, not the service itself
 import type { MermaidTheme, MermaidRenderResult } from '@/lib/utils/mermaid-types'
 
 export interface MermaidDiagramProps {
@@ -170,6 +170,8 @@ export function MermaidDiagram({
 
     try {
       const svgString = svg.outerHTML
+      // Dynamically import mermaidService only when needed
+      const { mermaidService } = await import('@/lib/services/mermaid-service')
       const blob = await mermaidService.exportToImage(svgString, format)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

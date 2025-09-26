@@ -3,6 +3,28 @@
  * Implements singleton pattern for consistent initialization and caching
  */
 
+// Check if we're running on server - if so, export a mock service
+if (typeof window === 'undefined') {
+  // Server-side mock implementation
+  const mockService = {
+    getInstance: () => mockService,
+    initialize: async () => {},
+    render: async () => ({ svg: '<svg></svg>', bindFunctions: false }),
+    exportToImage: async () => new Blob([]),
+    validateSyntax: () => ({ isValid: true, errors: [] }),
+    clearCache: () => {},
+    getCacheStats: () => ({ size: 0, hits: 0, misses: 0, hitRate: 0 }),
+    destroy: async () => {}
+  }
+
+  module.exports = {
+    mermaidService: mockService,
+    MermaidService: class { static getInstance() { return mockService } }
+  }
+} else {
+  // Client-side implementation continues below
+}
+
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 import type {
   MermaidConfig,
