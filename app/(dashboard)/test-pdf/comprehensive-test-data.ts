@@ -936,6 +936,8 @@ export function getDocumentTypeDisplayNames() {
 import { kanbanTestData } from './kanban-test-data'
 
 // Add kanban to test documents
+export const comprehensiveTestData = testDocuments // Alias for backward compatibility
+
 export const allTestDocuments = {
   ...testDocuments,
   kanban: kanbanTestData

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 // EXCEPTION: Test/Debug page - direct client access allowed for development testing
 // This page is not for production use and helps test PDF generation
 import { createClient } from '@/lib/supabase/client'
-import { testDocuments as comprehensiveTestData } from './comprehensive-test-data'
+import { comprehensiveTestData } from './comprehensive-test-data'
 import { DocumentType } from '@/lib/pdf-generation/types'
 
 export default function TestPDFPage() {
