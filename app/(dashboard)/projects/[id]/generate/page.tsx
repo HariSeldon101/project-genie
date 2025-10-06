@@ -8,6 +8,7 @@ import { AnimatedBackgroundSubtle } from '@/components/animated-background-subtl
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Loader2 } from 'lucide-react'
+import { mapDatabaseToProjectData } from '@/lib/utils/project-data-mapper'
 
 export default function GenerateDocumentsPage() {
   const params = useParams()
@@ -43,37 +44,31 @@ export default function GenerateDocumentsPage() {
       // Try to get project data from session (if coming from wizard)
       const storedData = sessionStorage.getItem(`project_data_${projectId}`)
       if (storedData) {
+        console.log('[Generate] Using fresh wizard data from sessionStorage')
         setProjectData(JSON.parse(storedData))
         // Clean up session storage
         sessionStorage.removeItem(`project_data_${projectId}`)
       } else {
-        // Reconstruct project data from database
+        // Reconstruct project data from database using canonical mapper
+        console.log('[Generate] Reconstructing project data from database')
         const { data: stakeholders } = await supabase
           .from('stakeholders')
           .select('*')
           .eq('project_id', projectId)
 
-        // Extract company_info fields
-        const companyInfo = projectRecord.company_info || {}
-        
-        const reconstructedData = {
-          name: projectRecord.name,
-          description: projectRecord.description,
-          vision: projectRecord.vision,
-          businessCase: projectRecord.business_case,
-          methodology: projectRecord.methodology_type,
-          companyWebsite: companyInfo.website || '',
-          sector: companyInfo.sector || '',
-          budget: companyInfo.budget || '',
-          timeline: companyInfo.timeline || '',
-          startDate: companyInfo.startDate || '',
-          endDate: companyInfo.endDate || '',
-          stakeholders: stakeholders?.map(s => ({
-            name: s.name,
-            email: s.email || '',
-            title: s.role || ''
-          })) || []
-        }
+        // Use mapper for consistent data structure
+        const reconstructedData = mapDatabaseToProjectData(
+          projectRecord,
+          stakeholders || []
+        )
+
+        console.log('[Generate] Reconstructed data:', {
+          methodology: reconstructedData.methodology,
+          hasAgilometer: !!reconstructedData.agilometer,
+          hasPrince2Roles: !!reconstructedData.prince2Stakeholders,
+          stakeholderCount: reconstructedData.stakeholders.length
+        })
+
         setProjectData(reconstructedData)
       }
 

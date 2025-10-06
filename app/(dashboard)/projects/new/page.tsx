@@ -281,7 +281,11 @@ export default function NewProjectPage() {
           timeline: projectData.timeline || null,
           startDate: projectData.startDate || null,
           endDate: projectData.endDate || null
-        }
+        },
+        // Store agilometer settings for hybrid methodology
+        agilometer: projectData.methodology === 'hybrid' ? projectData.agilometer : null,
+        // PRINCE2 role mappings will be populated after stakeholder insert
+        prince2_roles: null
       }
 
       console.log('Creating project with payload:', projectPayload)
@@ -358,6 +362,33 @@ export default function NewProjectPage() {
 
         if (stakeholdersToInsert.length > 0) {
           await supabase.from('stakeholders').insert(stakeholdersToInsert)
+
+          // Store PRINCE2 role mappings for proper hierarchy reconstruction
+          if (projectData.methodology === 'prince2' && projectData.prince2Stakeholders) {
+            // Fetch inserted stakeholders to get their IDs
+            const { data: insertedStakeholders } = await supabase
+              .from('stakeholders')
+              .select('id, name, role')
+              .eq('project_id', project.id)
+              .in('role', ['Senior User', 'Senior Supplier', 'Executive'])
+
+            if (insertedStakeholders && insertedStakeholders.length === 3) {
+              // Create mapping of role types to stakeholder IDs
+              const roleMapping = {
+                seniorUserId: insertedStakeholders.find(s => s.role === 'Senior User')?.id,
+                seniorSupplierId: insertedStakeholders.find(s => s.role === 'Senior Supplier')?.id,
+                executiveId: insertedStakeholders.find(s => s.role === 'Executive')?.id
+              }
+
+              // Update project with role mappings
+              await supabase
+                .from('projects')
+                .update({ prince2_roles: roleMapping })
+                .eq('id', project.id)
+
+              console.log('PRINCE2 role mappings saved:', roleMapping)
+            }
+          }
         }
       }
 
