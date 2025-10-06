@@ -815,5 +815,9 @@ export const createPermanentLogger = (config?: LoggerConfig): PermanentLogger =>
   return new PermanentLoggerImpl(config)
 }
 
+// COMPATIBILITY EXPORT - Allows code to import { logger } instead of { permanentLogger }
+// This makes the proper database-backed logger work with existing code
+export const logger = permanentLogger
+
 // RE-EXPORT TYPES for convenience
 export type { PermanentLogger, LogLevel, LogData, ErrorContext, DatabaseLogEntry }
