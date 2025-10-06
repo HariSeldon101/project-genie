@@ -1,11 +1,12 @@
 'use client'
 
 // ULTRA-NUCLEAR: Force dynamic rendering
+// Note: Named this export 'dynamicConfig' to avoid collision with dynamic() import
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 import { useState, useEffect, Suspense } from 'react'
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 // Lazy load heavy document components
-const DirectPDFDownloadButton = dynamic(
+const DirectPDFDownloadButton = nextDynamic(
   () => import('@/components/documents/pdf-download-button').then(mod => ({
     default: mod.DirectPDFDownloadButton
   })),
@@ -50,7 +51,7 @@ const DirectPDFDownloadButton = dynamic(
   }
 )
 
-const DocumentViewer = dynamic(
+const DocumentViewer = nextDynamic(
   () => import('@/components/documents/document-viewer').then(mod => ({
     default: mod.DocumentViewer
   })),
@@ -64,7 +65,7 @@ const DocumentViewer = dynamic(
   }
 )
 
-const ResizableModal = dynamic(
+const ResizableModal = nextDynamic(
   () => import('@/components/ui/resizable-modal').then(mod => ({
     default: mod.ResizableModal
   })),

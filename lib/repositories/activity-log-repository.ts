@@ -7,6 +7,7 @@
 
 import { BaseRepository } from './base-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
 import type { Database } from '@/lib/database.types'
 
 type ActivityLog = Database['public']['Tables']['activity_log']['Row']
@@ -45,11 +46,12 @@ export class ActivityLogRepository extends BaseRepository {
         .single()
 
       if (error) {
-        permanentLogger.captureError('ACTIVITY_LOG_REPOSITORY', error as Error, {
+        const jsError = convertSupabaseError(error)
+        permanentLogger.captureError('ACTIVITY_LOG_REPOSITORY', jsError, {
           operation: 'logActivity',
           activity
         })
-        throw error
+        throw jsError
       }
 
       if (!data) {

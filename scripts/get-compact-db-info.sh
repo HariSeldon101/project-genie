@@ -3,7 +3,7 @@
 # Get compact database information to avoid large MCP responses
 # This returns essential info in <1000 tokens instead of 28,000
 
-PAT_TOKEN="sbp_10122b563ee9bd601c0b31dc799378486acf13d2"
+PAT_TOKEN="sbp_ce8146f94e3403eca0a088896812e9bbbf08929b"
 PROJECT_REF="vnuieavheezjxbkyfxea"
 
 echo "📊 Fetching compact database info..."

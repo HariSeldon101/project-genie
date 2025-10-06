@@ -130,10 +130,17 @@ export class PermanentLoggerDB {
         }, 10000)
       })
 
+      // Clean logs to ensure no 'id' field is included
+      // CLAUDE.md: Never generate UUIDs in code - let PostgreSQL handle it
+      const cleanedLogs = logs.map(log => {
+        const { id, ...cleanLog } = log as any
+        return cleanLog
+      })
+
       // Create operation promise
       const operationPromise = client
         .from('permanent_logs')
-        .insert(logs)
+        .insert(cleanedLogs)
         .select()
 
       // Race between operation and timeout
@@ -149,16 +156,22 @@ export class PermanentLoggerDB {
         // CLAUDE.md: Convert Supabase error properly
         // Note: convertSupabaseError is not available here (circular dep)
         // So we create a proper Error object
-        const jsError = new Error(error.message)
+        const errorMessage = error.message || 'Unknown database error'
+        const jsError = new Error(errorMessage)
         jsError.name = 'SupabaseError'
 
-        // Log the actual error for debugging
-        console.error('[PermanentLoggerDB.flushLogs] Database error:', {
-          message: error.message,
-          code: (error as any).code,
-          details: (error as any).details,
-          hint: (error as any).hint
-        })
+        // Log the actual error for debugging - ensure we have valid data to log
+        const errorDetails = {
+          message: errorMessage,
+          code: (error as any)?.code || 'UNKNOWN',
+          details: (error as any)?.details || null,
+          hint: (error as any)?.hint || null
+        }
+
+        // Only log if we have meaningful error information
+        if (errorMessage !== 'Unknown database error' || errorDetails.code !== 'UNKNOWN') {
+          console.error('[PermanentLoggerDB.flushLogs] Database error:', errorDetails)
+        }
 
         // Reset client on timeout to prevent connection issues
         if (error.message.includes('timeout')) {
@@ -215,7 +228,7 @@ export class PermanentLoggerDB {
         return {
           success: false,
           deletedCount: 0,
-          error: new Error(error.message)
+          error: new Error(error.message || 'Failed to delete old logs')
         }
       }
 
@@ -271,7 +284,7 @@ export class PermanentLoggerDB {
       const { data, error } = await query
 
       if (error) {
-        console.error('[PermanentLoggerDB] Query failed:', error.message)
+        console.error('[PermanentLoggerDB] Query failed:', error?.message || 'Unknown query error')
         return []
       }
 

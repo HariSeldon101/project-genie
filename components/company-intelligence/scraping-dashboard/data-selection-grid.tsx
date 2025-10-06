@@ -63,9 +63,11 @@ export function DataSelectionGrid({
   const stats = useMemo(() => {
     const totalItems = scrapedData.reduce((acc, cat) => acc + cat.items.length, 0)
     const selectedCount = selectedItems.items.length
-    const averageQuality = scrapedData
-      .flatMap(cat => cat.items)
-      .reduce((acc, item) => acc + item.quality, 0) / Math.max(totalItems, 1)
+
+    // Calculate average quality with fallback for missing quality values
+    const allItems = scrapedData.flatMap(cat => cat.items)
+    const totalQuality = allItems.reduce((acc, item) => acc + (item.quality || 0), 0)
+    const averageQuality = totalItems > 0 ? totalQuality / totalItems : 0
 
     return {
       totalItems,
@@ -221,7 +223,7 @@ export function DataSelectionGrid({
             <div>
               <CardTitle className="text-lg">Scraped Data Selection</CardTitle>
               <CardDescription className="mt-1">
-                Review and select data for LLM enrichment • {stats.totalItems} items available
+                Review and select data for LLM enrichment • {stats.totalItems} {stats.totalItems === 1 ? 'item' : 'items'} available
               </CardDescription>
             </div>
           </div>

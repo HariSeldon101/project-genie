@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 
-const SUPABASE_PAT = 'sbp_10122b563ee9bd601c0b31dc799378486acf13d2'
+const SUPABASE_PAT = 'sbp_ce8146f94e3403eca0a088896812e9bbbf08929b'
 const PROJECT_REF = 'vnuieavheezjxbkyfxea'
 const SUPABASE_API_URL = `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`
 

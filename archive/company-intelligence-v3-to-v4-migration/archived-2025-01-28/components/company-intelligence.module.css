@@ -1,0 +1,113 @@
+/* Company Intelligence Page-Specific Styles */
+/* These styles only apply to the Company Intelligence page and won't affect other pages */
+
+.pageWrapper {
+  /* Ensures styles are scoped to this page only */
+}
+
+/* Fix shadow utilities for this page only */
+.pageWrapper .shadowSm {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.pageWrapper .shadow {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.pageWrapper .shadowMd {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.pageWrapper .shadowLg {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* Workflow step specific styles */
+.workflowStep {
+  transition: all 0.3s ease;
+  padding: 12px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workflowStepActive {
+  background-color: oklch(0.577 0.191 255.507);
+  color: white;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.workflowStepComplete {
+  background-color: oklch(0.648 0.190 142.495);
+  color: white;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+.workflowStepError {
+  background-color: oklch(0.577 0.245 27.325);
+  color: white;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+.workflowStepPending {
+  background-color: oklch(0.968 0.007 247.896);
+  color: oklch(0.554 0.046 257.417);
+}
+
+/* Dark mode workflow steps */
+:global(.dark) .workflowStepPending {
+  background-color: oklch(0.279 0.041 260.031);
+  color: oklch(0.704 0.04 256.788);
+}
+
+/* Card enhancements for this page */
+.enhancedCard {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  border: 1px solid var(--border);
+  transition: box-shadow 0.3s ease;
+}
+
+.enhancedCard:hover {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* Button enhancements */
+.analyzeButton {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  transition: all 0.2s ease;
+}
+
+.analyzeButton:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  transform: translateY(-1px);
+}
+
+.analyzeButton:active {
+  transform: translateY(0);
+}
+
+/* Gradient backgrounds for sections */
+.gradientBackground {
+  background: linear-gradient(
+    to bottom right,
+    var(--color-gradient-start, transparent),
+    var(--color-gradient-mid, transparent) 50%,
+    var(--color-gradient-end, transparent)
+  );
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .8;
+  }
+}

@@ -2,16 +2,21 @@
  * @fileoverview Credit Balance API Endpoint
  * @module api/company-intelligence/credits
  *
- * PURPOSE:
- * Fetches real-time credit balance from Firecrawl API.
- * Returns actual credits remaining, NOT estimates or calculations.
+ * ⚠️ DEPRECATED: 2025-10-03
+ * This endpoint returns MOCK DATA (hardcoded 500 credits).
+ * Use /api/company-intelligence/v4/firecrawl-credits instead for REAL Firecrawl API data.
  *
- * IMPORTANT:
- * - Returns ACTUAL credits from Firecrawl API headers
- * - Never calculates or estimates credits
- * - Shows credits/tokens only, never dollar amounts
+ * REASON FOR DEPRECATION:
+ * - Violates CLAUDE.md: "NO MOCK DATA OR FALLBACKS"
+ * - Returns hardcoded {remaining: 500, used: 150, limit: 1000}
+ * - Real endpoint exists at /api/company-intelligence/v4/firecrawl-credits
  *
- * TODO: Integrate actual Firecrawl credit check API when available
+ * MIGRATION:
+ * Replace: fetch('/api/company-intelligence/credits')
+ * With:    fetch('/api/company-intelligence/v4/firecrawl-credits')
+ * Update:  data.remaining → data.credits
+ *
+ * TODO: Archive this file after confirming no active imports
  */
 
 import { NextRequest, NextResponse } from 'next/server'

@@ -1,0 +1,800 @@
+/**
+ * Company Intelligence V4 Orchestrator Page
+ * CLAUDE.md COMPLIANT - Full V4 architecture implementation
+ * Orchestrates SiteAnalyzer, SchemaBuilder, ExecutionMonitor, and IntelligenceKanban
+ * @version 4.0.0
+ */
+
+'use client'
+
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
+
+// V4 Component imports
+import { SiteAnalyzer, type SiteAnalysis } from '@/components/company-intelligence/site-analyzer'
+import { SchemaBuilder } from '@/components/company-intelligence/schema-builder'
+import { ExecutionMonitor } from '@/components/company-intelligence/execution-monitor'
+import { IntelligenceKanban } from '@/components/company-intelligence/intelligence-kanban'
+
+// Existing utilities & hooks (CLAUDE.md compliant)
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
+import { useIntelligenceSSE } from '@/lib/hooks/use-sse'
+// Removed useDebounce - it's for debouncing functions, not values
+import { EventFactory, IntelligenceEventType } from '@/lib/realtime-events'
+import { toast } from 'sonner'
+
+// UI Components (shadcn/ui)
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { TooltipWrapper } from '@/components/company-intelligence/tooltip-wrapper'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
+
+// Icons (lucide-react)
+import {
+  Sparkles, Building, Search, Database, Brain,
+  CheckCircle2, ChevronRight, Loader2, AlertCircle,
+  TrendingUp, Activity, Zap, Shield, Globe,
+  ExternalLink, ArrowRight, RefreshCw, Play,
+  Pause, RotateCcw, Settings, Info, ChevronDown
+} from 'lucide-react'
+
+// Animation variants for framer-motion
+const pageVariants = {
+  initial: { opacity: 0, y: 20 },
+  in: { opacity: 1, y: 0 },
+  out: { opacity: 0, y: -20 }
+}
+
+const cardVariants = {
+  hidden: { scale: 0.95, opacity: 0 },
+  visible: {
+    scale: 1,
+    opacity: 1,
+    transition: { duration: 0.3, ease: "easeOut" }
+  },
+  exit: {
+    scale: 0.95,
+    opacity: 0,
+    transition: { duration: 0.2 }
+  }
+}
+
+const stepIndicatorVariants = {
+  inactive: { scale: 1, backgroundColor: '#e5e5e5' },
+  active: {
+    scale: 1.1,
+    backgroundColor: '#3b82f6',
+    transition: { duration: 0.3 }
+  },
+  complete: {
+    scale: 1,
+    backgroundColor: '#10b981',
+    transition: { duration: 0.3 }
+  }
+}
+
+// Workflow steps configuration
+type WorkflowStep = 'analyze' | 'configure' | 'execute' | 'results'
+
+interface WorkflowConfig {
+  id: WorkflowStep
+  title: string
+  description: string
+  icon: React.ReactNode
+  status: 'pending' | 'active' | 'complete' | 'error'
+}
+
+// Type for scraping configuration
+interface ScrapingConfig {
+  domain: string
+  categories: any[]
+  depth: string
+  scraperType: string
+  maxPages: number
+  credits: number
+}
+
+export default function CompanyIntelligencePage() {
+  const router = useRouter()
+  const correlationId = useMemo(() => crypto.randomUUID(), [])
+
+  // Core state
+  const [domain, setDomain] = useState('')
+  const [domainError, setDomainError] = useState<string | null>(null)
+  const [currentStep, setCurrentStep] = useState<WorkflowStep>('analyze')
+  const [workflowStatus, setWorkflowStatus] = useState<Record<WorkflowStep, 'pending' | 'active' | 'complete' | 'error'>>({
+    analyze: 'pending',
+    configure: 'pending',
+    execute: 'pending',
+    results: 'pending'
+  })
+
+  // Component-specific state
+  const [siteAnalysis, setSiteAnalysis] = useState<SiteAnalysis | null>(null)
+  const [scrapingConfig, setScrapingConfig] = useState<ScrapingConfig | null>(null)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [intelligenceData, setIntelligenceData] = useState<Record<string, any>>({})
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  // Memoized domain validation to prevent re-renders
+  const isDomainValid = useMemo(() => {
+    if (!domain) return false
+
+    let cleanDomain = domain.trim().toLowerCase()
+    cleanDomain = cleanDomain.replace(/^https?:\/\//, '')
+    cleanDomain = cleanDomain.replace(/^www\./, '')
+    cleanDomain = cleanDomain.split('/')[0]
+
+    const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i
+    return domainRegex.test(cleanDomain)
+  }, [domain])
+
+  // Component mount/unmount logging
+  useEffect(() => {
+    const mountTimer = permanentLogger.timing('page_mount', { correlationId })
+    permanentLogger.breadcrumb('page_lifecycle', 'Company Intelligence V4 page mounted', {
+      correlationId,
+      timestamp: new Date().toISOString()
+    })
+
+    return () => {
+      mountTimer.stop()
+      permanentLogger.breadcrumb('page_lifecycle', 'Company Intelligence V4 page unmounted', {
+        correlationId,
+        sessionId
+      })
+    }
+  }, [correlationId, sessionId])
+
+  // SSE Integration for real-time updates
+  const {
+    isConnected,
+    sessionInfo,
+    completionInfo,
+    progress,
+    progressPercentage,
+    extractedCategories,
+    totalItemsExtracted,
+    isSessionActive,
+    error: sseError
+  } = useIntelligenceSSE(sessionId || '', {
+    autoConnect: !!sessionId,
+    onConnect: () => {
+      permanentLogger.info('V4_ORCHESTRATOR', 'SSE connected', { sessionId, correlationId })
+      toast.success('Connected to real-time updates', {
+        description: 'Streaming intelligence data...',
+        icon: <Activity className="h-4 w-4" />
+      })
+    },
+    onError: (error) => {
+      permanentLogger.captureError('V4_ORCHESTRATOR', error, {
+        sessionId,
+        correlationId,
+        context: 'SSE connection error'
+      })
+      toast.error(`Connection error: ${error.message}`, {
+        description: 'Will attempt to reconnect...'
+      })
+    }
+  })
+
+  // Handle SSE session creation
+  useEffect(() => {
+    if (sessionInfo) {
+      permanentLogger.info('V4_ORCHESTRATOR', 'Session created via SSE', {
+        sessionId: sessionInfo.sessionId,
+        domain: sessionInfo.domain,
+        correlationId
+      })
+
+      setCurrentStep('execute')
+      setWorkflowStatus(prev => ({
+        ...prev,
+        execute: 'active'
+      }))
+      setIsProcessing(true)
+    }
+  }, [sessionInfo, correlationId])
+
+  // Handle SSE session completion
+  useEffect(() => {
+    if (completionInfo) {
+      permanentLogger.info('V4_ORCHESTRATOR', 'Session completed via SSE', {
+        sessionId: completionInfo.sessionId,
+        totalItems: completionInfo.totalItems,
+        duration: completionInfo.duration,
+        correlationId
+      })
+
+      setCurrentStep('results')
+      setWorkflowStatus(prev => ({
+        ...prev,
+        execute: 'complete',
+        results: 'active'
+      }))
+      setIsProcessing(false)
+
+      toast.success(`Intelligence gathering complete!`, {
+        description: `Found ${completionInfo.totalItems} items in ${completionInfo.categories.length} categories`,
+        icon: <CheckCircle2 className="h-4 w-4 text-green-600" />
+      })
+    }
+  }, [completionInfo, correlationId])
+
+  // Update intelligence data from SSE
+  useEffect(() => {
+    if (extractedCategories.length > 0) {
+      const latestCategory = extractedCategories[extractedCategories.length - 1]
+      permanentLogger.breadcrumb('data_extraction', 'Category extracted', {
+        category: latestCategory.category,
+        itemCount: latestCategory.itemsCount,
+        correlationId
+      })
+
+      // Update intelligence data
+      setIntelligenceData(prev => ({
+        ...prev,
+        [latestCategory.category]: latestCategory.items || []
+      }))
+    }
+  }, [extractedCategories, correlationId])
+
+  // Workflow configuration
+  const workflowSteps: WorkflowConfig[] = useMemo(() => [
+    {
+      id: 'analyze',
+      title: 'Site Analysis',
+      description: 'Analyze website technology and structure',
+      icon: <Search className="h-5 w-5" />,
+      status: workflowStatus.analyze
+    },
+    {
+      id: 'configure',
+      title: 'Configuration',
+      description: 'Configure extraction parameters',
+      icon: <Database className="h-5 w-5" />,
+      status: workflowStatus.configure
+    },
+    {
+      id: 'execute',
+      title: 'Execution',
+      description: 'Scraping and extraction in progress',
+      icon: <Activity className="h-5 w-5" />,
+      status: workflowStatus.execute
+    },
+    {
+      id: 'results',
+      title: 'Intelligence',
+      description: 'View and manage extracted data',
+      icon: <Brain className="h-5 w-5" />,
+      status: workflowStatus.results
+    }
+  ], [workflowStatus])
+
+  // Domain validation
+  const validateDomain = useCallback((value: string): boolean => {
+    if (!value) {
+      setDomainError(null)
+      return false
+    }
+
+    let cleanDomain = value.trim().toLowerCase()
+    cleanDomain = cleanDomain.replace(/^https?:\/\//, '')
+    cleanDomain = cleanDomain.replace(/^www\./, '')
+    cleanDomain = cleanDomain.split('/')[0]
+
+    const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i
+
+    if (!domainRegex.test(cleanDomain)) {
+      setDomainError('Please enter a valid domain (e.g., example.com)')
+      return false
+    }
+
+    setDomainError(null)
+    return true
+  }, [])
+
+  // Handle domain input change
+  const handleDomainChange = useCallback((value: string) => {
+    permanentLogger.debug('V4_ORCHESTRATOR', 'Domain changed', {
+      from: domain,
+      to: value,
+      correlationId
+    })
+    setDomain(value)
+    validateDomain(value)
+  }, [domain, validateDomain, correlationId])
+
+  // Handle site analysis completion
+  const handleAnalysisComplete = useCallback((analysis: SiteAnalysis) => {
+    const timer = permanentLogger.timing('analysis_complete', { correlationId })
+
+    permanentLogger.info('V4_ORCHESTRATOR', 'Site analysis completed', {
+      domain: analysis.domain,
+      techStack: analysis.techStack,
+      correlationId
+    })
+
+    setSiteAnalysis(analysis)
+    setWorkflowStatus(prev => ({
+      ...prev,
+      analyze: 'complete',
+      configure: 'active'
+    }))
+    setCurrentStep('configure')
+
+    toast.success('Site analysis complete!', {
+      description: `Detected ${analysis.techStack.framework} framework`,
+      icon: <CheckCircle2 className="h-4 w-4 text-green-600" />
+    })
+
+    timer.stop()
+  }, [correlationId])
+
+  // Handle schema configuration completion
+  const handleSchemaComplete = useCallback((config: any) => {
+    permanentLogger.info('V4_ORCHESTRATOR', 'Schema configuration complete', {
+      categories: config.categories.length,
+      depth: config.depth,
+      credits: config.estimatedCredits,
+      correlationId
+    })
+
+    setScrapingConfig({
+      domain,
+      categories: config.categories,
+      depth: config.depth,
+      scraperType: config.scraperType,
+      maxPages: config.maxPages || 50,
+      credits: config.estimatedCredits
+    })
+
+    setWorkflowStatus(prev => ({
+      ...prev,
+      configure: 'complete',
+      execute: 'active'
+    }))
+    setCurrentStep('execute')
+
+    // Start scraping process
+    startScraping(config)
+  }, [domain, correlationId])
+
+  // Start scraping process
+  const startScraping = useCallback(async (config: any) => {
+    const timer = permanentLogger.timing('scraping_process', { correlationId })
+
+    try {
+      permanentLogger.info('V4_ORCHESTRATOR', 'Starting scraping process', {
+        domain,
+        categories: config.categories.length,
+        correlationId
+      })
+
+      setIsProcessing(true)
+
+      // Call V4 scraping endpoint
+      const response = await fetch('/api/company-intelligence/v4/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain,
+          config,
+          correlationId
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Scraping failed')
+      }
+
+      const data = await response.json()
+      setSessionId(data.sessionId)
+
+      permanentLogger.info('V4_ORCHESTRATOR', 'Scraping initiated', {
+        sessionId: data.sessionId,
+        correlationId
+      })
+
+    } catch (error) {
+      permanentLogger.captureError('V4_ORCHESTRATOR', error as Error, {
+        context: 'Failed to start scraping',
+        domain,
+        correlationId
+      })
+
+      toast.error('Failed to start scraping', {
+        description: (error as Error).message
+      })
+
+      setWorkflowStatus(prev => ({
+        ...prev,
+        execute: 'error'
+      }))
+      setIsProcessing(false)
+    } finally {
+      timer.stop()
+    }
+  }, [domain, correlationId])
+
+  // Handle enrichment queue update
+  const handleEnrichmentQueueUpdate = useCallback((items: any[]) => {
+    permanentLogger.info('V4_ORCHESTRATOR', 'Enrichment queue updated', {
+      itemCount: items.length,
+      correlationId
+    })
+  }, [correlationId])
+
+  // Reset workflow
+  const handleReset = useCallback(() => {
+    permanentLogger.info('V4_ORCHESTRATOR', 'Resetting workflow', {
+      previousDomain: domain,
+      previousSessionId: sessionId,
+      correlationId
+    })
+
+    setDomain('')
+    setDomainError(null)
+    setCurrentStep('analyze')
+    setWorkflowStatus({
+      analyze: 'pending',
+      configure: 'pending',
+      execute: 'pending',
+      results: 'pending'
+    })
+    setSiteAnalysis(null)
+    setScrapingConfig(null)
+    setSessionId(null)
+    setIntelligenceData({})
+    setIsProcessing(false)
+
+    toast.info('Workflow reset', {
+      description: 'Ready to analyze a new domain'
+    })
+  }, [domain, sessionId, correlationId])
+
+  // Navigate to intelligence viewer
+  const handleViewIntelligence = useCallback(() => {
+    if (sessionId) {
+      permanentLogger.info('V4_ORCHESTRATOR', 'Navigating to intelligence viewer', {
+        sessionId,
+        correlationId
+      })
+      router.push(`/company-intelligence/intelligence-viewer/${sessionId}`)
+    }
+  }, [sessionId, router, correlationId])
+
+  // Calculate progress for execution monitor
+  const executionProgress = useMemo(() => {
+    if (!isSessionActive) return 0
+    return progressPercentage || 0
+  }, [isSessionActive, progressPercentage])
+
+  return (
+    <motion.div
+      initial="initial"
+      animate="in"
+      exit="out"
+      variants={pageVariants}
+      transition={{ duration: 0.3 }}
+      className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-gray-900 dark:via-gray-850 dark:to-gray-800"
+    >
+      {/* Header */}
+      <div className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Building className="h-6 w-6 text-primary" />
+              <div>
+                <h1 className="text-2xl font-bold">Company Intelligence</h1>
+                <p className="text-sm text-muted-foreground">V4 Architecture</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Connection Status */}
+              {sessionId && (
+                <Badge className={cn(
+                  "transition-colors",
+                  isConnected ? "bg-green-500 text-white hover:bg-green-600" : "bg-red-500 text-white hover:bg-red-600"
+                )}>
+                  <Activity className="h-3 w-3 mr-1" />
+                  {isConnected ? 'Connected' : 'Disconnected'}
+                </Badge>
+              )}
+
+              {/* Credits Available */}
+              <TooltipWrapper content="Credits available for enrichment">
+                <Badge variant="outline">
+                  <Zap className="h-3 w-3 mr-1" />
+                  1000 credits
+                </Badge>
+              </TooltipWrapper>
+
+              {/* Reset Button */}
+              <TooltipWrapper content="Reset workflow and start over">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleReset}
+                  disabled={isProcessing}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </TooltipWrapper>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Workflow Progress Indicator */}
+      <div className="bg-white dark:bg-gray-900 border-b">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            {workflowSteps.map((step, index) => (
+              <React.Fragment key={step.id}>
+                <motion.div
+                  className="flex flex-col items-center gap-2"
+                  initial="inactive"
+                  animate={
+                    step.status === 'complete' ? 'complete' :
+                    step.status === 'active' ? 'active' : 'inactive'
+                  }
+                  variants={stepIndicatorVariants}
+                >
+                  <TooltipWrapper content={step.description}>
+                    <div
+                      className={cn(
+                        "rounded-full p-3 flex items-center justify-center transition-all duration-300",
+                        step.status === 'complete' && 'bg-green-500 text-white',
+                        step.status === 'active' && 'bg-blue-500 text-white animate-pulse',
+                        step.status === 'error' && 'bg-red-500 text-white',
+                        step.status === 'pending' && 'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                      )}
+                    >
+                      {step.status === 'complete' ? (
+                        <CheckCircle2 className="h-5 w-5" />
+                      ) : step.status === 'error' ? (
+                        <AlertCircle className="h-5 w-5" />
+                      ) : (
+                        step.icon
+                      )}
+                    </div>
+                  </TooltipWrapper>
+                  <span className={cn(
+                    "text-sm font-medium whitespace-nowrap",
+                    step.status === 'active' && 'text-primary',
+                    step.status === 'complete' && 'text-green-600',
+                    step.status === 'error' && 'text-red-600',
+                    (step.status === 'pending' || !step.status) && 'text-muted-foreground'
+                  )}>
+                    {step.title}
+                  </span>
+                </motion.div>
+
+                {index < workflowSteps.length - 1 && (
+                  <div className={cn(
+                    "flex-1 h-0.5 mx-4 transition-colors duration-300",
+                    workflowStatus[workflowSteps[index + 1].id] !== 'pending'
+                      ? 'bg-primary'
+                      : 'bg-gray-300 dark:bg-gray-600'
+                  )} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Progress Bar for Active Step */}
+          {isProcessing && (
+            <div className="mt-4">
+              <Progress value={executionProgress} className="h-2" />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>{totalItemsExtracted} items extracted</span>
+                <span>{extractedCategories.length} categories</span>
+                <span>{executionProgress.toFixed(0)}% complete</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="container mx-auto px-4 py-8">
+        <AnimatePresence>
+          {/* Domain Input - Always Visible */}
+          {currentStep === 'analyze' && (
+            <motion.div
+              key="domain-input"
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="mb-8"
+            >
+              <Card className="max-w-2xl mx-auto">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    Enter Company Domain
+                  </CardTitle>
+                  <CardDescription>
+                    Start by entering the domain of the company you want to research
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="domain">Domain</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="domain"
+                        type="text"
+                        placeholder="e.g., example.com"
+                        value={domain}
+                        onChange={(e) => handleDomainChange(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && isDomainValid && !isProcessing) {
+                            setCurrentStep('analyze')
+                          }
+                        }}
+                        className={domainError ? 'border-red-500' : ''}
+                        disabled={isProcessing}
+                      />
+                      <TooltipWrapper content="Analyze website technology">
+                        <Button
+                          onClick={() => {
+                            if (isDomainValid && !isProcessing) {
+                              setCurrentStep('analyze')
+                            }
+                          }}
+                          disabled={!isDomainValid || !!domainError || isProcessing}
+                        >
+                          <Search className="h-4 w-4 mr-2" />
+                          Analyze
+                        </Button>
+                      </TooltipWrapper>
+                    </div>
+                    {domainError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{domainError}</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+
+                  {domain && !domainError && (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Ready to analyze <strong>{domain}</strong>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Site Analyzer Component */}
+          {currentStep === 'analyze' && domain && isDomainValid && (
+            <motion.div
+              key="site-analyzer"
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Analyzing {domain}</CardTitle>
+                  <CardDescription>
+                    Detecting website technology and structure
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SiteAnalyzer
+                    initialDomain={domain}
+                    onAnalysisComplete={handleAnalysisComplete}
+                    disabled={isProcessing}
+                  />
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Schema Builder Component */}
+          {currentStep === 'configure' && siteAnalysis && (
+            <motion.div
+              key="schema-builder"
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <SchemaBuilder
+                domain={domain}
+                onSchemaComplete={handleSchemaComplete}
+                creditsAvailable={1000}
+              />
+            </motion.div>
+          )}
+
+          {/* Execution Monitor Component */}
+          {currentStep === 'execute' && sessionId && (
+            <motion.div
+              key="execution-monitor"
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <ExecutionMonitor
+                sessionId={sessionId}
+                status={isProcessing ? 'running' : 'completed'}
+                progress={executionProgress}
+              />
+            </motion.div>
+          )}
+
+          {/* Intelligence Kanban Component */}
+          {currentStep === 'results' && Object.keys(intelligenceData).length > 0 && (
+            <motion.div
+              key="intelligence-kanban"
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <IntelligenceKanban
+                intelligenceData={intelligenceData}
+                onEnrichmentQueueUpdate={handleEnrichmentQueueUpdate}
+                creditsAvailable={1000}
+                sessionId={sessionId}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SSE Error Display */}
+        {sseError && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Connection Error</AlertTitle>
+            <AlertDescription>{sseError}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* View Intelligence Button */}
+        {sessionId && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="fixed bottom-8 right-8"
+          >
+            <TooltipWrapper content="Open intelligence dashboard in new tab">
+              <Button
+                onClick={handleViewIntelligence}
+                size="lg"
+                className="shadow-lg"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View Intelligence Dashboard
+              </Button>
+            </TooltipWrapper>
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+  )
+}

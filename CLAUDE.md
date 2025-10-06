@@ -419,7 +419,7 @@ cursor --install-extension bpruitt-goddard.mermaid-markdown-syntax-highlighting 
 
 ### Supabase Management (REMOTE ONLY)
 ```bash
-# PAT Token: sbp_10122b563ee9bd601c0b31dc799378486acf13d2
+# PAT Token: sbp_ce8146f94e3403eca0a088896812e9bbbf08929b
 # Project Ref: vnuieavheezjxbkyfxea
 
 # Apply migrations to remote:
@@ -431,7 +431,7 @@ supabase gen types typescript --project-id vnuieavheezjxbkyfxea > lib/database.t
 # Use Management API when MCP fails:
 curl -X POST \
   "https://api.supabase.com/v1/projects/vnuieavheezjxbkyfxea/database/query" \
-  -H "Authorization: Bearer sbp_10122b563ee9bd601c0b31dc799378486acf13d2" \
+  -H "Authorization: Bearer sbp_ce8146f94e3403eca0a088896812e9bbbf08929b" \
   -H "Content-Type: application/json" \
   -d '{"query": "YOUR_SQL_HERE"}'
 ```

@@ -11,14 +11,14 @@ import { BugsRepository } from '@/lib/repositories/bugs-repository'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const timer = permanentLogger.timing('api.bugs.get_single')
-  const bugId = params.id
+  const { id: bugId } = await params
 
   try {
     const supabase = await createClient()
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const timer = permanentLogger.timing('api.bugs.patch')
-  const bugId = params.id
+  const { id: bugId } = await params
 
   try {
     const supabase = await createClient()
@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const timer = permanentLogger.timing('api.bugs.delete')
-  const bugId = params.id
+  const { id: bugId } = await params
 
   try {
     const supabase = await createClient()

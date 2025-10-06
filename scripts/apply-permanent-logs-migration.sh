@@ -4,7 +4,7 @@
 # This creates the dedicated permanent_logs table
 
 PROJECT_REF="vnuieavheezjxbkyfxea"
-PAT_TOKEN="sbp_10122b563ee9bd601c0b31dc799378486acf13d2"
+PAT_TOKEN="sbp_ce8146f94e3403eca0a088896812e9bbbf08929b"
 
 echo "Applying permanent_logs table migration..."
 

@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv'
 
 dotenv.config({ path: '.env.local' })
 
-const SUPABASE_ACCESS_TOKEN = 'sbp_10122b563ee9bd601c0b31dc799378486acf13d2'
+const SUPABASE_ACCESS_TOKEN = 'sbp_ce8146f94e3403eca0a088896812e9bbbf08929b'
 const PROJECT_REF = 'vnuieavheezjxbkyfxea'
 
 async function runMigrationViaAPI() {

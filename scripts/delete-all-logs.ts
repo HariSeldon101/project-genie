@@ -5,7 +5,7 @@
  */
 
 async function deleteAllLogs() {
-  const PAT_TOKEN = 'sbp_10122b563ee9bd601c0b31dc799378486acf13d2'
+  const PAT_TOKEN = 'sbp_ce8146f94e3403eca0a088896812e9bbbf08929b'
   const PROJECT_REF = 'vnuieavheezjxbkyfxea'
   
   console.log('🗑️  Starting deletion of all logs from database...')

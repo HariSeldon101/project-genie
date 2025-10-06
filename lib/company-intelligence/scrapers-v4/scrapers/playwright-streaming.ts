@@ -22,6 +22,7 @@
 import { chromium, Browser, BrowserContext, Page, Request, Response } from 'playwright'
 import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { StreamWriter, EventFactory } from '@/lib/realtime-events'
+import { normalizeUrl, extractDomain } from '@/lib/utils/url-validator'
 import {
   ScraperType,
   ScrapingPhase,
@@ -455,10 +456,14 @@ export class PlaywrightStreamingScraper {
       })
 
       // Navigate to the main page
+      // IMPORTANT: Use 'networkidle' to wait for JavaScript/React to finish rendering links
       await page.goto(baseUrl, {
-        waitUntil: 'domcontentloaded',
+        waitUntil: 'networkidle',
         timeout: this.config.timeout
       })
+
+      // ALWAYS include the homepage first (critical fix)
+      discoveredUrls.add(normalizeUrl(baseUrl))
 
       // Extract all links from the page
       const links = await page.evaluate(() => {
@@ -467,12 +472,14 @@ export class PlaywrightStreamingScraper {
           .filter(href => href && href.startsWith('http'))
       })
 
-      // Filter links to same domain
+      // Get base domain for comparison using shared utility
+      const baseDomain = extractDomain(baseUrl)
+
+      // Filter links to same domain using shared utilities
       const sameDomainLinks = links.filter(link => {
         try {
-          const linkUrl = new URL(link)
-          const baseUrlObj = new URL(baseUrl)
-          return linkUrl.hostname === baseUrlObj.hostname
+          const linkDomain = extractDomain(link)
+          return linkDomain === baseDomain
         } catch (error) {
           // Log invalid URL but continue processing
           permanentLogger.debug('PLAYWRIGHT_V4', 'Invalid URL found during discovery', {
@@ -484,15 +491,20 @@ export class PlaywrightStreamingScraper {
         }
       })
 
-      // Add discovered URLs
-      sameDomainLinks.forEach(url => discoveredUrls.add(url))
+      // Add discovered URLs with normalization for deduplication
+      sameDomainLinks.forEach(url => discoveredUrls.add(normalizeUrl(url)))
 
       // Limit to maxPages
       const urls = Array.from(discoveredUrls).slice(0, this.config.maxPages)
 
       permanentLogger.info(LogCategory.PLAYWRIGHT_V4, 'URL discovery complete', {
+        domain,
+        baseDomain,
         totalFound: discoveredUrls.size,
-        limited: urls.length
+        totalExtracted: links.length,
+        sameDomainFiltered: sameDomainLinks.length,
+        limited: urls.length,
+        sampleUrls: urls.slice(0, 3)
       })
 
       return urls

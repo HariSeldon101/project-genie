@@ -1,15 +1,4 @@
-// ULTRA-NUCLEAR: Define self before ANY imports
-if (typeof globalThis !== 'undefined' && !globalThis.self) {
-  globalThis.self = globalThis;
-}
-if (typeof global !== 'undefined' && !global.self) {
-  global.self = global;
-}
-
 import type { NextConfig } from "next";
-
-// NUCLEAR: Force define globals for build
-require('./lib/global-polyfill.js');
 
 const nextConfig: NextConfig = {
   // ULTRA-NUCLEAR: Disable all static optimization
@@ -41,105 +30,31 @@ const nextConfig: NextConfig = {
     },
   },
 
-  // Webpack configuration with ultra-nuclear fixes
+  // Webpack configuration
   webpack: (config, { dev, isServer }) => {
     const webpack = require('webpack');
 
-    // ULTRA-NUCLEAR: String replacement for self references
-    config.module.rules.push({
-      test: /\.(js|jsx|ts|tsx)$/,
-      use: [
-        {
-          loader: 'string-replace-loader',
-          options: {
-            multiple: [
-              { search: /\btypeof self\b/g, replace: 'typeof globalThis' },
-              { search: /\bself\./g, replace: 'globalThis.' },
-              { search: /\bself\[/g, replace: 'globalThis[' },
-              { search: /([^a-zA-Z])self([^a-zA-Z])/g, replace: '$1globalThis$2' }
-            ]
-          }
-        }
-      ]
-    });
-
-    // NUCLEAR OPTION: Handle BOTH client and server issues
-    if (!isServer) {
-      // CLIENT-SIDE NUCLEAR OPTIONS
-      const webpack = require('webpack')
-
-      // Provide global shims for client-side
-      config.plugins.push(
-        new webpack.ProvidePlugin({
-          global: 'globalThis',
-          self: 'globalThis',
-          window: 'globalThis',
-          Buffer: ['buffer', 'Buffer'],
-          process: 'process/browser',
-        })
-      )
-
-      // Client-side fallbacks
-      config.resolve.fallback = {
-        ...config.resolve?.fallback,
-        global: require.resolve('global'),
-        buffer: require.resolve('buffer'),
-        process: require.resolve('process/browser'),
-        stream: require.resolve('stream-browserify'),
-        crypto: require.resolve('crypto-browserify'),
-        fs: false,
-        net: false,
-        tls: false,
-        http: false,
-        https: false,
-        zlib: false,
-        path: false,
-        os: false,
-      }
-    }
-
-    // Handle server-side modules
+    // Server-side: Externalize problematic modules
     if (isServer) {
       const path = require('path')
-      const webpack = require('webpack')
 
-      // LAYER 1: Replace realtime module with our mock
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(
-          /@supabase\/realtime-js/,
-          path.join(__dirname, 'lib/mocks/empty-module.js')
-        )
-      )
-
-      // LAYER 2: Use null-loader for any remaining problematic modules
-      config.module.rules.push({
-        test: /node_modules\/@supabase\/realtime-js/,
-        use: 'null-loader',
-      })
-
-      // LAYER 3: Provide globals for any code that still references them
-      // Add global polyfill to ensure self exists
-      if (!global.self) {
-        global.self = global
-      }
-
-      config.plugins.push(
-        new webpack.ProvidePlugin({
-          'self': 'global',
-          'window': 'global',
-        })
-      )
-
-      // LAYER 4: Alias problematic modules to our mock
+      // Alias server-only modules that shouldn't bundle
       config.resolve.alias = {
         ...config.resolve.alias,
-        // Replace Supabase realtime with mock
-        '@supabase/realtime-js': path.join(__dirname, 'lib/mocks/empty-module.js'),
-        '@supabase/realtime-js/dist/module/lib/websocket-factory.js': path.join(__dirname, 'lib/mocks/empty-module.js'),
-        '@supabase/realtime-js/dist/module/index.js': path.join(__dirname, 'lib/mocks/empty-module.js'),
-        // Mermaid and its dependencies
+        // Browser automation (server-side only)
+        'playwright': false,
+        'playwright-core': false,
+        'puppeteer': false,
+        '@firecrawl/sdk': false,
+        'cheerio': false,
+        // PDF libraries (server-side only)
+        'pdfjs-dist': false,
+        'pdf-lib': false,
+        // DOM libraries (server-side only)
+        'canvas': false,
+        'jsdom': false,
+        // Mermaid (client-side only)
         'mermaid': false,
-        'mermaid/dist/mermaid.js': false,
         'd3': false,
         'd3-selection': false,
         'd3-shape': false,
@@ -147,33 +62,6 @@ const nextConfig: NextConfig = {
         'dagre-d3': false,
         'cytoscape': false,
         'elkjs': false,
-        // Browser automation
-        'playwright': false,
-        'playwright-core': false,
-        'puppeteer': false,
-        '@firecrawl/sdk': false,
-        'cheerio': false,
-        // PDF libraries
-        'pdfjs-dist': false,
-        'pdf-lib': false,
-        // DOM libraries
-        'canvas': false,
-        'jsdom': false,
-      }
-
-      // Fallbacks for Node.js modules
-      config.resolve.fallback = {
-        ...config.resolve?.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-        crypto: false,
-        stream: false,
-        http: false,
-        https: false,
-        zlib: false,
-        path: false,
-        os: false
       }
     }
 

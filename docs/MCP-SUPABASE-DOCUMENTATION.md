@@ -8,7 +8,7 @@ The Supabase MCP server is now fully functional and connected to your project.
 
 - **Package**: `@supabase/mcp-server-supabase@latest`
 - **Project Reference**: `vnuieavheezjxbkyfxea`
-- **PAT Token**: `sbp_10122b563ee9bd601c0b31dc799378486acf13d2`
+- **PAT Token**: `sbp_ce8146f94e3403eca0a088896812e9bbbf08929b`
 - **Config Location**: `/Users/stuartholmes/Library/Application Support/Claude/claude_desktop_config.json`
 
 ## Available MCP Functions

@@ -125,9 +125,44 @@ export function ScrapingDashboard({ domain, sessionId, onEnrichmentReady }: Scra
                   percentage: data.data.percentage,
                   message: data.data.message
                 })
-              } else if (data.type === 'complete') {
-                // REAL scraped data
+              } else if (data.type === 'scraping.complete') {
+                // FIX 5: Log raw SSE data before categorization
+                permanentLogger.info('SCRAPING_DASHBOARD', 'Received scraping.complete event', {
+                  hasCategories: !!data.data.categories,
+                  categoryCount: data.data.categories?.length || 0,
+                  totalItems: data.data.totalItems || 0,
+                  rawDataStructure: {
+                    success: data.data.success,
+                    categoriesPresent: !!data.data.categories,
+                    firstCategory: data.data.categories?.[0] ? {
+                      id: data.data.categories[0].id,
+                      title: data.data.categories[0].title,
+                      itemCount: data.data.categories[0].items?.length || 0,
+                      firstItem: data.data.categories[0].items?.[0] ? {
+                        id: data.data.categories[0].items[0].id,
+                        hasUrl: !!data.data.categories[0].items[0].url,
+                        hasContent: !!data.data.categories[0].items[0].content
+                      } : null
+                    } : null
+                  }
+                })
+
+                // REAL scraped data (EventType.SCRAPING_COMPLETE = 'scraping.complete')
                 const categorizedData = categorizeScrapeData(data.data)
+
+                // FIX 5: Log after categorization
+                permanentLogger.info('SCRAPING_DASHBOARD', 'Data categorized for UI', {
+                  categoriesCreated: categorizedData.length,
+                  totalItemsInCategories: categorizedData.reduce((sum, cat) =>
+                    sum + (cat.items?.length || 0), 0
+                  ),
+                  categoryDetails: categorizedData.map(cat => ({
+                    id: cat.id,
+                    title: cat.title,
+                    itemCount: cat.items?.length || 0
+                  }))
+                })
+
                 setScrapedData(categorizedData)
 
                 // Show success toast
@@ -223,7 +258,7 @@ export function ScrapingDashboard({ domain, sessionId, onEnrichmentReady }: Scra
     }
 
     // Use REAL data from scraper
-    return rawData.categories.map((cat: any) => ({
+    const categorized = rawData.categories.map((cat: any) => ({
       id: cat.id,
       title: cat.title,
       icon: cat.icon || 'Database',
@@ -231,6 +266,21 @@ export function ScrapingDashboard({ domain, sessionId, onEnrichmentReady }: Scra
       items: cat.items || [],
       expanded: false
     }))
+
+    // Verify item count matches across sources
+    const totalItemsInCategories = categorized.reduce((sum, cat) => sum + cat.items.length, 0)
+    const declaredTotalItems = rawData.totalItems || 0
+
+    if (totalItemsInCategories !== declaredTotalItems) {
+      permanentLogger.warn('SCRAPING_DASHBOARD', 'Item count mismatch detected', {
+        categorizedTotal: totalItemsInCategories,
+        declaredTotal: declaredTotalItems,
+        difference: Math.abs(totalItemsInCategories - declaredTotalItems),
+        categoryBreakdown: categorized.map(c => ({ title: c.title, count: c.items.length }))
+      })
+    }
+
+    return categorized
   }
 
   return (

@@ -1,0 +1,23 @@
+# Ignore large files and unnecessary directories
+node_modules/
+.next/
+.git/
+logs/
+*.log
+*.md
+.env*
+temp_backup/
+archive/
+*.bak
+*.backup*
+.vscode/
+.idea/
+coverage/
+dist/
+build/
+*.test.*
+__tests__/
+tests/
+cypress/
+.DS_Store
+Thumbs.db

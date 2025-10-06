@@ -100,11 +100,12 @@ export function DataCategoryCard({
       transition={{ duration: 0.2 }}
     >
       {/* Header - Always visible */}
-      <button
-        onClick={onToggle}
-        className="w-full p-4 flex items-center justify-between hover:bg-accent/50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
+      <div className="w-full p-4 flex items-center justify-between hover:bg-accent/50 transition-colors">
+        {/* Left side - clickable area for expand/collapse */}
+        <div
+          className="flex items-center gap-3 flex-1 cursor-pointer"
+          onClick={onToggle}
+        >
           {/* Category icon */}
           <div className="p-2 rounded-lg bg-accent">
             <Icon className="h-5 w-5 text-primary" />
@@ -130,7 +131,7 @@ export function DataCategoryCard({
         <div className="flex items-center gap-2">
           {/* Category select/deselect buttons */}
           {items.length > 0 && (
-            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1">
               <TooltipWrapper content="Select all in category">
                 <Button
                   size="sm"
@@ -158,12 +159,13 @@ export function DataCategoryCard({
           {/* Expand/collapse chevron */}
           <ChevronDown
             className={cn(
-              "h-4 w-4 transition-transform",
+              "h-4 w-4 transition-transform cursor-pointer",
               category.expanded && "rotate-180"
             )}
+            onClick={onToggle}
           />
         </div>
-      </button>
+      </div>
 
       {/* Content - Collapsible */}
       <AnimatePresence initial={false}>

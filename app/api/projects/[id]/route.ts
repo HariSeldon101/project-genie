@@ -18,13 +18,15 @@ const projectsRepo = ProjectsRepository.getInstance()
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const timer = permanentLogger.timing('api.project.get')
 
   try {
+    const { id: projectId } = await params
+
     permanentLogger.breadcrumb('api', 'GET /api/projects/[id] request', {
-      projectId: params.id,
+      projectId,
       timestamp: Date.now()
     })
 
@@ -32,21 +34,22 @@ export async function GET(
     const withCounts = searchParams.get('withCounts') === 'true'
 
     const project = withCounts
-      ? await projectsRepo.getProjectWithCounts(params.id)
-      : await projectsRepo.getProject(params.id)
+      ? await projectsRepo.getProjectWithCounts(projectId)
+      : await projectsRepo.getProject(projectId)
 
     const duration = timer.stop()
     permanentLogger.breadcrumb('api', 'Project fetched successfully', {
-      projectId: params.id,
+      projectId,
       duration
     })
 
     return NextResponse.json(project)
   } catch (error) {
+    const { id: projectId } = await params
     timer.stop()
     permanentLogger.captureError('API_PROJECT', error as Error, {
       method: 'GET',
-      projectId: params.id
+      projectId
     })
 
     if (error instanceof Error) {
@@ -71,33 +74,36 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const timer = permanentLogger.timing('api.project.put')
 
   try {
+    const { id: projectId } = await params
+
     permanentLogger.breadcrumb('api', 'PUT /api/projects/[id] request', {
-      projectId: params.id,
+      projectId,
       timestamp: Date.now()
     })
 
     const body = await request.json()
 
     // Update project through repository
-    const project = await projectsRepo.updateProject(params.id, body)
+    const project = await projectsRepo.updateProject(projectId, body)
 
     const duration = timer.stop()
     permanentLogger.breadcrumb('api', 'Project updated successfully', {
-      projectId: params.id,
+      projectId,
       duration
     })
 
     return NextResponse.json(project)
   } catch (error) {
+    const { id: projectId } = await params
     timer.stop()
     permanentLogger.captureError('API_PROJECT', error as Error, {
       method: 'PUT',
-      projectId: params.id
+      projectId
     })
 
     if (error instanceof Error) {
@@ -122,31 +128,34 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const timer = permanentLogger.timing('api.project.delete')
 
   try {
+    const { id: projectId } = await params
+
     permanentLogger.breadcrumb('api', 'DELETE /api/projects/[id] request', {
-      projectId: params.id,
+      projectId,
       timestamp: Date.now()
     })
 
     // Delete project through repository
-    await projectsRepo.deleteProject(params.id)
+    await projectsRepo.deleteProject(projectId)
 
     const duration = timer.stop()
     permanentLogger.breadcrumb('api', 'Project deleted successfully', {
-      projectId: params.id,
+      projectId,
       duration
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    const { id: projectId } = await params
     timer.stop()
     permanentLogger.captureError('API_PROJECT', error as Error, {
       method: 'DELETE',
-      projectId: params.id
+      projectId
     })
 
     if (error instanceof Error) {

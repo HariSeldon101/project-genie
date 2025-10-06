@@ -3,7 +3,7 @@
 # Fix overloaded functions with search_path issues
 # Need to identify all versions and update them
 
-PAT_TOKEN="sbp_10122b563ee9bd601c0b31dc799378486acf13d2"
+PAT_TOKEN="sbp_ce8146f94e3403eca0a088896812e9bbbf08929b"
 PROJECT_REF="vnuieavheezjxbkyfxea"
 
 echo "🔒 Fixing overloaded functions search_path issues..."

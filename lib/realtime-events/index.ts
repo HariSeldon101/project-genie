@@ -14,6 +14,28 @@
 // Core types
 export * from './core/event-types'
 
+// Intelligence-specific event helpers (ADDED: 2025-10-01 for intelligence-viewer)
+export {
+  isIntelligenceEvent,
+  isCategoryEvent,
+  isSessionEvent,
+  isPageEvent,
+  isPhaseChangeEvent,
+  isCreditEvent,
+  IntelligenceEventType,
+  getIntelligenceEventMessage,
+  shouldShowIntelligenceToast
+} from './core/intelligence-event-types'
+
+// Intelligence-specific event data types
+export type {
+  SessionCreatedData,
+  SessionCompleteData,
+  CategoryExtractedData,
+  ProgressInfo,
+  ErrorData
+} from './core/intelligence-event-types'
+
 // Factory for creating events
 export { EventFactory } from './factories/event-factory'
 

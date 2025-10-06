@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-09-23T16:06:32.366Z",
+  "lastUpdated": "2025-10-04T06:56:19.267Z",
   "projectName": "project-genie",
   "description": "AI-powered project documentation generator with company intelligence features",
   "cleanupRecommendations": {
@@ -291,10 +291,7 @@
                 "path": "/lib/company-intelligence/enrichers/google-business-enricher.ts",
                 "enabled": false,
                 "connected": false,
-                "dataTypes": [
-                  "phone",
-                  "address"
-                ],
+                "dataTypes": [],
                 "requiredKeys": [],
                 "tables": []
               },
@@ -405,124 +402,52 @@
     "ui": {
       "unused": [
         {
-          "name": "real-time-logs",
-          "path": "/components/logs/real-time-logs.tsx",
-          "description": "Real-Time Logs Component",
-          "lastModified": "2025-09-17"
+          "name": "session-selector",
+          "path": "/components/company-intelligence/session-selector.tsx",
+          "description": "Session Selector Component",
+          "lastModified": "2025-09-30"
         },
         {
-          "name": "supabase-db-monitor",
-          "path": "/components/monitoring/supabase-db-monitor.tsx",
-          "description": "Supabase Database Connection Monitor - REAL METRICS ONLY",
-          "lastModified": "2025-09-23"
-        },
-        {
-          "name": "sitemap-discovery-progress",
-          "path": "/components/company-intelligence/sitemap-discovery-progress.tsx",
+          "name": "risk-register-view",
+          "path": "/components/documents/risk-register-view.tsx",
           "description": "",
-          "lastModified": "2025-09-07"
+          "lastModified": "2025-08-24"
         },
         {
-          "name": "site-structure-visualizer",
-          "path": "/components/company-intelligence/site-structure-visualizer.tsx",
+          "name": "charter-view",
+          "path": "/components/documents/charter-view.tsx",
           "description": "",
-          "lastModified": "2025-09-04"
+          "lastModified": "2025-08-24"
         },
         {
-          "name": "scraper-status",
-          "path": "/components/company-intelligence/scraper-status.tsx",
+          "name": "virtualized-column",
+          "path": "/components/company-intelligence/intelligence-kanban/virtualized-column.tsx",
+          "description": "VirtualizedKanbanColumn Component",
+          "lastModified": "2025-09-27"
+        },
+        {
+          "name": "usage-example",
+          "path": "/components/company-intelligence/intelligence-kanban/usage-example.tsx",
           "description": "",
-          "lastModified": "2025-09-09"
+          "lastModified": "2025-09-26"
         },
         {
-          "name": "research-controls",
-          "path": "/components/company-intelligence/research-controls.tsx",
-          "description": "Research Controls Component",
-          "lastModified": "2025-09-05"
+          "name": "example-usage",
+          "path": "/components/company-intelligence/intelligence-kanban/example-usage.tsx",
+          "description": "Example implementation of the Intelligence Viewer page",
+          "lastModified": "2025-09-27"
         },
         {
-          "name": "phase-indicator",
-          "path": "/components/company-intelligence/phase-indicator.tsx",
+          "name": "DataReviewPanel",
+          "path": "/components/company-intelligence/data-review/DataReviewPanel.tsx",
           "description": "",
-          "lastModified": "2025-09-07"
+          "lastModified": "2025-09-30"
         },
         {
-          "name": "navigation-map",
-          "path": "/components/company-intelligence/navigation-map.tsx",
-          "description": "",
-          "lastModified": "2025-09-04"
-        },
-        {
-          "name": "image-gallery",
-          "path": "/components/company-intelligence/image-gallery.tsx",
-          "description": "",
-          "lastModified": "2025-09-15"
-        },
-        {
-          "name": "global-config-bar",
-          "path": "/components/company-intelligence/global-config-bar.tsx",
-          "description": "Global Configuration Bar",
-          "lastModified": "2025-09-05"
-        },
-        {
-          "name": "debug-panel",
-          "path": "/components/company-intelligence/debug-panel.tsx",
-          "description": "Debug Panel Component",
-          "lastModified": "2025-09-05"
-        },
-        {
-          "name": "cost-accumulator",
-          "path": "/components/company-intelligence/cost-accumulator.tsx",
-          "description": "",
-          "lastModified": "2025-09-18"
-        },
-        {
-          "name": "content-viewer",
-          "path": "/components/company-intelligence/content-viewer.tsx",
-          "description": "",
-          "lastModified": "2025-09-04"
-        },
-        {
-          "name": "brand-assets-panel",
-          "path": "/components/company-intelligence/brand-assets-panel.tsx",
-          "description": "",
-          "lastModified": "2025-09-04"
-        },
-        {
-          "name": "use-toast",
-          "path": "/components/ui/use-toast.tsx",
-          "description": "",
-          "lastModified": "2025-09-05"
-        },
-        {
-          "name": "comparison-table",
-          "path": "/components/ui/comparison-table.tsx",
-          "description": "",
-          "lastModified": "2025-08-26"
-        },
-        {
-          "name": "scraping-suggestions",
-          "path": "/components/company-intelligence/additive/scraping-suggestions.tsx",
-          "description": "Displays simple rule-based suggestions for next scraping actions",
-          "lastModified": "2025-09-23"
-        },
-        {
-          "name": "scraping-stats-card",
-          "path": "/components/company-intelligence/additive/scraping-stats-card.tsx",
-          "description": "ScrapingStatsCard - Pure presentational component for displaying scraping statistics",
-          "lastModified": "2025-09-23"
-        },
-        {
-          "name": "scraping-progress-card",
-          "path": "/components/company-intelligence/additive/scraping-progress-card.tsx",
-          "description": "ScrapingProgressCard - Displays active scraping progress",
-          "lastModified": "2025-09-12"
-        },
-        {
-          "name": "scraping-history-panel",
-          "path": "/components/company-intelligence/additive/scraping-history-panel.tsx",
-          "description": "ScrapingHistoryPanel - Displays scraper run history",
-          "lastModified": "2025-09-23"
+          "name": "scraping-control",
+          "path": "/components/company-intelligence/additive/scraping-control.tsx",
+          "description": "Operation state for robust debouncing and execution tracking",
+          "lastModified": "2025-09-30"
         }
       ],
       "active": [
@@ -541,6 +466,7 @@
         "/components/demo-selector.tsx",
         "/components/animated-background.tsx",
         "/components/animated-background-subtle.tsx",
+        "/components/monitoring/db-monitor-widget.tsx",
         "/components/logs/timing-inline.tsx",
         "/components/logs/log-stats.tsx",
         "/components/logs/log-skeleton.tsx",
@@ -549,30 +475,7 @@
         "/components/logs/log-entry.tsx",
         "/components/logs/log-controls.tsx",
         "/components/logs/breadcrumb-inline.tsx",
-        "/components/monitoring/db-monitor-widget.tsx",
-        "/components/documents/risk-register-view.tsx",
-        "/components/documents/pdf-download-button.tsx",
-        "/components/documents/document-viewer.tsx",
-        "/components/documents/charter-view.tsx",
-        "/components/dashboard/user-menu.tsx",
-        "/components/dashboard/nav.tsx",
-        "/components/bug-tracker/bug-report-form.tsx",
-        "/components/bug-tracker/bug-list.tsx",
-        "/components/bug-tracker/bug-detail-modal.tsx",
-        "/components/company-intelligence/tooltip-wrapper.tsx",
-        "/components/company-intelligence/stage-action-bar.tsx",
-        "/components/company-intelligence/site-analyzer.tsx",
-        "/components/company-intelligence/session-selector.tsx",
-        "/components/company-intelligence/results-viewer.tsx",
-        "/components/company-intelligence/rate-limit-indicator.tsx",
-        "/components/company-intelligence/phase-controls.tsx",
-        "/components/company-intelligence/persistent-action-bar.tsx",
-        "/components/company-intelligence/llm-monitor.tsx",
-        "/components/company-intelligence/debug-data-viewer.tsx",
-        "/components/company-intelligence/corporate-structure-detector.tsx",
-        "/components/admin/provider-config.tsx",
-        "/components/admin/prompt-editor.tsx",
-        "/components/admin/admin-stats.tsx",
+        "/components/ui/use-toast.tsx",
         "/components/ui/under-construction.tsx",
         "/components/ui/tooltip.tsx",
         "/components/ui/textarea.tsx",
@@ -606,26 +509,50 @@
         "/components/ui/alert.tsx",
         "/components/ui/alert-dialog.tsx",
         "/components/ui/accordion.tsx",
+        "/components/dashboard/user-menu.tsx",
+        "/components/dashboard/nav.tsx",
+        "/components/bug-tracker/bug-report-form.tsx",
+        "/components/bug-tracker/bug-list.tsx",
+        "/components/bug-tracker/bug-detail-modal.tsx",
+        "/components/admin/provider-config.tsx",
+        "/components/admin/prompt-editor.tsx",
+        "/components/admin/admin-stats.tsx",
+        "/components/company-intelligence/tooltip-wrapper.tsx",
+        "/components/company-intelligence/site-analyzer.tsx",
+        "/components/company-intelligence/results-viewer.tsx",
+        "/components/company-intelligence/rate-limit-indicator.tsx",
+        "/components/company-intelligence/llm-monitor.tsx",
+        "/components/company-intelligence/debug-data-viewer.tsx",
+        "/components/documents/pdf-download-button.tsx",
+        "/components/documents/document-viewer.tsx",
         "/components/company-intelligence/stages/stage-action-bar.tsx",
         "/components/company-intelligence/stages/site-analysis-stage.tsx",
         "/components/company-intelligence/stages/progress-indicator.tsx",
         "/components/company-intelligence/stages/generation-stage.tsx",
         "/components/company-intelligence/sitemap-selector/index.tsx",
+        "/components/company-intelligence/site-analyzer/index.tsx",
         "/components/company-intelligence/scraping-dashboard/site-analysis-panel.tsx",
         "/components/company-intelligence/scraping-dashboard/scraper-controls.tsx",
+        "/components/company-intelligence/scraping-dashboard/scraper-controls-refactored.tsx",
         "/components/company-intelligence/scraping-dashboard/index.tsx",
         "/components/company-intelligence/scraping-dashboard/enrichment-preview.tsx",
         "/components/company-intelligence/scraping-dashboard/data-selection-grid.tsx",
         "/components/company-intelligence/scraping-dashboard/data-category-card.tsx",
-        "/components/company-intelligence/scraper-config/scraper-config-panel.tsx",
+        "/components/company-intelligence/intelligence-kanban/realtime-handler.tsx",
+        "/components/company-intelligence/intelligence-kanban/kanban-column.tsx",
+        "/components/company-intelligence/intelligence-kanban/kanban-card.tsx",
+        "/components/company-intelligence/intelligence-kanban/intelligence-kanban.tsx",
+        "/components/company-intelligence/intelligence-kanban/integrated-kanban.tsx",
+        "/components/company-intelligence/intelligence-kanban/index.tsx",
+        "/components/company-intelligence/intelligence-kanban/enrichment-queue.tsx",
+        "/components/company-intelligence/intelligence-kanban/analytics-view.tsx",
         "/components/company-intelligence/data-review/SelectionToolbar.tsx",
         "/components/company-intelligence/data-review/DataTreeExplorer.tsx",
-        "/components/company-intelligence/data-review/DataReviewPanel.tsx",
         "/components/company-intelligence/data-review/DataPreviewPane.tsx",
         "/components/company-intelligence/data-review/CostCalculator.tsx",
-        "/components/company-intelligence/additive/scraping-control.tsx",
         "/components/company-intelligence/additive/scraper-selector.tsx",
         "/components/company-intelligence/additive/additive-results.tsx",
+        "/components/company-intelligence/scraper-config/scraper-config-panel.tsx",
         "/components/company-intelligence/sitemap-selector/components/selection-controls.tsx",
         "/components/company-intelligence/sitemap-selector/components/page-list.tsx",
         "/components/company-intelligence/sitemap-selector/components/page-item.tsx",
@@ -823,64 +750,64 @@
   },
   "apiEndpoints": {
     "companyIntelligence": [
+      "/api/company-intelligence/scraping-types.ts",
       "/api/company-intelligence/validate-domain",
+      "/api/company-intelligence/metrics",
       "/api/company-intelligence/sessions",
       "/api/company-intelligence/fetch-sitemap",
+      "/api/company-intelligence/credits",
       "/api/company-intelligence/analyze-site",
-      "/api/company-intelligence/v4/scrape",
       "/api/company-intelligence/sessions/recover",
       "/api/company-intelligence/sessions/init",
       "/api/company-intelligence/sessions/abort",
       "/api/company-intelligence/sessions/[id]",
+      "/api/company-intelligence/v4/scrape",
+      "/api/company-intelligence/v4/intelligence",
+      "/api/company-intelligence/v4/firecrawl-credits",
+      "/api/company-intelligence/v4/analyze",
+      "/api/company-intelligence/v4/credits",
       "/api/company-intelligence/sessions/[id]/phase-data",
       "/api/company-intelligence/sessions/[id]/logs"
     ],
     "documentGeneration": [
       "/api/pdf",
       "/api/generate-stream",
-      "/api/generate-retry",
       "/api/generate",
+      "/api/generate-retry",
       "/api/pdf/generate"
     ],
     "other": [
-      "/api/test-sse",
-      "/api/test-log",
-      "/api/test-generation",
-      "/api/test-error",
-      "/api/test-basic",
       "/api/team",
-      "/api/stakeholders",
       "/api/settings",
       "/api/projects",
-      "/api/ping",
       "/api/profile",
-      "/api/logs",
+      "/api/ping",
       "/api/health",
+      "/api/logs",
       "/api/fix-profile",
+      "/api/stakeholders",
       "/api/debug-full",
       "/api/debug",
       "/api/artifacts",
       "/api/bugs",
       "/api/analytics",
       "/api/team/[id]",
-      "/api/stripe/webhook",
       "/api/stripe/checkout",
-      "/api/projects/[id]",
       "/api/profiles/current",
+      "/api/projects/[id]",
       "/api/profile/avatar",
       "/api/monitoring/db-status",
+      "/api/stripe/webhook",
+      "/api/health/logger",
       "/api/logs/stream",
-      "/api/logs/test-service-role",
       "/api/logs/stats",
       "/api/logs/client-error",
-      "/api/logs/rotate",
-      "/api/health/logger",
       "/api/export/[format]",
-      "/api/bugs/[id]",
       "/api/auth/user",
+      "/api/logs/rotate",
       "/api/auth/callback",
+      "/api/bugs/[id]",
       "/api/admin/stats",
-      "/api/admin/test-llm",
       "/api/projects/[id]/full",
       "/api/admin/ollama/models"
     ]
@@ -1042,7 +969,7 @@
         "effort": "30 minutes per component",
         "impact": "Medium",
         "location": "Various pages",
-        "changes": "20 components available: real-time-logs, supabase-db-monitor, sitemap-discovery-progress, site-structure-visualizer, scraper-status, research-controls, phase-indicator, navigation-map, image-gallery, global-config-bar, debug-panel, cost-accumulator, content-viewer, brand-assets-panel, use-toast, comparison-table, scraping-suggestions, scraping-stats-card, scraping-progress-card, scraping-history-panel"
+        "changes": "8 components available: session-selector, risk-register-view, charter-view, virtualized-column, usage-example, example-usage, DataReviewPanel, scraping-control"
       },
       {
         "action": "Populate empty database tables",
@@ -1085,11 +1012,11 @@
     ]
   },
   "metadata": {
-    "totalFiles": 526,
-    "linesOfCode": 156651,
+    "totalFiles": 509,
+    "linesOfCode": 153923,
     "testCoverage": "100% (UI Components)",
-    "lastAudit": "2025-09-23",
-    "nextAudit": "2025-09-30",
+    "lastAudit": "2025-10-04",
+    "nextAudit": "2025-10-11",
     "lastTestUpdate": "2025-09-07"
   },
   "sessionManagement": {

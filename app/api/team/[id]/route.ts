@@ -13,11 +13,13 @@ import { permanentLogger } from '@/lib/utils/permanent-logger'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const timer = permanentLogger.timing('api.team.member.put')
 
   try {
+    const { id: memberId } = await params
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -25,8 +27,6 @@ export async function PUT(
       timer.stop()
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const memberId = params.id
     const body = await request.json()
     const { role } = body
 
@@ -72,10 +72,11 @@ export async function PUT(
     timer.stop()
     return NextResponse.json(updatedMember)
   } catch (error) {
+    const { id: memberId } = await params
     timer.stop()
     permanentLogger.captureError('API_TEAM', error as Error, {
       endpoint: 'PUT /api/team/[id]',
-      memberId: params.id
+      memberId
     })
 
     return NextResponse.json(
@@ -87,11 +88,13 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const timer = permanentLogger.timing('api.team.member.delete')
 
   try {
+    const { id: memberId } = await params
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -99,8 +102,6 @@ export async function DELETE(
       timer.stop()
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const memberId = params.id
 
     permanentLogger.breadcrumb('api', 'Removing team member', {
       memberId,
@@ -142,10 +143,11 @@ export async function DELETE(
     timer.stop()
     return NextResponse.json({ success: true })
   } catch (error) {
+    const { id: memberId } = await params
     timer.stop()
     permanentLogger.captureError('API_TEAM', error as Error, {
       endpoint: 'DELETE /api/team/[id]',
-      memberId: params.id
+      memberId
     })
 
     return NextResponse.json(

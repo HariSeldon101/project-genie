@@ -252,18 +252,22 @@ export function ScraperControls({
    */
   useEffect(() => {
     if (scraperType === ScraperType.FIRECRAWL) {
-      fetch('/api/company-intelligence/credits')
+      // Use REAL Firecrawl API endpoint (not mock data)
+      fetch('/api/company-intelligence/v4/firecrawl-credits')
         .then(res => res.json())
         .then(data => {
-          setCreditBalance(data.remaining)
-          permanentLogger.info('SCRAPER_CONTROLS', 'Credit balance fetched', {
-            remaining: data.remaining,
+          // Firecrawl v4 endpoint returns { credits, used, timestamp }
+          setCreditBalance(data.credits)
+          permanentLogger.info('SCRAPER_CONTROLS', 'REAL Firecrawl credit balance fetched', {
+            credits: data.credits,
+            used: data.used,
+            timestamp: data.timestamp,
             sessionId
           })
         })
         .catch(err => {
           permanentLogger.captureError('SCRAPER_CONTROLS', err as Error, {
-            operation: 'fetch_credits',
+            operation: 'fetch_firecrawl_credits',
             sessionId
           })
         })
@@ -684,6 +688,58 @@ export function ScraperControls({
                       }}
                     />
                   </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="llm-extract">LLM Extraction</Label>
+                      <p className="text-xs text-muted-foreground">
+                        AI-powered structured data extraction
+                      </p>
+                    </div>
+                    <Switch
+                      id="llm-extract"
+                      checked={!!detailedConfig.extractSchema}
+                      onCheckedChange={(checked) => {
+                        const newConfig = {
+                          ...detailedConfig,
+                          extractSchema: checked ? { type: 'company' } : undefined,
+                          formats: checked
+                            ? [...(detailedConfig.formats || ['markdown']), 'extract']
+                            : (detailedConfig.formats || ['markdown']).filter(f => f !== 'extract')
+                        }
+                        setDetailedConfig(newConfig)
+                        permanentLogger.info('SCRAPER_CONTROLS', 'LLM extraction toggled', {
+                          enabled: checked,
+                          sessionId
+                        })
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="proxy">Use Proxy</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Route requests through proxy network
+                      </p>
+                    </div>
+                    <Switch
+                      id="proxy"
+                      checked={detailedConfig.useProxy === true}
+                      onCheckedChange={(checked) => {
+                        const newConfig = {
+                          ...detailedConfig,
+                          useProxy: checked,
+                          proxyCountry: checked ? 'US' : undefined
+                        }
+                        setDetailedConfig(newConfig)
+                        permanentLogger.info('SCRAPER_CONTROLS', 'Proxy toggled', {
+                          useProxy: checked,
+                          sessionId
+                        })
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -732,6 +788,97 @@ export function ScraperControls({
                         })
                       }}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="wait-selector">Wait for Selector (Optional)</Label>
+                    <input
+                      id="wait-selector"
+                      type="text"
+                      className="w-full px-3 py-2 text-sm border rounded-md"
+                      placeholder="e.g., .content-loaded"
+                      value={detailedConfig.waitForSelector || ''}
+                      onChange={(e) => {
+                        const newConfig = { ...detailedConfig, waitForSelector: e.target.value || undefined }
+                        setDetailedConfig(newConfig)
+                        permanentLogger.debug('SCRAPER_CONTROLS', 'Wait selector updated', {
+                          waitForSelector: e.target.value,
+                          sessionId
+                        })
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">CSS selector to wait for before scraping</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="user-agent">Custom User Agent (Optional)</Label>
+                    <input
+                      id="user-agent"
+                      type="text"
+                      className="w-full px-3 py-2 text-sm border rounded-md"
+                      placeholder="Default: Chrome on macOS"
+                      value={detailedConfig.userAgent || ''}
+                      onChange={(e) => {
+                        const newConfig = { ...detailedConfig, userAgent: e.target.value || undefined }
+                        setDetailedConfig(newConfig)
+                        permanentLogger.debug('SCRAPER_CONTROLS', 'User agent updated', {
+                          userAgent: e.target.value,
+                          sessionId
+                        })
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">Browser identity for requests</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Viewport Size (Optional)</Label>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <input
+                          id="viewport-width"
+                          type="number"
+                          className="w-full px-3 py-2 text-sm border rounded-md"
+                          placeholder="1920"
+                          value={detailedConfig.viewport?.width || ''}
+                          onChange={(e) => {
+                            const width = parseInt(e.target.value) || undefined
+                            const newConfig = {
+                              ...detailedConfig,
+                              viewport: width ? { ...detailedConfig.viewport, width } : undefined
+                            }
+                            setDetailedConfig(newConfig)
+                            permanentLogger.debug('SCRAPER_CONTROLS', 'Viewport width updated', {
+                              width,
+                              sessionId
+                            })
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Width</p>
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          id="viewport-height"
+                          type="number"
+                          className="w-full px-3 py-2 text-sm border rounded-md"
+                          placeholder="1080"
+                          value={detailedConfig.viewport?.height || ''}
+                          onChange={(e) => {
+                            const height = parseInt(e.target.value) || undefined
+                            const newConfig = {
+                              ...detailedConfig,
+                              viewport: height ? { ...detailedConfig.viewport, height } : undefined
+                            }
+                            setDetailedConfig(newConfig)
+                            permanentLogger.debug('SCRAPER_CONTROLS', 'Viewport height updated', {
+                              height,
+                              sessionId
+                            })
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Height</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Browser window dimensions (for mobile testing)</p>
                   </div>
                 </div>
               )}
