@@ -1,0 +1,569 @@
+/**
+ * Financial & Investor Relations Enricher
+ * Discovers stock tickers, fetches market data, and extracts IR information
+ * Uses web search and website scraping to gather comprehensive financial intelligence
+ */
+
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { 
+  FinancialData, 
+  InvestorRelations,
+  AnnualReport,
+  QuarterlyReport,
+  PressRelease,
+  RegulatoryFiling,
+  InvestorPresentation,
+  FinancialCalendar,
+  EnrichmentResult
+} from '@/lib/company-intelligence/types/external-intelligence'
+
+export class FinancialEnricher {
+  private readonly sessionId: string
+  private readonly cacheTimeout = 300000 // 5 minutes for financial data
+  
+  constructor(sessionId: string) {
+    this.sessionId = sessionId
+    permanentLogger.info('Initializing Financial Enricher', { category: 'FINANCIAL_ENRICHER', sessionId,
+      cacheTimeout: this.cacheTimeout })
+  }
+  
+  /**
+   * Main enrichment method - discovers financial data and IR information
+   */
+  async enrich(companyName: string, domain: string): Promise<EnrichmentResult> {
+    const startTime = Date.now()
+    permanentLogger.info('Starting financial enrichment', { category: 'FINANCIAL_ENRICHER', companyName,
+      domain,
+      sessionId: this.sessionId })
+    
+    try {
+      // Step 1: Discover if company is public and find ticker
+      const ticker = await this.discoverTicker(companyName, domain)
+      
+      if (!ticker) {
+        permanentLogger.info('No ticker found - likely private company', { category: 'FINANCIAL_ENRICHER', companyName })
+        
+        // Still try to find IR page for private companies (some have investor info)
+        const irData = await this.extractInvestorRelations(domain)
+        
+        return {
+          success: true,
+          source: 'financial',
+          data: {
+            financial: {
+              sourceType: 'financial' as const,
+              sessionId: this.sessionId,
+              isPublic: false,
+              fetchedAt: new Date(),
+              confidence: 0.9
+            },
+            investorRelations: irData
+          },
+          duration: Date.now() - startTime,
+          timestamp: new Date()
+        }
+      }
+      
+      permanentLogger.info('Ticker discovered', { category: 'FINANCIAL_ENRICHER', companyName,
+        ticker })
+      
+      // Step 2: Fetch market data for public company
+      const financialData = await this.fetchMarketData(ticker, companyName)
+      
+      // Step 3: Extract IR information from website
+      const irData = await this.extractInvestorRelations(domain, ticker)
+      
+      // Step 4: Fetch regulatory filings
+      const regulatoryFilings = await this.fetchRegulatoryFilings(ticker, financialData.exchange)
+      if (regulatoryFilings.length > 0 && irData) {
+        irData.regulatoryFilings = regulatoryFilings
+      }
+      
+      const duration = Date.now() - startTime
+      permanentLogger.info('Financial enrichment complete', { category: 'FINANCIAL_ENRICHER', companyName,
+        ticker,
+        isPublic: true,
+        hasMarketData: !!financialData,
+        hasIRData: !!irData,
+        regulatoryFilings: regulatoryFilings.length,
+        duration })
+      
+      return {
+        success: true,
+        source: 'financial',
+        data: {
+          financial: financialData,
+          investorRelations: irData
+        },
+        duration,
+        timestamp: new Date()
+      }
+      
+    } catch (error) {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+        message: 'Financial enrichment failed',
+        companyName,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      })
+      
+      return {
+        success: false,
+        source: 'financial',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        duration: Date.now() - startTime,
+        timestamp: new Date()
+      }
+    }
+  }
+  
+  /**
+   * Discover stock ticker using web search
+   */
+  private async discoverTicker(companyName: string, domain: string): Promise<string | null> {
+    permanentLogger.info('Discovering ticker', { category: 'FINANCIAL_ENRICHER', companyName,
+      domain })
+    
+    try {
+      // Search for ticker using multiple strategies
+      const searchQueries = [
+        `${companyName} stock ticker symbol`,
+        `${companyName} NYSE NASDAQ ticker`,
+        `${domain} stock price ticker`,
+        `"${companyName}" investor relations ticker`
+      ]
+      
+      for (const query of searchQueries) {
+        permanentLogger.info('Searching for ticker', { category: 'FINANCIAL_ENRICHER', query })
+        
+        // Use web search to find ticker
+        const response = await fetch('/api/company-intelligence/web-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, limit: 5 })
+        })
+        
+        if (response.ok) {
+          const results = await response.json()
+          
+          // Look for ticker patterns in results
+          const tickerPattern = /\b([A-Z]{1,5})(?:\s|:|$)/g
+          const exchanges = ['NYSE', 'NASDAQ', 'LSE', 'TSX', 'ASX']
+          
+          for (const result of results.items || []) {
+            const text = `${result.title} ${result.snippet}`.toUpperCase()
+            
+            // Check if exchange is mentioned
+            const hasExchange = exchanges.some(ex => text.includes(ex))
+            if (hasExchange) {
+              const matches = text.match(tickerPattern)
+              if (matches) {
+                // Filter out common words that match pattern
+                const filtered = matches.filter(m => 
+                  !['THE', 'AND', 'FOR', 'NYSE', 'NASDAQ', 'LSE'].includes(m.trim())
+                )
+                
+                if (filtered.length > 0) {
+                  const ticker = filtered[0].trim()
+                  permanentLogger.info('Ticker found', { category: 'FINANCIAL_ENRICHER', ticker,
+                    source: 'web_search' })
+                  
+                  // Verify ticker is valid
+                  const isValid = await this.verifyTicker(ticker)
+                  if (isValid) {
+                    return ticker
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Try to extract from investor relations page
+      const irTicker = await this.extractTickerFromIRPage(domain)
+      if (irTicker) {
+        permanentLogger.info('Ticker found on IR page', { category: 'FINANCIAL_ENRICHER', ticker: irTicker })
+        return irTicker
+      }
+      
+    } catch (error) {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+        message: 'Ticker discovery failed',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+    
+    return null
+  }
+  
+  /**
+   * Verify if a ticker is valid by trying to fetch data
+   */
+  private async verifyTicker(ticker: string): Promise<boolean> {
+    try {
+      // Try to fetch basic quote data
+      const response = await fetch(`/api/company-intelligence/stock-quote?ticker=${ticker}`)
+      return response.ok
+    } catch {
+      return false
+    }
+  }
+  
+  /**
+   * Extract ticker from investor relations page
+   */
+  private async extractTickerFromIRPage(domain: string): Promise<string | null> {
+    try {
+      const irUrls = [
+        `https://${domain}/investor-relations`,
+        `https://${domain}/investors`,
+        `https://${domain}/ir`,
+        `https://${domain}/investor`
+      ]
+      
+      for (const url of irUrls) {
+        const response = await fetch(url)
+        if (response.ok) {
+          const html = await response.text()
+          
+          // Look for ticker patterns
+          const tickerPatterns = [
+            /(?:ticker|symbol|trade[sd]?)[\s:]+([A-Z]{1,5})/i,
+            /\((?:NYSE|NASDAQ|LSE|TSX|ASX):\s*([A-Z]{1,5})\)/i,
+            /class="ticker"[^>]*>([A-Z]{1,5})</i
+          ]
+          
+          for (const pattern of tickerPatterns) {
+            const match = html.match(pattern)
+            if (match) {
+              return match[1].toUpperCase()
+            }
+          }
+        }
+      }
+    } catch (error) {
+      permanentLogger.debug('FINANCIAL_ENRICHER', 'IR page ticker extraction failed', {
+        domain,
+        error: error instanceof Error ? error.message : 'Unknown'
+      })
+    }
+    
+    return null
+  }
+  
+  /**
+   * Fetch market data for a ticker
+   */
+  private async fetchMarketData(ticker: string, companyName: string): Promise<FinancialData> {
+    permanentLogger.info('Fetching market data', { category: 'FINANCIAL_ENRICHER', ticker })
+    
+    // Note: In production, this would call a real financial API
+    // Uses search-based approach - no mock data
+    
+    try {
+      // Search for current stock data
+      const query = `${ticker} stock price market cap PE ratio`
+      const response = await fetch('/api/company-intelligence/web-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, limit: 3 })
+      })
+      
+      const results = await response.json()
+      
+      // Parse financial data from search results
+      const financialData: FinancialData = {
+        sourceType: 'financial',
+        sessionId: this.sessionId,
+        isPublic: true,
+        ticker,
+        fetchedAt: new Date(),
+        confidence: 0.8,
+        lastUpdated: new Date()
+      }
+      
+      // Extract numbers from search results
+      for (const result of results.items || []) {
+        const text = `${result.title} ${result.snippet}`
+        
+        // Extract share price
+        const priceMatch = text.match(/\$?([\d,]+\.?\d*)\s*(?:USD|per share|stock price)/i)
+        if (priceMatch && !financialData.sharePrice) {
+          financialData.sharePrice = parseFloat(priceMatch[1].replace(/,/g, ''))
+        }
+        
+        // Extract market cap
+        const marketCapMatch = text.match(/([\d.]+)\s*(?:billion|trillion|B|T)\s*(?:market cap|valuation)/i)
+        if (marketCapMatch && !financialData.marketCap) {
+          const value = parseFloat(marketCapMatch[1])
+          const multiplier = text.toLowerCase().includes('trillion') ? 1e12 : 1e9
+          financialData.marketCap = value * multiplier
+        }
+        
+        // Extract P/E ratio
+        const peMatch = text.match(/P\/E[\s:]+?([\d.]+)/i)
+        if (peMatch && !financialData.peRatio) {
+          financialData.peRatio = parseFloat(peMatch[1])
+        }
+        
+        // Extract exchange
+        const exchangeMatch = text.match(/\b(NYSE|NASDAQ|LSE|TSX|ASX)\b/i)
+        if (exchangeMatch && !financialData.exchange) {
+          financialData.exchange = exchangeMatch[1].toUpperCase()
+        }
+      }
+      
+      // Set currency based on exchange
+      if (financialData.exchange) {
+        financialData.currency = this.getCurrencyForExchange(financialData.exchange)
+      }
+      
+      permanentLogger.info('Market data fetched', { category: 'FINANCIAL_ENRICHER', ticker,
+        hasPrice: !!financialData.sharePrice,
+        hasMarketCap: !!financialData.marketCap,
+        hasPE: !!financialData.peRatio,
+        exchange: financialData.exchange })
+      
+      return financialData
+      
+    } catch (error) {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+        message: 'Market data fetch failed',
+        ticker,
+        errorMessage: error instanceof Error ? error.message : 'Unknown'
+      })
+      
+      // Return minimal data
+      return {
+        sourceType: 'financial',
+        sessionId: this.sessionId,
+        isPublic: true,
+        ticker,
+        fetchedAt: new Date(),
+        confidence: 0.3,
+        lastUpdated: new Date()
+      }
+    }
+  }
+  
+  /**
+   * Get currency for exchange
+   */
+  private getCurrencyForExchange(exchange: string): string {
+    const currencyMap: Record<string, string> = {
+      'NYSE': 'USD',
+      'NASDAQ': 'USD',
+      'LSE': 'GBP',
+      'TSX': 'CAD',
+      'ASX': 'AUD',
+      'JPX': 'JPY',
+      'HKEX': 'HKD',
+      'SSE': 'CNY',
+      'NSE': 'INR',
+      'XETRA': 'EUR'
+    }
+    
+    return currencyMap[exchange] || 'USD'
+  }
+  
+  /**
+   * Extract investor relations information from website
+   */
+  private async extractInvestorRelations(domain: string, ticker?: string): Promise<InvestorRelations | null> {
+    permanentLogger.info('Extracting IR information', { category: 'FINANCIAL_ENRICHER', domain,
+      ticker })
+    
+    try {
+      // Common IR page paths
+      const irPaths = [
+        '/investor-relations',
+        '/investors',
+        '/ir',
+        '/investor',
+        '/about/investors',
+        '/company/investors'
+      ]
+      
+      let irPageUrl: string | undefined
+      let irPageHtml: string | undefined
+      
+      // Find IR page
+      for (const path of irPaths) {
+        const url = `https://${domain}${path}`
+        try {
+          const response = await fetch(url)
+          if (response.ok) {
+            irPageUrl = url
+            irPageHtml = await response.text()
+            permanentLogger.info('IR page found', { category: 'FINANCIAL_ENRICHER', url })
+            break
+          }
+        } catch {
+          continue
+        }
+      }
+      
+      if (!irPageUrl || !irPageHtml) {
+        permanentLogger.info('No IR page found', { category: 'FINANCIAL_ENRICHER', domain })
+        return null
+      }
+      
+      const irData: InvestorRelations = {
+        irPageUrl,
+        annualReports: [],
+        quarterlyReports: [],
+        pressReleases: [],
+        regulatoryFilings: [],
+        investorPresentations: []
+      }
+      
+      // Extract annual reports
+      const annualReportPattern = /href="([^"]+)"[^>]*>.*?(?:annual report|10-K|20-F).*?(\d{4})/gi
+      let match
+      while ((match = annualReportPattern.exec(irPageHtml)) !== null) {
+        const url = this.resolveUrl(match[1], domain)
+        const year = parseInt(match[2])
+        
+        if (year > 2010 && year <= new Date().getFullYear()) {
+          irData.annualReports.push({
+            year,
+            url,
+            title: `Annual Report ${year}`,
+            publishedDate: new Date(`${year}-12-31`)
+          })
+        }
+      }
+      
+      // Extract quarterly reports
+      const quarterlyPattern = /href="([^"]+)"[^>]*>.*?(?:Q[1-4]|quarterly).*?(\d{4})/gi
+      while ((match = quarterlyPattern.exec(irPageHtml)) !== null) {
+        const url = this.resolveUrl(match[1], domain)
+        const quarterMatch = match[0].match(/Q([1-4])/i)
+        
+        if (quarterMatch) {
+          const quarter = `Q${quarterMatch[1]}` as 'Q1' | 'Q2' | 'Q3' | 'Q4'
+          const year = parseInt(match[2])
+          
+          irData.quarterlyReports.push({
+            year,
+            quarter,
+            url,
+            publishedDate: new Date()
+          })
+        }
+      }
+      
+      // Extract latest earnings info
+      const earningsPattern = /(?:earnings|results).*?(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/i
+      const earningsMatch = irPageHtml.match(earningsPattern)
+      if (earningsMatch) {
+        irData.latestEarningsDate = new Date(earningsMatch[1])
+      }
+      
+      permanentLogger.info('IR data extracted', { category: 'FINANCIAL_ENRICHER', irPageUrl,
+        annualReports: irData.annualReports.length,
+        quarterlyReports: irData.quarterlyReports.length,
+        hasEarningsDate: !!irData.latestEarningsDate })
+      
+      return irData
+      
+    } catch (error) {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+        message: 'IR extraction failed',
+        domain,
+        errorMessage: error instanceof Error ? error.message : 'Unknown'
+      })
+      return null
+    }
+  }
+  
+  /**
+   * Fetch regulatory filings (SEC, etc.)
+   */
+  private async fetchRegulatoryFilings(ticker: string, exchange?: string): Promise<RegulatoryFiling[]> {
+    permanentLogger.info('Fetching regulatory filings', { category: 'FINANCIAL_ENRICHER', ticker,
+      exchange })
+    
+    const filings: RegulatoryFiling[] = []
+    
+    try {
+      // For US companies, search SEC filings
+      if (!exchange || ['NYSE', 'NASDAQ'].includes(exchange)) {
+        const query = `${ticker} SEC filings 10-K 10-Q 8-K site:sec.gov`
+        const response = await fetch('/api/company-intelligence/web-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, limit: 10 })
+        })
+        
+        if (response.ok) {
+          const results = await response.json()
+          
+          for (const result of results.items || []) {
+            if (result.link && result.link.includes('sec.gov')) {
+              // Determine filing type from title/URL
+              let type = 'Other'
+              if (result.title.includes('10-K') || result.link.includes('10-K')) {
+                type = '10-K'
+              } else if (result.title.includes('10-Q') || result.link.includes('10-Q')) {
+                type = '10-Q'
+              } else if (result.title.includes('8-K') || result.link.includes('8-K')) {
+                type = '8-K'
+              } else if (result.title.includes('DEF 14A')) {
+                type = 'DEF 14A'
+              }
+              
+              filings.push({
+                type,
+                description: result.title,
+                url: result.link,
+                filedDate: new Date(), // Would need to parse from result
+                regulator: 'SEC'
+              })
+            }
+          }
+        }
+      }
+      
+      // For UK companies, search LSE RNS
+      if (exchange === 'LSE') {
+        const query = `${ticker} RNS regulatory news site:londonstockexchange.com`
+        // Similar search logic for LSE
+      }
+      
+      permanentLogger.info('Regulatory filings fetched', { category: 'FINANCIAL_ENRICHER', ...{
+        ticker,
+        count: filings.length,
+        types: [...new Set(filings.map(f => f.type }))]
+      })
+      
+    } catch (error) {
+      permanentLogger.captureError('FINANCIAL_ENRICHER', error, {
+        message: 'Regulatory filing fetch failed',
+        ticker,
+        errorMessage: error instanceof Error ? error.message : 'Unknown'
+      })
+    }
+    
+    return filings
+  }
+  
+  /**
+   * Resolve relative URLs
+   */
+  private resolveUrl(url: string, domain: string): string {
+    if (url.startsWith('http')) {
+      return url
+    }
+    if (url.startsWith('//')) {
+      return `https:${url}`
+    }
+    if (url.startsWith('/')) {
+      return `https://${domain}${url}`
+    }
+    return `https://${domain}/${url}`
+  }
+}
+
+// Export only the class, not an instance
+// Instance should be created with a sessionId when needed

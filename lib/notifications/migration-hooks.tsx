@@ -1,0 +1,241 @@
+/**
+ * Migration hooks to transition from old notification system to new
+ * Provides drop-in replacements for existing notification functions
+ */
+
+import { eventBus, emitNotification, emitPhaseTransition } from './event-bus'
+import { EventPriority, EventSource } from './types'
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+
+/**
+ * Drop-in replacement for addNotification from old system
+ * Maps old API to new event bus
+ */
+export function addNotification(notification: {
+  message: string
+  type?: 'info' | 'success' | 'warning' | 'error'
+  persistent?: boolean
+}) {
+  const priority = notification.type === 'error' ? EventPriority.CRITICAL :
+                  notification.type === 'warning' ? EventPriority.HIGH :
+                  notification.type === 'success' ? EventPriority.NORMAL :
+                  EventPriority.NORMAL
+
+  emitNotification(
+    notification.message,
+    notification.type || 'info',
+    {
+      priority,
+      persistent: notification.persistent ?? true,
+      source: EventSource.CLIENT
+    }
+  )
+  
+  // Return a fake ID for compatibility
+  return `migrated_${Date.now()}`
+}
+
+/**
+ * Drop-in replacement for removeNotification
+ * Not needed in new system but kept for compatibility
+ */
+export function removeNotification(id: string) {
+  permanentLogger.info('MIGRATION', 'removeNotification called (no-op in new system)', { id })
+}
+
+/**
+ * Drop-in replacement for clearAllNotifications
+ * Handled by context in new system
+ */
+export function clearAllNotifications() {
+  permanentLogger.info('MIGRATION', 'clearAllNotifications called (handled by context)')
+}
+
+/**
+ * Migration wrapper for use-phase-toast functionality
+ */
+export class MigratedPhaseToast {
+  private phase: string
+  private correlationId: string
+
+  constructor(phase: string) {
+    this.phase = phase
+    this.correlationId = `phase_${phase}_${Date.now()}`
+  }
+
+  success(message: string, data?: any) {
+    const phaseLabel = `[${this.phase.toUpperCase().replace('-', '_')}]`
+    emitNotification(
+      `${phaseLabel} ${message}`,
+      'success',
+      {
+        priority: EventPriority.HIGH,
+        correlationId: this.correlationId,
+        source: EventSource.CLIENT
+      }
+    )
+    
+    if (data) {
+      permanentLogger.info('PHASE_TOAST', 'Success with data', { phase: this.phase, data })
+    }
+  }
+
+  error(message: string, error?: any) {
+    const phaseLabel = `[${this.phase.toUpperCase().replace('-', '_')}]`
+    emitNotification(
+      `${phaseLabel} ${message}`,
+      'error',
+      {
+        priority: EventPriority.CRITICAL,
+        correlationId: this.correlationId,
+        source: EventSource.CLIENT
+      }
+    )
+    
+    if (error) {
+      permanentLogger.captureError('PHASE_TOAST', new Error('Error occurred'), { phase: this.phase, error })
+    }
+  }
+
+  info(message: string) {
+    const phaseLabel = `[${this.phase.toUpperCase().replace('-', '_')}]`
+    emitNotification(
+      `${phaseLabel} ${message}`,
+      'info',
+      {
+        priority: EventPriority.NORMAL,
+        correlationId: this.correlationId,
+        source: EventSource.CLIENT
+      }
+    )
+  }
+
+  warning(message: string) {
+    const phaseLabel = `[${this.phase.toUpperCase().replace('-', '_')}]`
+    emitNotification(
+      `${phaseLabel} ${message}`,
+      'warning',
+      {
+        priority: EventPriority.HIGH,
+        correlationId: this.correlationId,
+        source: EventSource.CLIENT
+      }
+    )
+  }
+}
+
+/**
+ * Drop-in replacement for usePhaseToast hook
+ */
+export function usePhaseToast(phase: string) {
+  return new MigratedPhaseToast(phase)
+}
+
+/**
+ * Drop-in replacement for persistentToast
+ */
+export const persistentToast = {
+  success: (message: string) => {
+    emitNotification(message, 'success', {
+      priority: EventPriority.NORMAL,
+      persistent: true,
+      source: EventSource.CLIENT
+    })
+  },
+  
+  error: (message: string) => {
+    emitNotification(message, 'error', {
+      priority: EventPriority.CRITICAL,
+      persistent: true,
+      source: EventSource.CLIENT
+    })
+  },
+  
+  info: (message: string) => {
+    emitNotification(message, 'info', {
+      priority: EventPriority.NORMAL,
+      persistent: true,
+      source: EventSource.CLIENT
+    })
+  },
+  
+  warning: (message: string) => {
+    emitNotification(message, 'warning', {
+      priority: EventPriority.HIGH,
+      persistent: true,
+      source: EventSource.CLIENT
+    })
+  }
+}
+
+/**
+ * Handle SSE events from the API
+ * Converts SSE messages to event bus events
+ */
+export function handleSSEMessage(event: MessageEvent, phase?: string) {
+  try {
+    const data = typeof event.data === 'string' ? 
+      { message: event.data } : 
+      JSON.parse(event.data)
+    
+    // Add phase label if provided
+    let message = data.message || event.data
+    if (phase) {
+      const phaseLabel = `[${phase.toUpperCase().replace('-', '_')}]`
+      message = `${phaseLabel} ${message}`
+    }
+    
+    // Determine event type and priority
+    const isError = message.toLowerCase().includes('error') || 
+                   message.toLowerCase().includes('failed')
+    const isSuccess = message.toLowerCase().includes('complete') || 
+                     message.toLowerCase().includes('success')
+    
+    emitNotification(
+      message,
+      isError ? 'error' : isSuccess ? 'success' : 'info',
+      {
+        priority: isError ? EventPriority.CRITICAL : 
+                 isSuccess ? EventPriority.HIGH : 
+                 EventPriority.NORMAL,
+        source: EventSource.SSE,
+        correlationId: data.correlationId
+      }
+    )
+  } catch (error) {
+    permanentLogger.captureError('MIGRATION', error, { message: 'Failed to handle SSE message', event })
+  }
+}
+
+/**
+ * Migration helper to wrap existing components
+ * Use this to gradually migrate components to new system
+ */
+export function withNotificationMigration<P extends object>(
+  Component: React.ComponentType<P>
+): React.ComponentType<P> {
+  return (props: P) => {
+    // Inject migration hooks into component props
+    const enhancedProps = {
+      ...props,
+      addNotification,
+      removeNotification,
+      clearAllNotifications,
+      persistentToast
+    }
+    
+    return <Component {...enhancedProps as P} />
+  }
+}
+
+// Create migration hooks for backward compatibility
+export function createMigrationHooks() {
+  return {
+    addNotification,
+    removeNotification,
+    clearAllNotifications,
+    persistentToast,
+    handleSSEMessage,
+    withNotificationMigration
+  }
+}

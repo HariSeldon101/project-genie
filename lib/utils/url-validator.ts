@@ -1,0 +1,173 @@
+/**
+ * URL Validation Utility
+ *
+ * Validates that URLs actually exist (return 200-299 status codes)
+ * before including them in sitemaps or scraping operations.
+ *
+ * CRITICAL: Prevents phantom URLs from being scraped
+ */
+
+import { permanentLogger } from './permanent-logger'
+import { httpHead } from './http-fetcher'
+
+/**
+ * Validates a single URL by making a HEAD request
+ * Returns true if URL exists (200-299 status), false otherwise
+ * NOW FOLLOWS REDIRECTS to handle cases like bigfluffy.ai -> www.bigfluffy.ai
+ */
+export async function validateUrlExists(url: string): Promise<boolean> {
+  const startTime = Date.now()
+
+  try {
+    permanentLogger.breadcrumb('url_validation_start', `Validating URL: ${url}`)
+
+    // Use httpHead to check if URL exists, following redirects
+    const result = await httpHead(url, {
+      timeout: 5000,
+      maxRedirects: 5
+    })
+
+    const duration = Date.now() - startTime
+    const exists = result.ok // 200-299 status codes
+
+    permanentLogger.breadcrumb('url_validation_complete', `URL validation completed`, {
+      url,
+      exists,
+      status: result.status,
+      finalUrl: result.finalUrl,
+      redirectCount: result.redirectCount,
+      duration
+    })
+
+    if (!exists) {
+      permanentLogger.info('URL_VALIDATOR', `URL does not exist or is not accessible`, {
+        url,
+        status: result.status,
+        statusText: result.statusText,
+        finalUrl: result.finalUrl,
+        redirectCount: result.redirectCount,
+        duration
+      })
+    } else if (result.redirectCount > 0) {
+      // Log successful validation with redirects for debugging
+      permanentLogger.info('URL_VALIDATOR', `URL validated successfully after redirects`, {
+        originalUrl: url,
+        finalUrl: result.finalUrl,
+        redirectCount: result.redirectCount,
+        status: result.status,
+        duration
+      })
+    }
+
+    return exists
+    
+  } catch (error) {
+    const duration = Date.now() - startTime
+    
+    permanentLogger.breadcrumb('url_validation_error', `URL validation failed`, {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+      duration
+    })
+    
+    permanentLogger.warn('URL_VALIDATOR', `Failed to validate URL`, {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+      duration
+    })
+    
+    // If we can't validate (network error, timeout, etc), assume URL doesn't exist
+    return false
+  }
+}
+
+/**
+ * Validates multiple URLs in parallel
+ * Returns array of valid URLs that actually exist
+ */
+export async function validateUrls(urls: string[]): Promise<string[]> {
+  const startTime = Date.now()
+  
+  permanentLogger.info('URL_VALIDATOR', `Starting batch URL validation`, {
+    totalUrls: urls.length
+  })
+  
+  // Validate all URLs in parallel
+  const validationResults = await Promise.all(
+    urls.map(async (url) => ({
+      url,
+      exists: await validateUrlExists(url)
+    }))
+  )
+  
+  // Filter to only valid URLs
+  const validUrls = validationResults
+    .filter(result => result.exists)
+    .map(result => result.url)
+  
+  const duration = Date.now() - startTime
+  const invalidCount = urls.length - validUrls.length
+  
+  permanentLogger.info('URL_VALIDATOR', `Batch URL validation completed`, {
+    totalUrls: urls.length,
+    validUrls: validUrls.length,
+    invalidUrls: invalidCount,
+    duration,
+    averageTimePerUrl: Math.round(duration / urls.length)
+  })
+  
+  if (invalidCount > 0) {
+    const invalidUrls = validationResults
+      .filter(result => !result.exists)
+      .map(result => result.url)
+    
+    permanentLogger.warn('URL_VALIDATOR', `Found invalid/phantom URLs`, {
+      invalidCount,
+      invalidUrls
+    })
+  }
+  
+  return validUrls
+}
+
+/**
+ * Checks if a URL is well-formed (syntactically valid)
+ * Does NOT check if the URL actually exists
+ */
+export function isValidUrlFormat(url: string): boolean {
+  try {
+    new URL(url)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Normalizes a URL by removing fragments and trailing slashes
+ */
+export function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.hash = ''
+    // Remove trailing slash unless it's the root path
+    if (parsed.pathname !== '/' && parsed.pathname.endsWith('/')) {
+      parsed.pathname = parsed.pathname.slice(0, -1)
+    }
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
+/**
+ * Extracts the domain from a URL
+ */
+export function extractDomain(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname
+  } catch {
+    return ''
+  }
+}

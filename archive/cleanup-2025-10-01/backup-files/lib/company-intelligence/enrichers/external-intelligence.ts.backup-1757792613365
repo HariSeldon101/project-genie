@@ -1,0 +1,371 @@
+/**
+ * External Intelligence Types
+ * Comprehensive types for all external data sources including financial, social, and business data
+ * Following DRY principles with shared base interfaces
+ */
+
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+
+// Base interface for all external data sources (DRY principle)
+export interface ExternalDataSource {
+  id?: string
+  sessionId: string
+  sourceType: 'financial' | 'linkedin' | 'social' | 'google_business' | 'news' | 'regulatory'
+  fetchedAt: Date
+  confidence: number // 0-1 confidence score
+  metadata?: Record<string, any>
+}
+
+// Financial & Investor Relations Types
+export interface FinancialData extends ExternalDataSource {
+  sourceType: 'financial'
+  isPublic: boolean
+  ticker?: string
+  exchange?: string // NYSE, NASDAQ, LSE, etc.
+  marketCap?: number
+  sharePrice?: number
+  priceChange?: number
+  priceChangePercent?: number
+  dayHigh?: number
+  dayLow?: number
+  volume?: number
+  peRatio?: number
+  eps?: number
+  dividendYield?: number
+  beta?: number
+  fiftyTwoWeekHigh?: number
+  fiftyTwoWeekLow?: number
+  lastUpdated?: Date
+  currency?: string
+}
+
+export interface InvestorRelations {
+  irPageUrl?: string
+  latestEarningsDate?: Date
+  latestEarningsUrl?: string
+  nextEarningsDate?: Date
+  annualReports: AnnualReport[]
+  quarterlyReports: QuarterlyReport[]
+  pressReleases: PressRelease[]
+  regulatoryFilings: RegulatoryFiling[]
+  investorPresentations: InvestorPresentation[]
+  financialCalendar?: FinancialCalendar[]
+}
+
+export interface AnnualReport {
+  year: number
+  url: string
+  title: string
+  publishedDate: Date
+  fileSize?: string
+}
+
+export interface QuarterlyReport {
+  year: number
+  quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4'
+  url: string
+  publishedDate: Date
+}
+
+export interface PressRelease {
+  title: string
+  url: string
+  date: Date
+  category?: string
+  summary?: string
+}
+
+export interface RegulatoryFiling {
+  type: string // 10-K, 10-Q, 8-K, etc.
+  description: string
+  url: string
+  filedDate: Date
+  regulator: 'SEC' | 'FCA' | 'LSE' | 'ASX' | 'other'
+}
+
+export interface InvestorPresentation {
+  title: string
+  url: string
+  date: Date
+  event?: string // Conference name, etc.
+}
+
+export interface FinancialCalendar {
+  eventType: 'earnings' | 'dividend' | 'conference' | 'agm' | 'other'
+  eventName: string
+  date: Date
+  description?: string
+}
+
+// LinkedIn Company Types
+export interface LinkedInCompanyData extends ExternalDataSource {
+  sourceType: 'linkedin'
+  companyUrl: string
+  companyId?: string
+  name: string
+  tagline?: string
+  description: string
+  logo?: string
+  coverImage?: string
+  websiteUrl?: string
+  industry: string
+  companySize: string // e.g., "10,001+ employees"
+  employeeCount?: number
+  employeeGrowth?: number // Percentage over last year
+  headquarters: LinkedInLocation
+  founded?: number
+  specialties: string[]
+  companyType?: string // Public, Private, Non-profit, etc.
+  verified?: boolean
+  followers: number
+  recentPosts: LinkedInPost[]
+  jobOpenings?: number
+  locations: LinkedInLocation[]
+}
+
+export interface LinkedInLocation {
+  city?: string
+  state?: string
+  country: string
+  address?: string
+  postalCode?: string
+}
+
+export interface LinkedInPost {
+  id: string
+  content: string
+  url: string
+  publishedDate: Date
+  likes: number
+  comments: number
+  shares: number
+  mediaType?: 'text' | 'image' | 'video' | 'article' | 'document'
+  mediaUrl?: string
+}
+
+// Social Media Types
+export interface SocialProfile extends ExternalDataSource {
+  sourceType: 'social'
+  platform: 'twitter' | 'facebook' | 'instagram' | 'youtube' | 'tiktok'
+  profileUrl: string
+  username: string
+  displayName?: string
+  bio?: string
+  profileImage?: string
+  verified: boolean
+  followers: number
+  following?: number
+  posts?: number
+  engagement: EngagementMetrics
+  lastPostDate?: Date
+  joinedDate?: Date
+  recentActivity: SocialActivity[]
+}
+
+export interface EngagementMetrics {
+  averageLikes: number
+  averageComments: number
+  averageShares: number
+  engagementRate: number // Percentage
+  postFrequency?: string // e.g., "3 per week"
+}
+
+export interface SocialActivity {
+  type: 'post' | 'story' | 'reel' | 'video' | 'tweet'
+  content?: string
+  url: string
+  date: Date
+  likes: number
+  comments: number
+  shares?: number
+  views?: number
+}
+
+// Google Business Types
+export interface GoogleBusinessData extends ExternalDataSource {
+  sourceType: 'google_business'
+  businessName: string
+  placeId?: string
+  verified: boolean
+  category: string
+  subcategories?: string[]
+  address: string
+  phone?: string
+  website?: string
+  hours: BusinessHours[]
+  currentStatus?: 'open' | 'closed' | 'temporarily_closed'
+  rating: number
+  reviewCount: number
+  priceLevel?: '$' | '$$' | '$$$' | '$$$$'
+  popularTimes?: PopularTimes[]
+  photos: BusinessPhoto[]
+  reviews: GoogleReview[]
+  attributes: string[] // e.g., "Wheelchair accessible", "Free Wi-Fi"
+  location: {
+    lat: number
+    lng: number
+  }
+}
+
+export interface BusinessHours {
+  day: string
+  open: string
+  close: string
+  isOpen: boolean
+}
+
+export interface PopularTimes {
+  day: string
+  hours: Array<{
+    hour: number
+    occupancyPercent: number
+  }>
+}
+
+export interface BusinessPhoto {
+  url: string
+  caption?: string
+  type: 'exterior' | 'interior' | 'product' | 'team' | 'other'
+}
+
+export interface GoogleReview {
+  author: string
+  rating: number
+  text: string
+  date: Date
+  helpful?: number
+  responseFromOwner?: string
+  responseDate?: Date
+}
+
+// News & Regulatory Types
+export interface NewsItem extends ExternalDataSource {
+  sourceType: 'news' | 'regulatory'
+  title: string
+  url: string
+  source: string
+  publishedDate: Date
+  author?: string
+  summary: string
+  fullText?: string
+  sentiment: 'positive' | 'negative' | 'neutral'
+  sentimentScore: number // -1 to 1
+  relevanceScore: number // 0 to 1
+  categories: string[]
+  entities: string[] // Companies, people, locations mentioned
+  isRegulatory: boolean
+  regulatoryType?: string // SEC filing, RNS, etc.
+  images?: Array<{
+    url: string
+    caption?: string
+  }>
+}
+
+// Aggregated External Intelligence
+export interface ExternalIntelligence {
+  sessionId: string
+  companyName: string
+  domain: string
+  financial?: FinancialData
+  investorRelations?: InvestorRelations
+  linkedIn?: LinkedInCompanyData
+  socialProfiles: SocialProfile[]
+  googleBusiness?: GoogleBusinessData
+  news: NewsItem[]
+  lastUpdated: Date
+  completeness: number // 0-100 percentage of data found
+  enrichmentDuration: number // Time in ms
+}
+
+// Enrichment Result Type
+export interface EnrichmentResult {
+  success: boolean
+  source: string
+  data?: any
+  error?: string
+  duration: number
+  timestamp: Date
+}
+
+// Helper function to calculate data completeness
+export function calculateCompleteness(intelligence: ExternalIntelligence): number {
+  permanentLogger.info('Calculating data completeness', { category: 'EXTERNAL_INTELLIGENCE', sessionId: intelligence.sessionId })
+  
+  let score = 0
+  let maxScore = 0
+  
+  // Financial data (20 points if public)
+  if (intelligence.financial?.isPublic) {
+    maxScore += 20
+    if (intelligence.financial.ticker) score += 5
+    if (intelligence.financial.marketCap) score += 5
+    if (intelligence.financial.sharePrice) score += 5
+    if (intelligence.investorRelations?.irPageUrl) score += 5
+  }
+  
+  // LinkedIn (25 points)
+  maxScore += 25
+  if (intelligence.linkedIn) {
+    if (intelligence.linkedIn.companyUrl) score += 5
+    if (intelligence.linkedIn.employeeCount) score += 5
+    if (intelligence.linkedIn.description) score += 5
+    if (intelligence.linkedIn.recentPosts.length > 0) score += 5
+    if (intelligence.linkedIn.specialties.length > 0) score += 5
+  }
+  
+  // Social profiles (20 points)
+  maxScore += 20
+  const socialScore = Math.min(20, intelligence.socialProfiles.length * 5)
+  score += socialScore
+  
+  // Google Business (15 points)
+  maxScore += 15
+  if (intelligence.googleBusiness) {
+    if (intelligence.googleBusiness.rating) score += 5
+    if (intelligence.googleBusiness.hours.length > 0) score += 5
+    if (intelligence.googleBusiness.reviews.length > 0) score += 5
+  }
+  
+  // News (20 points)
+  maxScore += 20
+  const newsScore = Math.min(20, intelligence.news.length * 2)
+  score += newsScore
+  
+  const completeness = Math.round((score / maxScore) * 100)
+  
+  permanentLogger.info('Completeness calculated', { category: 'EXTERNAL_INTELLIGENCE', score,
+    maxScore,
+    completeness: `${completeness}%` })
+  
+  return completeness
+}
+
+// Helper function to determine if company is likely public
+export function isLikelyPublicCompany(companyName: string, linkedIn?: LinkedInCompanyData): boolean {
+  permanentLogger.info('Checking if company is likely public', { category: 'EXTERNAL_INTELLIGENCE', companyName,
+    hasLinkedIn: !!linkedIn })
+  
+  // Check LinkedIn company type
+  if (linkedIn?.companyType?.toLowerCase().includes('public')) {
+    return true
+  }
+  
+  // Check employee count (rough heuristic)
+  if (linkedIn?.employeeCount && linkedIn.employeeCount > 5000) {
+    return true // Large companies are often public
+  }
+  
+  // Check for common public company indicators in name
+  const publicIndicators = ['Inc.', 'Corp.', 'Corporation', 'PLC', 'plc', 'Ltd.', 'AG', 'S.A.', 'N.V.']
+  const hasIndicator = publicIndicators.some(indicator => 
+    companyName.includes(indicator)
+  )
+  
+  permanentLogger.info('Public company check result', { category: 'EXTERNAL_INTELLIGENCE', ...{
+    companyName,
+    isLikelyPublic: hasIndicator,
+    indicators: publicIndicators.filter(i => companyName.includes(i }))
+  })
+  
+  return hasIndicator
+}

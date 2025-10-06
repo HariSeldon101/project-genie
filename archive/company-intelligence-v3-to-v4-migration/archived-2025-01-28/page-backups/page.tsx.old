@@ -1,0 +1,606 @@
+'use client'
+
+// ULTRA-NUCLEAR: Force dynamic rendering
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+import { useState, useEffect, useRef, Suspense, useCallback } from 'react'
+import dynamic from 'next/dynamic'
+import { AnimatedBackgroundSubtle } from '@/components/animated-background-subtle'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { TooltipWrapper } from '@/components/company-intelligence/tooltip-wrapper'
+import { permanentLogger } from '@/lib/utils/permanent-logger'
+
+// Import unified SSE hook for real-time updates
+import { useIntelligenceSSE } from '@/lib/hooks/use-sse'
+import { 
+  IntelligenceEventType,
+  type SessionCreatedData,
+  type SessionCompleteData,
+  type CategoryExtractedData 
+} from '@/lib/realtime-events'
+
+// Lazy load heavy components for better performance
+const PhaseControls = dynamic(
+  () => import('@/components/company-intelligence/phase-controls').then(mod => ({ default: mod.PhaseControls })),
+  {
+    loading: () => (
+      <div className="animate-pulse">
+        <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg" />
+      </div>
+    ),
+    ssr: false
+  }
+)
+
+const ScrapingDashboard = dynamic(
+  () => import('@/components/company-intelligence/scraping-dashboard').then(mod => ({ default: mod.ScrapingDashboard })),
+  {
+    loading: () => (
+      <div className="animate-pulse">
+        <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg" />
+      </div>
+    ),
+    ssr: false
+  }
+)
+
+const ResultsViewer = dynamic(
+  () => import('@/components/company-intelligence/results-viewer').then(mod => ({ default: mod.ResultsViewer })),
+  {
+    loading: () => <div className="h-64 bg-gray-50 dark:bg-gray-800 animate-pulse rounded" />
+  }
+)
+
+const LLMMonitor = dynamic(
+  () => import('@/components/company-intelligence/llm-monitor').then(mod => ({ default: mod.LLMMonitor })),
+  {
+    loading: () => <div className="h-32 bg-gray-50 dark:bg-gray-800 animate-pulse rounded" />
+  }
+)
+
+const RateLimitIndicator = dynamic(
+  () => import('@/components/company-intelligence/rate-limit-indicator').then(mod => ({ default: mod.RateLimitIndicator })),
+  {
+    loading: () => null
+  }
+)
+
+const DebugDataViewer = dynamic(
+  () => import('@/components/company-intelligence/debug-data-viewer').then(mod => ({ default: mod.DebugDataViewer })),
+  {
+    loading: () => <div className="h-48 bg-gray-50 dark:bg-gray-800 animate-pulse rounded" />
+  }
+)
+
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
+import {
+  AlertCircle,
+  CheckCircle2,
+  Database,
+  FileText,
+  Globe,
+  Info,
+  Layers,
+  Map,
+  Search,
+  Sparkles,
+  ExternalLink
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
+
+type Stage = 'site-analysis' | 'sitemap' | 'scraping' | 'extraction' | 'data-review' | 'enrichment' | 'generation'
+
+const STAGES = [
+  { id: 'site-analysis' as Stage, label: 'Site Analysis', icon: Globe },
+  { id: 'sitemap' as Stage, label: 'Sitemap', icon: Map },
+  { id: 'scraping' as Stage, label: 'Scraping', icon: Search },
+  { id: 'extraction' as Stage, label: 'Extraction', icon: Database },
+  { id: 'data-review' as Stage, label: 'Review', icon: CheckCircle2 },
+  { id: 'enrichment' as Stage, label: 'AI Enrichment', icon: Sparkles },
+  { id: 'generation' as Stage, label: 'Generation', icon: FileText }
+]
+
+export default function CompanyIntelligencePage() {
+  const router = useRouter()
+  
+  // Component lifecycle logging
+  useEffect(() => {
+    permanentLogger.breadcrumb('PAGE_MOUNT', 'Company Intelligence page mounted')
+    return () => {
+      permanentLogger.breadcrumb('PAGE_UNMOUNT', 'Company Intelligence page unmounted')
+    }
+  }, [])
+
+  const [domain, setDomain] = useState('')
+  const [domainError, setDomainError] = useState('')
+  const [result, setResult] = useState<any>(null)
+  const [currentPhase, setCurrentPhase] = useState<'idle' | 'site-analysis' | 'sitemap' | 'scraping' | 'enrichment' | 'generation'>('idle')
+  const [currentStage, setCurrentStage] = useState<Stage>('site-analysis')
+  const [completedStages, setCompletedStages] = useState<Set<Stage>>(new Set())
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [useV3UI, setUseV3UI] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  // Use unified SSE hook for real-time updates when session is active
+  const {
+    isConnected,
+    sessionInfo,
+    completionInfo,
+    progress,
+    progressPercentage,
+    extractedCategories,
+    totalItemsExtracted,
+    isSessionActive,
+    error: sseError
+  } = useIntelligenceSSE(sessionId || '', {
+    autoConnect: !!sessionId,
+    onConnect: () => {
+      permanentLogger.info('PAGE_CI', 'SSE connected', { sessionId })
+    },
+    onError: (error) => {
+      permanentLogger.captureError('PAGE_CI', error, { sessionId })
+      toast.error(`Stream error: ${error.message}`)
+    }
+  })
+
+  // Handle session creation from SSE
+  useEffect(() => {
+    if (sessionInfo) {
+      permanentLogger.info('PAGE_CI', 'Session created via SSE', {
+        sessionId: sessionInfo.sessionId,
+        domain: sessionInfo.domain
+      })
+      
+      // Update local state
+      setCurrentPhase('scraping')
+      setCurrentStage('scraping')
+      setIsProcessing(true)
+    }
+  }, [sessionInfo])
+
+  // Handle session completion from SSE
+  useEffect(() => {
+    if (completionInfo) {
+      permanentLogger.info('PAGE_CI', 'Session completed via SSE', {
+        sessionId: completionInfo.sessionId,
+        totalItems: completionInfo.totalItems,
+        duration: completionInfo.duration
+      })
+      
+      // Update local state
+      setCurrentPhase('generation')
+      setCompletedStages(new Set(STAGES.map(s => s.id)))
+      setIsProcessing(false)
+      setResult(completionInfo)
+      
+      // Show completion toast
+      toast.success(`Scraping complete! Found ${completionInfo.totalItems} items`)
+    }
+  }, [completionInfo])
+
+  // Update progress based on SSE events
+  useEffect(() => {
+    if (progress && isProcessing) {
+      // Map progress to stages
+      const progressValue = progressPercentage || 0
+      
+      if (progressValue < 20) {
+        setCurrentStage('site-analysis')
+      } else if (progressValue < 40) {
+        setCurrentStage('sitemap')
+      } else if (progressValue < 60) {
+        setCurrentStage('scraping')
+      } else if (progressValue < 80) {
+        setCurrentStage('extraction')
+      } else if (progressValue < 90) {
+        setCurrentStage('data-review')
+      } else if (progressValue < 95) {
+        setCurrentStage('enrichment')
+      } else {
+        setCurrentStage('generation')
+      }
+      
+      // Update completed stages
+      const stageIndex = Math.floor(progressValue / (100 / STAGES.length))
+      const completed = new Set(STAGES.slice(0, stageIndex).map(s => s.id))
+      setCompletedStages(completed)
+    }
+  }, [progress, progressPercentage, isProcessing])
+
+  // Show category extraction updates
+  useEffect(() => {
+    if (extractedCategories.length > 0) {
+      const latestCategory = extractedCategories[extractedCategories.length - 1]
+      permanentLogger.breadcrumb('PAGE_CI', 'Category extracted', {
+        category: latestCategory.category,
+        itemCount: latestCategory.itemsCount
+      })
+    }
+  }, [extractedCategories])
+
+  const validateDomain = (input: string) => {
+    const trimmed = input.trim()
+    
+    if (!trimmed) {
+      setDomainError('')
+      return true
+    }
+    
+    let domain = trimmed
+    domain = domain.replace(/^https?:\/\//i, '')
+    domain = domain.replace(/^www\./i, '')
+    domain = domain.split('/')[0]
+    domain = domain.split(':')[0]
+    
+    const domainParts = domain.split('.')
+    
+    if (domainParts.length < 2) {
+      setDomainError('Please enter a valid domain (e.g., example.com)')
+      return false
+    }
+    
+    for (const part of domainParts) {
+      if (!part || !/^[a-zA-Z0-9-]+$/.test(part)) {
+        setDomainError('Domain contains invalid characters')
+        return false
+      }
+      
+      if (part.startsWith('-') || part.endsWith('-')) {
+        setDomainError('Domain parts cannot start or end with hyphens')
+        return false
+      }
+    }
+    
+    const tld = domainParts[domainParts.length - 1]
+    if (tld.length < 2 || !/^[a-zA-Z]+$/.test(tld)) {
+      setDomainError('Invalid top-level domain')
+      return false
+    }
+    
+    if (domain.includes('..') || domain.includes('--')) {
+      setDomainError('Domain contains invalid character sequences')
+      return false
+    }
+    
+    setDomainError('')
+    return true
+  }
+  
+  const handleDomainChange = (value: string) => {
+    setDomain(value)
+    if (value) {
+      validateDomain(value)
+    } else {
+      setDomainError('')
+    }
+  }
+  
+  const handleStartAnalysis = () => {
+    if (validateDomain(domain) && domain) {
+      permanentLogger.info('PAGE_CI', 'Starting analysis', { domain })
+      setCurrentPhase('site-analysis')
+      setIsProcessing(true)
+    }
+  }
+
+  const handleReset = useCallback(() => {
+    permanentLogger.info('PAGE_CI', 'Resetting state', { 
+      previousDomain: domain,
+      previousSessionId: sessionId 
+    })
+    
+    setDomain('')
+    setDomainError('')
+    setCurrentStage('site-analysis')
+    setCompletedStages(new Set())
+    setResult(null)
+    setSessionId(null)
+    setCurrentPhase('idle')
+    setIsProcessing(false)
+  }, [domain, sessionId])
+
+  const handleViewIntelligence = useCallback(() => {
+    if (sessionId) {
+      permanentLogger.info('PAGE_CI', 'Navigating to viewer', { sessionId })
+      router.push(`/company-intelligence/intelligence-viewer/${sessionId}`)
+    }
+  }, [sessionId, router])
+
+  return (
+    <div className="relative min-h-screen">
+      <AnimatedBackgroundSubtle />
+
+      {/* LLM Monitor - Only visible when LLM operations are active */}
+      <LLMMonitor alwaysVisible={false} />
+      
+      <div className="relative z-10 container mx-auto p-4 space-y-6 pt-20">
+        {/* Rate Limit Indicator */}
+        <div className="fixed top-4 right-4 z-40">
+          <RateLimitIndicator compact />
+        </div>
+        
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold mb-2">Company Intelligence</h1>
+          <p className="text-muted-foreground">Research companies with intelligent web scraping and AI analysis</p>
+
+          {/* UI Version Toggle */}
+          <div className="flex items-center justify-center gap-3 mt-4">
+            <TooltipWrapper content="Classic multi-phase workflow">
+              <div className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="ui-toggle" className="text-sm">Classic</Label>
+              </div>
+            </TooltipWrapper>
+
+            <Switch
+              id="ui-toggle"
+              checked={useV3UI}
+              onCheckedChange={setUseV3UI}
+            />
+
+            <TooltipWrapper content="New v3 UI with data selection">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="ui-toggle" className="text-sm font-medium">v3 UI</Label>
+                <Sparkles className="h-4 w-4 text-primary" />
+                <Badge className="text-xs bg-green-500">NEW</Badge>
+              </div>
+            </TooltipWrapper>
+          </div>
+        </div>
+        
+        {/* SSE Connection Status */}
+        {sessionId && !isConnected && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Connection Lost</AlertTitle>
+            <AlertDescription>
+              Real-time updates disconnected. Trying to reconnect...
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* SSE Error Display */}
+        {sseError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{sseError}</AlertDescription>
+          </Alert>
+        )}
+        
+        {/* Main Container */}
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          {/* Top Row: Domain and Progress */}
+          <div className="flex gap-6 items-end">
+            {/* Domain Selection */}
+            <Card className={useV3UI ? "w-full" : "w-[25%] shrink-0"}>
+              {!domain && (
+                <div className="bg-green-500 text-white text-center py-2 px-3 rounded-t-lg">
+                  <p className="text-sm font-semibold">👉 Start Here</p>
+                </div>
+              )}
+              <CardHeader className={`${!domain ? 'pt-3' : ''} pb-2`}>
+                <CardTitle className="text-base">Company Domain</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <input
+                  type="text"
+                  value={domain}
+                  onChange={(e) => handleDomainChange(e.target.value)}
+                  placeholder="e.g., bigfluffy.ai"
+                  className={`w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 text-sm ${
+                    domainError ? 'border-red-500' : ''
+                  }`}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleStartAnalysis()
+                    }
+                  }}
+                  disabled={isProcessing}
+                  autoFocus
+                />
+                {domainError && (
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{domainError}</AlertDescription>
+                  </Alert>
+                )}
+                {domain ? (
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-2">
+                    <p className="text-xs text-muted-foreground mb-1">Researching:</p>
+                    <p className="text-sm font-semibold text-primary">{domain}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Enter domain and press Enter
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Research Progress - Classic UI */}
+            {domain && !useV3UI && (
+              <Card className="w-[75%]">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Research Progress</CardTitle>
+                  <CardDescription className="text-xs">
+                    Stage {STAGES.findIndex(s => s.id === currentStage) + 1} of {STAGES.length}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {/* SSE-driven progress bar */}
+                    <Progress value={isSessionActive ? progressPercentage : (completedStages.size / STAGES.length) * 100} className="h-2" />
+                    
+                    {/* Real-time stats from SSE */}
+                    {isSessionActive && (
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{totalItemsExtracted} items found</span>
+                        <span>{extractedCategories.length} categories</span>
+                        <span>{progressPercentage}% complete</span>
+                      </div>
+                    )}
+                    
+                    {/* Stage indicators */}
+                    <div className="flex items-center justify-between">
+                      {STAGES.map((stage, index) => {
+                        const Icon = stage.icon
+                        const isCompleted = completedStages.has(stage.id)
+                        const isCurrent = stage.id === currentStage
+                        const isPending = index > STAGES.findIndex(s => s.id === currentStage)
+                        
+                        return (
+                          <div
+                            key={stage.id}
+                            className={`flex flex-col items-center ${
+                              isPending ? 'opacity-50' : ''
+                            }`}
+                          >
+                            <div
+                              className={`rounded-full p-2 ${
+                                isCompleted
+                                  ? 'bg-green-500 text-white'
+                                  : isCurrent
+                                  ? 'bg-blue-500 text-white animate-pulse'
+                                  : 'bg-gray-200 dark:bg-gray-700'
+                              }`}
+                            >
+                              {isCompleted ? (
+                                <CheckCircle2 className="h-4 w-4" />
+                              ) : (
+                                <Icon className="h-4 w-4" />
+                              )}
+                            </div>
+                            <span className="text-xs mt-1">{stage.label}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          
+          {/* View Intelligence Button - Shows when session is active or complete */}
+          {sessionId && (
+            <div className="flex justify-center">
+              <Button
+                onClick={handleViewIntelligence}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View Intelligence Dashboard
+              </Button>
+            </div>
+          )}
+          
+          {/* Main Scraping Interface */}
+          {domain && (
+            <div className="w-full">
+              {useV3UI ? (
+                <Suspense fallback={
+                  <div className="animate-pulse">
+                    <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg" />
+                  </div>
+                }>
+                  <ScrapingDashboard
+                    domain={domain}
+                    sessionId={sessionId || undefined}
+                    onEnrichmentReady={(selectedData) => {
+                      permanentLogger.info('PAGE_CI', 'Enrichment ready', {
+                        domain,
+                        dataCount: Object.keys(selectedData).length
+                      })
+                      setCurrentPhase('enrichment')
+                      setResult(selectedData)
+                    }}
+                  />
+                </Suspense>
+              ) : (
+                <Suspense fallback={
+                  <div className="animate-pulse">
+                    <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg" />
+                  </div>
+                }>
+                  <PhaseControls
+                    domain={domain}
+                    hideProgressCard={true}
+                    onReset={handleReset}
+                    onSessionCreated={(newSessionId) => {
+                      permanentLogger.info('PAGE_CI', 'Session created', { 
+                        sessionId: newSessionId,
+                        domain 
+                      })
+                      setSessionId(newSessionId)
+                    }}
+                    onPhaseComplete={(phase, data) => {
+                      permanentLogger.info('PAGE_CI', 'Phase completed', { 
+                        phase,
+                        hasData: !!data 
+                      })
+                      setCompletedStages(prev => new Set([...prev, phase as Stage]))
+                      const nextIndex = STAGES.findIndex(s => s.id === phase) + 1
+                      if (nextIndex < STAGES.length) {
+                        setCurrentStage(STAGES[nextIndex].id)
+                      }
+                      if (phase === 'generation' && data) {
+                        setResult(data)
+                        setIsProcessing(false)
+                      }
+                    }}
+                  />
+                </Suspense>
+              )}
+            </div>
+          )}
+          
+          {/* Results Display */}
+          {result && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Research Results</CardTitle>
+                <CardDescription>
+                  Company intelligence report generated successfully
+                  {completionInfo && (
+                    <span className="ml-2">
+                      • {completionInfo.totalItems} items • {completionInfo.categories.length} categories
+                    </span>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Suspense fallback={
+                  <div className="h-64 bg-gray-50 dark:bg-gray-800 animate-pulse rounded" />
+                }>
+                  <ResultsViewer
+                    result={result}
+                    format="html"
+                  />
+                </Suspense>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Debug Data Viewer - Classic UI during scraping */}
+          {sessionId && currentStage === 'scraping' && !useV3UI && (
+            <Suspense fallback={
+              <div className="h-48 bg-gray-50 dark:bg-gray-800 animate-pulse rounded" />
+            }>
+              <DebugDataViewer sessionId={sessionId} />
+            </Suspense>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

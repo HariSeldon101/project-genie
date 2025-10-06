@@ -1,0 +1,14 @@
+Vercel CLI 46.0.1
+The "--no-clipboard" option was ignored because it is the default behavior. Please remove it.
+Retrieving project…
+Deploying hariseldon101s-projects/project-genie
+Uploading [--------------------] (0.0B/735.5KB)
+Uploading [=====---------------] (196.1KB/735.5KB)
+Uploading [==========----------] (372.1KB/735.5KB)
+Uploading [===============-----] (564.1KB/735.5KB)
+Uploading [====================] (735.5KB/735.5KB)
+Inspect: https://vercel.com/hariseldon101s-projects/project-genie/2YHwProfLAp4jnx96JCT9LFZqc5s [5s]
+Preview: https://project-genie-61gecbpd5-hariseldon101s-projects.vercel.app [5s]
+https://project-genie-61gecbpd5-hariseldon101s-projects.vercel.appQueued
+Building
+Error: The file "/vercel/path0/.next/routes-manifest.json" couldn't be found. This is often caused by a misconfiguration in your project.

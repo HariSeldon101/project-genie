@@ -1,10 +1,15 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import type { Database } from '@/lib/database.types'
 
+/**
+ * Creates a typed Supabase client for server-side usage
+ * This enforces type safety at the repository layer
+ */
 export async function createClient() {
   const cookieStore = await cookies()
 
-  return createServerClient(
+  return createSupabaseServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -25,3 +30,7 @@ export async function createClient() {
     }
   )
 }
+
+// Also export as createServerClient for backward compatibility
+// Many API routes are importing this name
+export { createClient as createServerClient }

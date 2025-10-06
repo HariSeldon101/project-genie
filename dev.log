@@ -1,0 +1,64 @@
+
+> project-genie@0.1.0 predev
+> npm run manifest:update && npm run db:types
+
+
+> project-genie@0.1.0 manifest:update
+> tsx scripts/update-manifest.ts
+
+🔍 Scanning project structure...
+📦 Discovering enrichers...
+📦 Discovering extractors...
+🔍 Finding unused components...
+🌐 Mapping API endpoints...
+🚩 Checking feature flags...
+📈 Calculating metrics...
+🎯 Identifying quick wins...
+✅ PROJECT_MANIFEST.json updated successfully!
+
+📊 Manifest Summary:
+═══════════════════════════════════════
+📦 Enrichers: 1 enabled, 8 disabled
+🎨 Components: 97 active, 18 unused
+💾 Database: 5 populated, 22 empty tables
+🌐 API Endpoints: 64 total
+📝 Lines of Code: 172,084
+
+🎯 Quick Wins Available:
+   • Enable 8 enrichers (2 hours, Very High impact)
+   • Use unused UI components (30 minutes per component, Medium impact)
+   • Populate empty database tables (1-2 hours, High impact)
+
+✨ Manifest saved to PROJECT_MANIFEST.json
+
+> project-genie@0.1.0 db:types
+> supabase gen types typescript --local > lib/database.types.tmp && mv lib/database.types.tmp lib/database.types.ts || echo 'Keeping existing database.types.ts'
+
+failed to inspect service: Cannot connect to the Docker daemon at unix:///Users/stuartholmes/.docker/run/docker.sock. Is the docker daemon running?
+Docker Desktop is a prerequisite for local development. Follow the official docs to install: https://docs.docker.com/desktop
+Keeping existing database.types.ts
+
+> project-genie@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.0
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.8.100:3000
+   - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Ready in 2.4s
+ ✓ Compiled /middleware in 268ms (233 modules)
+[Middleware] Path: /, User: anonymous
+ ○ Compiling / ...
+ ✓ Compiled / in 5.3s (1780 modules)
+[PermanentLogger.constructor] Supabase client created successfully
+[Syncfusion] License registered from environment variable
+ GET / 200 in 6231ms
+[PermanentLogger.flush] Buffer length: 1
+[PermanentLogger.flush] Has Supabase client: true
+[PermanentLogger.flush] Attempting to flush 1 logs
+[PermanentLogger.flush] Inserting to permanent_logs table...
+[PermanentLoggerDB] Server-side client created with: service role key (RLS bypass enabled)
+[Middleware] Path: /, User: authenticated
+ GET / 200 in 165ms
