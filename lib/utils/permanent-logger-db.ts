@@ -46,7 +46,6 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { createBrowserClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/database.types'
 
@@ -99,9 +98,9 @@ export class PermanentLoggerDB {
       })
       PermanentLoggerDB.sharedClient = this.supabase
     } else {
-      // Client-side: Use createBrowserClient to read auth from cookies
-      // This is what the rest of the app uses for auth
-      this.supabase = createBrowserClient(url, anonKey)
+      // Client-side: Use regular createClient with anon key
+      // Note: This won't share auth with the main app, but allows logging to work
+      this.supabase = createClient(url, anonKey)
       PermanentLoggerDB.sharedClient = this.supabase
     }
 
