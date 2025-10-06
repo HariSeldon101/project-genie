@@ -3,8 +3,19 @@
  * Captures all console logs, errors, and important events for debugging
  */
 
-import { writeFileSync, appendFileSync, readFileSync, existsSync } from 'fs'
-import { join } from 'path'
+// Only import fs on server-side
+const isServer = typeof window === 'undefined'
+let writeFileSync: any, appendFileSync: any, readFileSync: any, existsSync: any, join: any
+
+if (isServer) {
+  const fs = require('fs')
+  const path = require('path')
+  writeFileSync = fs.writeFileSync
+  appendFileSync = fs.appendFileSync
+  readFileSync = fs.readFileSync
+  existsSync = fs.existsSync
+  join = path.join
+}
 
 export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL'
 
@@ -30,24 +41,28 @@ class PermanentLogger {
   }
 
   constructor() {
+    // Only initialize on server-side
+    if (!isServer) {
+      this.logPath = ''
+      return
+    }
+
     // Store logs in dedicated logs directory to avoid Next.js file watching issues
     const logsDir = join(process.cwd(), 'logs')
-    
+
     // Ensure logs directory exists
-    if (typeof window === 'undefined') {
-      const fs = require('fs')
-      if (!fs.existsSync(logsDir)) {
-        fs.mkdirSync(logsDir, { recursive: true })
-      }
+    const fs = require('fs')
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true })
     }
-    
+
     this.logPath = join(logsDir, 'claude-code-dev-log.md')
     this.initialize()
   }
 
   private initialize() {
-    if (this.isInitialized) return
-    
+    if (!isServer || this.isInitialized) return
+
     // Create or append to log file
     if (!existsSync(this.logPath)) {
       this.createLogFile()
@@ -66,6 +81,8 @@ class PermanentLogger {
   }
 
   private createLogFile() {
+    if (!isServer) return
+
     const header = `# Claude Code Development Log
 
 This file contains permanent logs for debugging persistent issues.
@@ -78,6 +95,8 @@ Generated: ${new Date().toISOString()}
   }
 
   private checkAndRotate() {
+    if (!isServer) return
+
     try {
       const stats = require('fs').statSync(this.logPath)
       if (stats.size > this.maxFileSize) {
@@ -210,8 +229,10 @@ ${entry.stack}
 
       logLine += '\n---\n'
 
-      // Append to file
-      appendFileSync(this.logPath, logLine, 'utf-8')
+      // Append to file (only on server)
+      if (isServer) {
+        appendFileSync(this.logPath, logLine, 'utf-8')
+      }
 
       // Also output to original console for terminal visibility
       if (entry.level === 'ERROR' || entry.level === 'CRITICAL') {
@@ -315,6 +336,8 @@ ${entry.stack}
 
   // Check log for errors (returns count)
   public async checkForErrors(): Promise<number> {
+    if (!isServer) return 0
+
     try {
       const content = readFileSync(this.logPath, 'utf-8')
       const errorMatches = content.match(/## ❌|## 🔥/g) || []
@@ -326,6 +349,8 @@ ${entry.stack}
 
   // Get recent errors
   public async getRecentErrors(count: number = 10): Promise<string[]> {
+    if (!isServer) return []
+
     try {
       const content = readFileSync(this.logPath, 'utf-8')
       const lines = content.split('\n')
