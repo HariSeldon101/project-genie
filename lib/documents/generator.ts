@@ -1022,12 +1022,12 @@ export class DocumentGenerator {
         
         // Log to permanent file
         // logger.docGen(projectId, documentType, 'completed', {
-          ...doc.metadata.usage,
-          generationTimeMs: duration,
-          provider: doc.metadata.provider,
-          model: doc.metadata.model,
-          contentLength: JSON.stringify(doc.content).length
-        })
+        //   ...doc.metadata.usage,
+        //   generationTimeMs: duration,
+        //   provider: doc.metadata.provider,
+        //   model: doc.metadata.model,
+        //   contentLength: JSON.stringify(doc.content).length
+        // })
       } else {
         DevLogger.logWarning(`No usage metadata for ${documentType}`, doc.metadata)
       }
@@ -1130,13 +1130,13 @@ export class DocumentGenerator {
       })
       
       // Log to permanent file
-        // logger.docGen(projectId, 'charter', 'completed', {
-        ...result.usage,
-        generationTimeMs,
-        provider: providerInfo.provider,
-        model: providerInfo.model,
-        reasoningEffort: config.reasoningEffort
-      })
+      // logger.docGen(projectId, 'charter', 'completed', {
+      //   ...result.usage,
+      //   generationTimeMs,
+      //   provider: providerInfo.provider,
+      //   model: providerInfo.model,
+      //   reasoningEffort: config.reasoningEffort
+      // })
       
       // Update aggregated metrics
       this.aggregatedMetrics.totalInputTokens += result.usage.inputTokens || 0
