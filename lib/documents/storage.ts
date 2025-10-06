@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { GeneratedDocument } from '../llm/types'
-// TEMPORARILY DISABLED: Logger causing serverless crashes
-// import { logger } from '../utils/permanent-logger'
+import { logger } from '../utils/permanent-logger'
 import { DevLogger } from '@/lib/utils/dev-logger'
 
 export interface GenerationMetrics {
@@ -46,7 +45,7 @@ export class DocumentStorage {
     // Validate userId is a proper UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!userId || !uuidRegex.test(userId)) {
-      // logger.warn('STORAGE', `Invalid user ID provided: ${userId}. Skipping document storage.`)
+      logger.warn('STORAGE', `Invalid user ID provided: ${userId}. Skipping document storage.`)
       DevLogger.logWarning('Invalid user ID, skipping storage', { userId })
       return [] // Return empty array if no valid user
     }
@@ -113,12 +112,12 @@ export class DocumentStorage {
           .single()
         
         if (error) {
-      // logger.database('INSERT', 'artifacts', false, error.message, { doc: doc.metadata })
+          logger.database('INSERT', 'artifacts', false, error.message, { doc: doc.metadata })
           DevLogger.logError(`Failed to store ${doc.metadata.type}`, error)
           throw error
         }
         
-      // logger.database('INSERT', 'artifacts', true, undefined, { artifactId: data.id, type: doc.metadata.type })
+        logger.database('INSERT', 'artifacts', true, undefined, { artifactId: data.id, type: doc.metadata.type })
         DevLogger.logSuccess(`Stored ${doc.metadata.type}`, { artifactId: data.id })
         artifactIds.push(data.id)
         
@@ -132,7 +131,7 @@ export class DocumentStorage {
           await this.storeAIInsights(data.id, doc.aiInsights)
         }
       } catch (error) {
-      // logger.error('STORAGE', `Failed to store document ${doc.metadata.type}`, error, error.stack)
+        logger.error('STORAGE', `Failed to store document ${doc.metadata.type}`, error, error.stack)
         console.error('Failed to store document:', error)
         throw new Error(`Failed to store ${doc.metadata.type}: ${error.message}`)
       }
@@ -230,10 +229,10 @@ export class DocumentStorage {
       .eq('id', artifactId)
     
     if (error) {
-      // logger.database('UPDATE', 'artifacts', false, error.message, { artifactId, insights })
+      logger.database('UPDATE', 'artifacts', false, error.message, { artifactId, insights })
       console.error('Failed to store AI insights:', error)
     } else {
-      // logger.database('UPDATE', 'artifacts', true, undefined, { artifactId })
+      logger.database('UPDATE', 'artifacts', true, undefined, { artifactId })
     }
   }
 
@@ -258,7 +257,7 @@ export class DocumentStorage {
       })
     
     if (error) {
-      // logger.database('INSERT', 'activity_log', false, error.message, { action, entityId })
+      logger.database('INSERT', 'activity_log', false, error.message, { action, entityId })
       console.error('Failed to log activity:', error)
     }
   }
@@ -341,7 +340,7 @@ export class DocumentStorage {
       
       // Skip analytics if no user (test mode) - user_id is a required UUID field
       if (!user?.id) {
-      // logger.info('ANALYTICS', 'Skipping analytics storage - no authenticated user')
+        logger.info('ANALYTICS', 'Skipping analytics storage - no authenticated user')
         return
       }
       
@@ -372,14 +371,14 @@ export class DocumentStorage {
         })
       
       if (error) {
-      // logger.database('INSERT', 'generation_analytics', false, error.message, metrics)
+        logger.database('INSERT', 'generation_analytics', false, error.message, metrics)
         console.error('Failed to store generation analytics:', error)
         // Don't throw error - analytics failure shouldn't break document storage
       } else {
-      // logger.database('INSERT', 'generation_analytics', true, undefined, { projectId, documentId })
+        logger.database('INSERT', 'generation_analytics', true, undefined, { projectId, documentId })
       }
     } catch (error) {
-      // logger.error('ANALYTICS', 'Error storing generation analytics', error, error.stack)
+      logger.error('ANALYTICS', 'Error storing generation analytics', error, error.stack)
       console.error('Error storing generation analytics:', error)
       // Continue without throwing - analytics is supplementary
     }

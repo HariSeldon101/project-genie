@@ -265,16 +265,13 @@ class PermanentLoggerImpl implements PermanentLogger {
     this.flush().catch(() => {})
   }
 
-  // TRAP FOR DEPRECATED error() METHOD - PROVIDES HELPFUL ERROR MESSAGE
-  // This getter will be called if anyone tries to use permanentLogger.captureError()
-  // TypeScript should prevent this at compile time, but this catches any edge cases
-  get error(): never {
-    throw new Error(
-      '❌ permanentLogger.captureError() does not exist! Use permanentLogger.captureError() instead.\n' +
-      '   captureError() takes an Error object as the second parameter and properly captures stack traces.\n' +
-      '   Example: permanentLogger.captureError("CATEGORY", error as Error, { context: "description" })\n' +
-      '   See CLAUDE.md for correct usage guidelines.'
-    )
+  // COMPATIBILITY METHOD - Maps error() calls to captureError()
+  // This allows existing code that uses logger.error() to work without changes
+  error(category: string, message: string, data?: LogData, stack?: string): void {
+    // Convert the simple error parameters to Error object format for captureError
+    const error = new Error(message)
+    if (stack) error.stack = stack
+    this.captureError(category, error, { metadata: data })
   }
 
   // BREADCRUMB MANAGEMENT
@@ -826,6 +823,10 @@ export const permanentLogger: PermanentLogger = (() => {
 export const createPermanentLogger = (config?: LoggerConfig): PermanentLogger => {
   return new PermanentLoggerImpl(config)
 }
+
+// COMPATIBILITY EXPORT - Allows code to import { logger } instead of { permanentLogger }
+// This makes the proper database-backed logger work with existing code
+export const logger = permanentLogger
 
 // RE-EXPORT TYPES for convenience
 export type { PermanentLogger, LogLevel, LogData, ErrorContext, DatabaseLogEntry }

@@ -3,8 +3,7 @@ import { DocumentGenerator } from '@/lib/documents/generator'
 import { DocumentStorage, GenerationMetrics } from '@/lib/documents/storage'
 import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
-// TEMPORARILY DISABLED: Logger causing serverless crashes
-// import { logger } from '@/lib/utils/permanent-logger'
+import { logger } from '@/lib/utils/permanent-logger'
 
 // Set a maximum time for the entire route (300 seconds / 5 minutes - max for Vercel hobby plan)
 // PRINCE2 documents can take 4-5 minutes per document with retries
@@ -41,10 +40,15 @@ export async function POST(request: NextRequest) {
     },
     timestamp: new Date().toISOString()
   })
-
-  // NOTE: Logger call moved inside try block to prevent serverless crashes
-  // logger.info() was causing initialization issues on Vercel cold starts
-
+  
+  logger.info('API_GENERATE', 'Generate endpoint called', {
+    timestamp: new Date().toISOString(),
+    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasGroqKey: !!process.env.GROQ_API_KEY,
+    runtime: process.env.VERCEL_REGION || 'local'
+  })
+  
   console.log('[API] Environment check:', {
     hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -53,17 +57,8 @@ export async function POST(request: NextRequest) {
     nodeVersion: process.version,
     runtime: process.env.VERCEL_REGION || 'local'
   })
-
+  
   try {
-    // TEMPORARILY DISABLED: Logger causing serverless crashes
-    // logger.info('API_GENERATE', 'Generate endpoint called', {
-    //   timestamp: new Date().toISOString(),
-    //   hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-    //   hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    //   hasGroqKey: !!process.env.GROQ_API_KEY,
-    //   runtime: process.env.VERCEL_REGION || 'local'
-    // })
-
     // Get user session
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -126,11 +121,10 @@ export async function POST(request: NextRequest) {
     
     // For testing purposes, allow unauthenticated requests with forceProvider
     if (!user && !forceProvider) {
-      // TEMPORARILY DISABLED: Logger causing serverless crashes
-      // logger.warn('AUTH_FAILED', 'Authentication failed for generate endpoint', {
-      //   error: authError?.message,
-      //   hasAuthHeader: !!authHeader
-      // })
+      logger.warn('AUTH_FAILED', 'Authentication failed for generate endpoint', {
+        error: authError?.message,
+        hasAuthHeader: !!authHeader
+      })
       console.error('[API] Authentication failed:', authError)
       return NextResponse.json(
         { 
@@ -270,12 +264,11 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
     
-    // TEMPORARILY DISABLED: Logger causing serverless crashes
-    // logger.error('API_ERROR', 'Document generation failed', {
-    //   error: errorMessage,
-    //   type: error?.constructor?.name,
-    //   projectId: request.body ? JSON.parse(await request.text()).projectId : 'unknown'
-    // }, errorStack)
+    logger.error('API_ERROR', 'Document generation failed', {
+      error: errorMessage,
+      type: error?.constructor?.name,
+      projectId: request.body ? JSON.parse(await request.text()).projectId : 'unknown'
+    }, errorStack)
     
     console.error('[API] Document generation error:', {
       error: errorMessage,
