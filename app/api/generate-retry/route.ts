@@ -3,7 +3,7 @@ import { DocumentGenerator } from '@/lib/documents/generator'
 import { DocumentStorage, GenerationMetrics } from '@/lib/documents/storage'
 import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
-import { logger } from '@/lib/utils/permanent-logger'
+import { permanentLogger } from '@/lib/utils/permanent-logger'
 
 // Set maximum duration for retrying
 export const maxDuration = 300 // 5 minutes
@@ -12,7 +12,7 @@ export const runtime = 'nodejs'
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
   
-  logger.info('RETRY_API', 'Generate retry endpoint called', {
+  permanentLogger.info('RETRY_API', 'Generate retry endpoint called', {
     timestamp: new Date().toISOString()
   })
   
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
               error: errorMessage
             })
             
-            logger.error('RETRY_DOCUMENT', `Failed to retry ${docType}`, { error: errorMessage })
+            permanentLogger.error('RETRY_DOCUMENT', `Failed to retry ${docType}`, { error: errorMessage })
           }
         }
         
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
                 count: artifactIds.length
               })
             } catch (storageError) {
-              logger.error('RETRY_STORAGE', 'Failed to store documents', storageError)
+              permanentLogger.error('RETRY_STORAGE', 'Failed to store documents', storageError)
               sendEvent('storage_failed', {
                 error: storageError instanceof Error ? storageError.message : 'Storage failed'
               })
@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        logger.error('RETRY_API', 'Retry generation failed', { error: errorMessage })
+        permanentLogger.error('RETRY_API', 'Retry generation failed', { error: errorMessage })
         sendError('Retry failed', errorMessage)
       } finally {
         // Close the stream
