@@ -265,15 +265,6 @@ class PermanentLoggerImpl implements PermanentLogger {
     this.flush().catch(() => {})
   }
 
-  // COMPATIBILITY METHOD - Maps error() calls to captureError()
-  // This allows existing code that uses logger.error() to work without changes
-  error(category: string, message: string, data?: LogData, stack?: string): void {
-    // Convert the simple error parameters to Error object format for captureError
-    const error = new Error(message)
-    if (stack) error.stack = stack
-    this.captureError(category, error, { metadata: data })
-  }
-
   // BREADCRUMB MANAGEMENT
   breadcrumb(action: string, message: string, data?: BreadcrumbData): void {
     const entry: BreadcrumbEntry = {
@@ -823,10 +814,6 @@ export const permanentLogger: PermanentLogger = (() => {
 export const createPermanentLogger = (config?: LoggerConfig): PermanentLogger => {
   return new PermanentLoggerImpl(config)
 }
-
-// COMPATIBILITY EXPORT - Allows code to import { logger } instead of { permanentLogger }
-// This makes the proper database-backed logger work with existing code
-export const logger = permanentLogger
 
 // RE-EXPORT TYPES for convenience
 export type { PermanentLogger, LogLevel, LogData, ErrorContext, DatabaseLogEntry }

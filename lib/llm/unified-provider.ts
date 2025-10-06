@@ -5,7 +5,7 @@
 
 import OpenAI from 'openai'
 import { z } from 'zod'
-import { logger } from '../utils/permanent-logger'
+import { permanentLogger } from '../utils/permanent-logger'
 
 export interface UnifiedLLMConfig {
   apiKey?: string
@@ -67,7 +67,7 @@ export class UnifiedLLMProvider {
       ...config
     }
 
-    logger.info('LLM_INIT', `UnifiedLLM initialized with model: ${this.config.model}`, {
+    permanentLogger.info('LLM_INIT', `UnifiedLLM initialized with model: ${this.config.model}`, {
       model: this.config.model,
       maxTokens: this.config.maxTokens,
       temperature: this.config.temperature,
@@ -95,7 +95,7 @@ export class UnifiedLLMProvider {
 
       if (this.isGPT5(model)) {
         // GPT-5: Use Responses API
-        logger.info('API_SELECT', `Using Responses API for GPT-5 model: ${model}`)
+        permanentLogger.info('API_SELECT', `Using Responses API for GPT-5 model: ${model}`)
         console.log(`[UnifiedLLM] Using Responses API for ${model}`)
         
         const response = await (this.client as any).responses.create({
@@ -110,7 +110,7 @@ export class UnifiedLLMProvider {
         usage = this.normalizeUsage(response.usage)
       } else {
         // GPT-4 and others: Use Chat Completions API
-        logger.info('API_SELECT', `Using Chat Completions API for model: ${model}`)
+        permanentLogger.info('API_SELECT', `Using Chat Completions API for model: ${model}`)
         console.log(`[UnifiedLLM] Using Chat Completions API for ${model}`)
         
         const response = await this.client.chat.completions.create({
@@ -128,7 +128,7 @@ export class UnifiedLLMProvider {
       }
 
       const generationTime = Date.now() - this.startTime
-      logger.apiCall('unified', model, true, generationTime, usage?.totalTokens)
+      permanentLogger.apiCall('unified', model, true, generationTime, usage?.totalTokens)
       
       return {
         content,
@@ -139,8 +139,10 @@ export class UnifiedLLMProvider {
       }
     } catch (error) {
       const generationTime = Date.now() - this.startTime
-      logger.apiCall('unified', model, false, generationTime, undefined, error.message)
-      logger.error('LLM_ERROR', `UnifiedLLM generation failed for ${model}`, error, error.stack)
+      permanentLogger.apiCall('unified', model, false, generationTime, undefined, error.message)
+      permanentLogger.captureError('LLM_ERROR', error, {
+        metadata: { model, message: `UnifiedLLM generation failed for ${model}` }
+      })
       console.error(`[UnifiedLLM] Generation failed:`, error)
       throw error
     }
@@ -177,9 +179,8 @@ export class UnifiedLLMProvider {
         content: validated
       }
     } catch (error) {
-      logger.error('JSON_PARSE', 'Failed to parse/validate JSON from LLM', {
-        content: cleanContent.substring(0, 500),
-        error: error.message
+      permanentLogger.captureError('JSON_PARSE', error, {
+        metadata: { content: cleanContent.substring(0, 500) }
       })
       console.error('[UnifiedLLM] JSON parse/validation failed:', error)
       throw new Error('Invalid JSON response from LLM')
@@ -236,7 +237,7 @@ export class UnifiedLLMProvider {
       })
       return response.content.toLowerCase().includes('ok')
     } catch (error) {
-      logger.warn('HEALTH_CHECK', 'UnifiedLLM health check failed', error)
+      permanentLogger.warn('HEALTH_CHECK', 'UnifiedLLM health check failed', error)
       console.error('[UnifiedLLM] Health check failed:', error)
       return false
     }

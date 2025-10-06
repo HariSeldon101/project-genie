@@ -10,7 +10,7 @@ import { Prince2PIDSchema, RiskRegisterSchema } from './schemas/prince2-pid'
 import { DocumentQueue } from './queue'
 import { DocumentCache } from './cache'
 import { documentLogger } from '../utils/document-logger'
-import { logger } from '@/lib/utils/permanent-logger'
+import { permanentLogger } from '@/lib/utils/permanent-logger'
 import { TwoStageGenerator, ResearchContext } from './two-stage-generator'
 import { DevLogger } from '@/lib/utils/dev-logger'
 import { SectionedDocumentGenerator } from './sectioned-generator'
@@ -318,7 +318,9 @@ export class DocumentGenerator {
               
             } catch (error) {
               console.error('  ⚠️ Research generation failed, continuing without context:', error)
-              logger.error('TWO_STAGE', 'Research generation failed', error)
+              permanentLogger.captureError('TWO_STAGE', error, {
+                metadata: { stage: 'research generation' }
+              })
             }
           }
           
@@ -534,7 +536,9 @@ export class DocumentGenerator {
               
             } catch (error) {
               console.error('  ⚠️ Research generation failed, continuing without context:', error)
-              logger.error('TWO_STAGE', 'Research generation failed', error)
+              permanentLogger.captureError('TWO_STAGE', error, {
+                metadata: { stage: 'research generation' }
+              })
             }
           }
           
@@ -793,7 +797,9 @@ export class DocumentGenerator {
               
             } catch (error) {
               console.error('  ⚠️ Research generation failed, continuing without context:', error)
-              logger.error('TWO_STAGE', 'Research generation failed', error)
+              permanentLogger.captureError('TWO_STAGE', error, {
+                metadata: { stage: 'research generation' }
+              })
             }
           }
           
