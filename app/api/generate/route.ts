@@ -40,15 +40,10 @@ export async function POST(request: NextRequest) {
     },
     timestamp: new Date().toISOString()
   })
-  
-  logger.info('API_GENERATE', 'Generate endpoint called', {
-    timestamp: new Date().toISOString(),
-    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    hasGroqKey: !!process.env.GROQ_API_KEY,
-    runtime: process.env.VERCEL_REGION || 'local'
-  })
-  
+
+  // NOTE: Logger call moved inside try block to prevent serverless crashes
+  // logger.info() was causing initialization issues on Vercel cold starts
+
   console.log('[API] Environment check:', {
     hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -57,8 +52,17 @@ export async function POST(request: NextRequest) {
     nodeVersion: process.version,
     runtime: process.env.VERCEL_REGION || 'local'
   })
-  
+
   try {
+    // Log API call (moved here to prevent serverless crashes)
+    logger.info('API_GENERATE', 'Generate endpoint called', {
+      timestamp: new Date().toISOString(),
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      hasGroqKey: !!process.env.GROQ_API_KEY,
+      runtime: process.env.VERCEL_REGION || 'local'
+    })
+
     // Get user session
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
