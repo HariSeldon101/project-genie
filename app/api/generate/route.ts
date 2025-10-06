@@ -3,7 +3,7 @@ import { DocumentGenerator } from '@/lib/documents/generator'
 import { DocumentStorage, GenerationMetrics } from '@/lib/documents/storage'
 import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { logger } from '@/lib/utils/permanent-logger'
 
 // Set a maximum time for the entire route (300 seconds / 5 minutes - max for Vercel hobby plan)
 // PRINCE2 documents can take 4-5 minutes per document with retries
@@ -18,9 +18,7 @@ const corsHeaders = {
 
 // Handle OPTIONS requests for CORS preflight
 export async function OPTIONS(request: NextRequest) {
-  permanentLogger.breadcrumb('api', 'OPTIONS request received', {
-    endpoint: '/api/generate'
-  })
+  console.log('[API] OPTIONS request received for /api/generate')
   return new Response(null, {
     status: 200,
     headers: corsHeaders,
@@ -29,14 +27,9 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  let projectId: string | undefined
-
-  return await permanentLogger.withRequest('document-generation', async (requestId) => {
-    permanentLogger.breadcrumb('navigation', 'Document generation API called', { method: 'POST' })
-    permanentLogger.timing('request-start')
-
-    // Log request details for debugging
-    permanentLogger.debug('API_GENERATE', 'POST /api/generate request received', {
+  
+  // Log request details for debugging
+  console.log('[API] POST /api/generate request received:', {
     method: request.method,
     url: request.url,
     headers: {
@@ -48,7 +41,7 @@ export async function POST(request: NextRequest) {
     timestamp: new Date().toISOString()
   })
   
-  permanentLogger.info('API_GENERATE', 'Generate endpoint called', {
+  logger.info('API_GENERATE', 'Generate endpoint called', {
     timestamp: new Date().toISOString(),
     hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -56,7 +49,7 @@ export async function POST(request: NextRequest) {
     runtime: process.env.VERCEL_REGION || 'local'
   })
   
-  permanentLogger.debug('API_GENERATE', 'Environment check', {
+  console.log('[API] Environment check:', {
     hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     hasGroqKey: !!process.env.GROQ_API_KEY,
@@ -76,32 +69,25 @@ export async function POST(request: NextRequest) {
     let user = null
     let authError = null
     
-    permanentLogger.breadcrumb('auth', 'Authentication check', {
+    console.log('[API] Auth check:', {
       hasAuthHeader: !!authHeader,
       headerLength: authHeader?.length || 0
     })
     
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '')
-      permanentLogger.breadcrumb('auth', 'Attempting authentication', {
-        tokenLength: token.length
-      })
+      console.log('[API] Attempting authentication with token (length:', token.length, ')')
       
       // Add retry logic for auth verification
       for (let attempt = 0; attempt < 3; attempt++) {
         const { data: authData, error } = await supabase.auth.getUser(token)
         if (!error && authData?.user) {
           user = authData.user
-          permanentLogger.info('API_GENERATE', 'Authentication successful', {
-            userId: user.id
-          })
+          console.log('[API] Authentication successful for user:', user.id)
           break
         }
         authError = error
-        permanentLogger.warn('API_GENERATE', `Auth attempt ${attempt + 1} failed`, {
-          attempt: attempt + 1,
-          error: error?.message
-        })
+        console.log(`[API] Auth attempt ${attempt + 1} failed:`, error?.message)
         
         // Wait before retrying (exponential backoff)
         if (attempt < 2) {
@@ -109,16 +95,14 @@ export async function POST(request: NextRequest) {
         }
       }
     } else {
-      permanentLogger.breadcrumb('auth', 'No authorization header provided', {})
+      console.log('[API] No authorization header provided')
     }
     
     // Parse request body
-    const requestBody = await request.json()
-    const { projectData, selectedDocuments, companyIntelligencePack, forceProvider } = requestBody
-    projectId = requestBody.projectId
+    const { projectId, projectData, selectedDocuments, forceProvider } = await request.json()
     
     // Log wizard data to verify it's being received correctly
-    permanentLogger.info('API_GENERATE', 'Received project data', {
+    console.log('[API] Received project data:', {
       name: projectData.name,
       methodology: projectData.methodology,
       budget: projectData.budget,
@@ -126,30 +110,22 @@ export async function POST(request: NextRequest) {
       startDate: projectData.startDate,
       endDate: projectData.endDate,
       stakeholderCount: projectData.stakeholders?.length || 0,
-      selectedDocumentCount: selectedDocuments?.length || 0,
-      hasCompanyIntelligence: !!companyIntelligencePack,
-      companyName: companyIntelligencePack?.companyName
+      selectedDocumentCount: selectedDocuments?.length || 0
     })
     
     // Ensure required Project Genie Intelligence documents are always included
     const requiredDocuments = ['Technical Landscape', 'Comparable Projects']
     const documentsToGenerate = selectedDocuments ? [...new Set([...requiredDocuments, ...selectedDocuments])] : requiredDocuments
     
-    permanentLogger.info('API_GENERATE', 'Documents to generate with required', {
-      documents: documentsToGenerate,
-      count: documentsToGenerate.length
-    })
+    console.log('[API] Documents to generate (with required):', documentsToGenerate)
     
     // For testing purposes, allow unauthenticated requests with forceProvider
     if (!user && !forceProvider) {
-      permanentLogger.warn('AUTH_FAILED', 'Authentication failed for generate endpoint', {
+      logger.warn('AUTH_FAILED', 'Authentication failed for generate endpoint', {
         error: authError?.message,
         hasAuthHeader: !!authHeader
       })
-      permanentLogger.captureError('API_GENERATE', authError || new Error('No user session'), {
-        hasAuthHeader: !!authHeader,
-        stage: 'authentication'
-      })
+      console.error('[API] Authentication failed:', authError)
       return NextResponse.json(
         { 
           error: 'Authentication required', 
@@ -186,16 +162,12 @@ export async function POST(request: NextRequest) {
     
     // Log provider info
     const providerInfo = generator.getProviderInfo()
-    permanentLogger.info('API_GENERATE', 'LLM Provider initialized', providerInfo)
-    permanentLogger.info('API_GENERATE', 'Starting document generation', {
-      documents: documentsToGenerate,
-      provider: providerInfo.provider,
-      model: providerInfo.model
-    })
+    console.log('[API] Using LLM Provider:', providerInfo)
+    console.log('[API] Documents being generated:', documentsToGenerate)
     
     // Generate documents without artificial timeout - let Vercel's maxDuration handle it
     const generationStartTime = Date.now()
-    const documents = await generator.generateProjectDocuments(projectData, projectId, documentsToGenerate, companyIntelligencePack)
+    const documents = await generator.generateProjectDocuments(projectData, projectId, documentsToGenerate)
     const generationTimeMs = Date.now() - generationStartTime
 
     // Get aggregated metrics from generator
@@ -241,12 +213,13 @@ export async function POST(request: NextRequest) {
 
     // Update project status (skip for test mode)
     if (!forceProvider || user) {
-      // Use ProjectsRepository to update project
-      const projectsRepo = (await import('@/lib/repositories/projects-repository')).ProjectsRepository.getInstance()
-      await projectsRepo.updateProject(projectId, {
-        updated_at: new Date().toISOString(),
-        rag_status: 'green' // Set to green after successful generation
-      })
+      await supabase
+        .from('projects')
+        .update({ 
+          updated_at: new Date().toISOString(),
+          rag_status: 'green' // Set to green after successful generation
+        })
+        .eq('id', projectId)
     }
 
     // Calculate cost estimate
@@ -288,25 +261,19 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     // Extract error details once
-    const errorMessage = error instanceof Error ? error.message : String(error || 'Unknown error')
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
-    const errorType = error?.constructor?.name || 'UnknownError'
-
-    // Use projectId from earlier parsing or fall back to 'unknown'
-    const errorProjectId = projectId || 'unknown'
-
-    permanentLogger.captureError('API_GENERATE', error as Error, {
-      errorMessage,
-      errorType,
-      projectId: errorProjectId,
-      method: request.method,
-      url: request.url
-    })
     
-    permanentLogger.breadcrumb('api_error', 'Document generation error occurred', {
-      errorType,
-      hasStack: !!errorStack,
-      projectId: errorProjectId
+    logger.error('API_ERROR', 'Document generation failed', {
+      error: errorMessage,
+      type: error?.constructor?.name,
+      projectId: request.body ? JSON.parse(await request.text()).projectId : 'unknown'
+    }, errorStack)
+    
+    console.error('[API] Document generation error:', {
+      error: errorMessage,
+      stack: errorStack,
+      type: error?.constructor?.name
     })
     
     // Check if it's a PII error (errorMessage already declared above)
@@ -337,24 +304,18 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Generic error - Always return valid JSON
+    // Generic error
     return NextResponse.json(
-      {
+      { 
         error: 'Document generation failed',
-        details: errorMessage || 'An unexpected error occurred during document generation',
-        type: errorType,
-        timestamp: new Date().toISOString()
+        details: errorMessage || 'Unknown error occurred'
       },
-      {
+      { 
         status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
+        headers: corsHeaders
       }
     )
   }
-  }) // Close the withRequest wrapper
 }
 
 // GET endpoint to check generation status
@@ -393,11 +354,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    permanentLogger.captureError('API_GENERATE', error as Error, {
-      endpoint: 'GET /api/generate',
-      operation: 'checkDocuments',
-      projectId: searchParams.get('projectId')
-    })
+    console.error('Error checking documents:', error)
     return NextResponse.json(
       { error: 'Failed to check documents' },
       { 

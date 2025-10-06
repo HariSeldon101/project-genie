@@ -1,89 +1,70 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { redirect } from 'next/navigation'
-import { ProfilesRepository } from '@/lib/repositories/profiles-repository'
+import { cookies } from 'next/headers'
 
 export async function checkAdminAuth() {
-  const supabase = await createClient()
+  const cookieStore = await cookies()
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  )
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
-
+  
   if (authError || !user) {
     redirect('/login')
   }
 
-  // Check if user is admin using ProfilesRepository
-  const profilesRepo = ProfilesRepository.getInstance()
-  try {
-    const profile = await profilesRepo.getProfileById(user.id)
+  // Check if user is admin
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single()
 
-    if (!profile?.is_admin) {
-      redirect('/dashboard')
-    }
-
-    return { user, isAdmin: true }
-  } catch (error) {
-    // If profile doesn't exist or error, redirect to dashboard
+  if (profileError || !profile?.is_admin) {
     redirect('/dashboard')
   }
+
+  return { user, isAdmin: true }
 }
 
 export async function isUserAdmin(userId: string): Promise<boolean> {
+  // Dynamic import to avoid webpack issues in Next.js 15.5.0
+  let cookieStore: Awaited<ReturnType<typeof cookiesType>>
   try {
-    // Use ProfilesRepository instead of direct database access
-    const profilesRepo = ProfilesRepository.getInstance()
-    const profile = await profilesRepo.getProfileById(userId)
-    return profile?.is_admin || false
+    const nextHeaders = await import('next/headers')
+    cookieStore = await nextHeaders.cookies()
   } catch (error) {
-    console.error('[isUserAdmin] Failed to get profile:', error)
+    console.error('[isUserAdmin] Failed to import cookies:', error)
     return false
   }
-}
-
-/**
- * Validates admin authentication for API routes
- * Returns user and admin status WITHOUT redirecting
- * This is the proper pattern for API routes
- */
-export async function validateAdminAuthForAPI() {
-  const supabase = await createClient()
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    return {
-      authenticated: false,
-      isAdmin: false,
-      user: null,
-      error: 'Not authenticated'
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
     }
-  }
+  )
 
-  // Check if user is admin using ProfilesRepository
-  const profilesRepo = ProfilesRepository.getInstance()
-  try {
-    const profile = await profilesRepo.getProfileById(user.id)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', userId)
+    .single()
 
-    if (!profile?.is_admin) {
-      return {
-        authenticated: true,
-        isAdmin: false,
-        user,
-        error: 'Not authorized - admin access required'
-      }
-    }
-
-    return {
-      authenticated: true,
-      isAdmin: true,
-      user,
-      error: null
-    }
-  } catch (error) {
-    return {
-      authenticated: true,
-      isAdmin: false,
-      user,
-      error: 'Failed to verify admin status'
-    }
-  }
+  return profile?.is_admin || false
 }

@@ -266,6 +266,7 @@ export class DataSanitizer {
     // In production, this would write to a secure audit log
     console.log('[SECURITY AUDIT]', event)
     
-    // Security audit logged to console only - no database access
+    // Could also write to Supabase audit table
+    // await supabase.from('security_audit').insert(event)
   }
 }

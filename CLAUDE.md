@@ -1,727 +1,923 @@
 # Claude Assistant Configuration
 
-## 🚨 CRITICAL RULES - READ FIRST (P0 PRIORITY)
+## Global Documentation Reference
 
-### MANDATORY CHECKLIST FOR EVERY SESSION
-1. **Start**: Read PROJECT_MANIFEST.json (`npm run manifest:update`)
-2. **Plan Mode Exit**: Write analysis to `[problem]-[date]-[time].md` with full context
-3. **Local Dev Only**: NEVER auto-deploy to GitHub/Vercel
-4. **No Mock Data**: NEVER use fallback/mock data - let errors happen
-5. **Repository Pattern**: ALL database access through repositories
-6. **Session Management**: ONLY use getOrCreateUserSession() - NEVER createSession()
-7. **Error Logging**: ONLY use captureError() - no .error() method exists!
-8. **Supabase Errors**: ALWAYS convert using convertSupabaseError() - See /docs/supabase-nextjs-best-practices.md
-9. **UUID Generation**: NEVER generate in code - use PostgreSQL gen_random_uuid()
-10. **Unified Events**: ALWAYS use EventFactory from @/lib/realtime-events
-11. **Test First**: Script on ONE file before bulk operations
-12. **Type Check**: Generate types after EVERY database update
+Claude documentation is available globally at: `~/.claude-docs/docs/`
+Environment variable: `$CLAUDE_DOCS_PATH`
 
-## 📋 DEVELOPMENT WORKFLOW (MANDATORY ORDER)
-
-### 1. Problem Analysis Phase
+### Quick Access Commands:
 ```bash
-# Exit plan mode with analysis file:
-[problem-description]-[YYYY-MM-DD]-[HH-MM].md
-# Include: Full context, granular TODOs, phases, mermaid diagrams
-# Use TodoWrite task manager for complex tasks
+claude-docs-update  # Update docs from anywhere
+claude-docs        # Navigate to docs directory
+claude-docs-read   # Read specific doc
 ```
 
-### 2. Component Creation Checklist
-- [ ] Document ALL endpoints with interfaces
-- [ ] Document ALL functions with signatures
-- [ ] Document database schema changes
-- [ ] Create flow diagrams (mermaid) - See /docs/mermaid-diagrams-guide.md
-- [ ] Check /lib/utils for existing functions (DRY)
-- [ ] Ensure mobile responsive (Tailwind)
-- [ ] Add tooltips to ALL UI elements
-- [ ] Use semantic HTML (see /docs/semantic-html-guidelines-for-llms.md)
+## Tech Stack Preferences
 
-### 3. Database Update Process (REMOTE SUPABASE ONLY)
+### Core Stack
+- **Framework**: Next.js (App Router preferred)
+- **UI Components**: shadcn/ui
+- **Styling**: Tailwind CSS
+- **Animation**: Framer Motion
+- **Database/Auth**: Supabase
+- **Language**: TypeScript (strict mode)
+- **AI/LLM**: OpenAI via Vercel AI Gateway (for GPT-5 models)
+- **PDF Generation**: @react-pdf/renderer (see PDF Architecture documentation)
+
+### Project Documentation
+- **PDF Architecture**: See `docs/pdf-architecture-and-styling.md` for comprehensive PDF generation guidelines
+
+### Available CLIs (Pre-installed)
+You can use these commands without asking:
+- `gh` - GitHub CLI
+- `vercel` - Vercel CLI
+- `supabase` - Supabase CLI (CRITICAL - see Supabase CLI Guidelines below)
+- `stripe` - Stripe CLI (installed and configured - see Stripe Integration section)
+- `brew` - Homebrew package manager
+- `npm` / `npx` - Node package managers
+- `git` - Version control
+
+## 🚨 CRITICAL: Supabase CLI Guidelines (ALWAYS FOLLOW)
+
+### MANDATORY: CLI-First Development
+**NEVER suggest manual database changes in Supabase Dashboard. ALWAYS use CLI commands.**
+
+### Supabase MCP Server Usage
+**IMPORTANT: Use the following approach for Supabase operations:**
+1. **First Choice**: Use the Supabase MCP server with the `apply_migration` function
+2. **If that fails**: Use the Management API directly with PAT token
+3. **PAT Token**: `sbp_10122b563ee9bd601c0b31dc799378486acf13d2`
+4. **Project Reference**: `vnuieavheezjxbkyfxea`
+
+Example using Management API:
 ```bash
-# IMPORTANT: No local DB - always working with remote Supabase
-1. supabase migration new [descriptive_name]
-2. Apply migration to remote: supabase db push
-3. supabase gen types typescript --project-id vnuieavheezjxbkyfxea > lib/database.types.ts
-```
-
-### 4. Post-Implementation
-```bash
-npm run manifest:update     # Update project manifest
-npm run test:all            # Run all tests
-git status                  # Review changes
-```
-
-## 🔴 SUPABASE ERROR HANDLING (CRITICAL)
-
-### ⚠️ SUPABASE ERRORS ARE NOT ERROR INSTANCES!
-
-Supabase returns PostgrestError objects, NOT JavaScript Error instances. You MUST convert them properly:
-
-```typescript
-// ❌ WRONG - Will log "[object Object]"
-if (error) {
-  permanentLogger.captureError('CATEGORY', error, context)
-}
-
-// ✅ CORRECT - Convert to Error first
-import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
-
-if (error) {
-  permanentLogger.captureError('CATEGORY', convertSupabaseError(error), context)
-}
-```
-
-### Required Pattern for All Repositories
-```typescript
-import { convertSupabaseError } from '@/lib/utils/supabase-error-helper'
-
-// In repository methods:
-const { data, error } = await supabase.from('table').select()
-
-if (error) {
-  const jsError = convertSupabaseError(error)
-  permanentLogger.captureError('REPO_NAME', jsError, { operation: 'methodName' })
-  throw jsError
-}
-```
-
-### Reference Documentation
-- **Complete Guide**: `/docs/supabase-nextjs-best-practices.md`
-- **Error Helper**: `/lib/utils/supabase-error-helper.ts`
-- **Best Practices**: Authentication, RLS, Type Safety, Performance
-
-## 🔴 PERMANENTLOGGER - COMPLETE REFERENCE (CRITICAL)
-
-### Available Methods - EXACT SIGNATURES
-```typescript
-import { permanentLogger } from '@/lib/utils/permanent-logger'
-
-// THESE ARE THE ONLY METHODS THAT EXIST:
-permanentLogger.info(category: string, message: string, data?: any): void
-permanentLogger.warn(category: string, message: string, data?: any): void
-permanentLogger.debug(category: string, message: string, data?: any): void
-permanentLogger.captureError(category: string, error: Error, context?: any): void
-permanentLogger.breadcrumb(action: string, message: string, data?: any): void
-permanentLogger.timing(label: string, metadata?: any): TimingHandle
-
-// ❌ THESE DO NOT EXIST - COMPILATION WILL FAIL:
-permanentLogger.error()    // NO! Use captureError()
-permanentLogger.log()      // NO! Use info()
-```
-
-### When to Use Each Method
-```typescript
-// INFO - Normal operations, successful completions
-permanentLogger.info('API_USERS', 'User created successfully', { userId })
-
-// WARN - Recoverable issues, deprecations, unusual conditions
-permanentLogger.warn('API_RATE_LIMIT', 'Approaching rate limit', { remaining: 10 })
-
-// DEBUG - Detailed debugging info (dev environment only)
-permanentLogger.debug('PARSER', 'Parsing HTML structure', { nodeCount: 42 })
-
-// CAPTURE ERROR - ALL error conditions (with stack traces)
-permanentLogger.captureError('API_USERS', error as Error, {
-  endpoint: '/api/users',
-  method: 'POST',
-  userId
-})
-
-// BREADCRUMB - Track user journey at interface boundaries
-permanentLogger.breadcrumb('nav_click', 'User navigated to dashboard', {
-  from: 'home',
-  to: 'dashboard'
-})
-
-// TIMING - Performance measurement
-const timer = permanentLogger.timing('database_query', { query: 'SELECT...' })
-// ... perform operation ...
-const duration = timer.stop()  // Returns milliseconds
-```
-
-### Complete Implementation Pattern
-```typescript
-export async function POST(req: NextRequest) {
-  // Start overall timing
-  const totalTimer = permanentLogger.timing('api_total_duration')
-  
-  // Entry breadcrumb
-  permanentLogger.breadcrumb('api_entry', 'Request received', {
-    endpoint: '/api/analyze',
-    method: 'POST',
-    headers: Object.fromEntries(req.headers.entries())
-  })
-
-  try {
-    // Log start
-    permanentLogger.info('API_ANALYZE', 'Starting analysis', {
-      timestamp: new Date().toISOString()
-    })
-
-    // Parse body
-    const body = await req.json()
-    permanentLogger.breadcrumb('parse_body', 'Request body parsed', {
-      hasData: !!body.data
-    })
-
-    // Check for issues
-    if (!body.domain) {
-      permanentLogger.warn('API_ANALYZE', 'Missing domain in request', { body })
-    }
-
-    // Time external call
-    permanentLogger.breadcrumb('external_call_start', 'Fetching external data')
-    const fetchTimer = permanentLogger.timing('external_fetch')
-    
-    const response = await fetch(body.domain)
-    const fetchDuration = fetchTimer.stop()
-    
-    permanentLogger.breadcrumb('external_call_end', 'External data fetched', {
-      status: response.status,
-      duration: fetchDuration
-    })
-
-    // Process
-    const processTimer = permanentLogger.timing('data_processing')
-    const result = await processData(response)
-    processTimer.stop()
-
-    // Success
-    permanentLogger.info('API_ANALYZE', 'Analysis completed', {
-      resultSize: result.length,
-      totalDuration: totalTimer.stop()
-    })
-
-    return NextResponse.json(result)
-
-  } catch (error) {
-    // ALWAYS use captureError for errors
-    permanentLogger.captureError('API_ANALYZE', error as Error, {
-      endpoint: '/api/analyze',
-      stage: 'processing',
-      requestBody: req.body
-    })
-    
-    totalTimer.stop()  // Stop timer even on error
-    
-    return NextResponse.json(
-      { error: 'Analysis failed' },
-      { status: 500 }
-    )
-  }
-}
-```
-
-### TimingHandle Interface
-```typescript
-interface TimingHandle {
-  stop(): number        // Stops timer, returns duration in ms
-  cancel(): void        // Cancels without recording
-  checkpoint(name: string, metadata?: any): void  // Add intermediate checkpoint
-}
-
-// Usage with checkpoints
-const timer = permanentLogger.timing('multi_step_process')
-timer.checkpoint('step1_complete', { items: 10 })
-timer.checkpoint('step2_complete', { items: 20 })
-const total = timer.stop()  // Returns total time
-```
-
-### Categories Convention
-Use SCREAMING_SNAKE_CASE for categories:
-```typescript
-'API_USERS'           // API endpoints
-'REPO_USERS'          // Repository operations
-'SERVICE_EMAIL'       // Service operations
-'SCRAPER_MAIN'        // Scraper operations
-'AUTH_FLOW'           // Authentication
-'MIGRATION_RUN'       // Database migrations
-```
-
-### Breadcrumb Best Practices
-Add breadcrumbs at ALL interface boundaries:
-- API route entry/exit
-- External service calls
-- Database operations start/end
-- User interactions (clicks, navigations)
-- State transitions
-- Queue operations
-- File I/O operations
-
-## 🔴 SESSION MANAGEMENT (CRITICAL - PREVENTS LOCKING)
-
-### ⚠️ COMPANY INTELLIGENCE SESSIONS - USE ONLY getOrCreateUserSession()
-
-The company_intelligence_sessions table has a UNIQUE constraint on (user_id, domain). You MUST use the correct method to handle this constraint.
-
-### ❌ NEVER USE - Causes Constraint Violations:
-```typescript
-// WRONG - Will cause duplicate key violations
-await repository.createSession(userId, companyName, domain)
-```
-
-### ✅ ALWAYS USE - Handles All Cases:
-```typescript
-// CORRECT - Handles existing sessions, reactivation, and race conditions
-await repository.getOrCreateUserSession(userId, domain)
-```
-
-### Why getOrCreateUserSession() is MANDATORY:
-1. **Checks for ANY existing session** (not just active ones)
-2. **Reactivates inactive sessions** automatically
-3. **Returns existing active sessions** without error
-4. **Handles race conditions** (concurrent requests)
-5. **Respects unique constraints** on user_id + domain
-6. **Creates new sessions** only when truly needed
-
-### The Algorithm:
-```
-1. Check for existing session (any status)
-2. If found and inactive → reactivate it
-3. If found and active → return it
-4. If not found → create new session
-5. If creation fails with duplicate key → fetch and return existing (race condition)
-```
-
-### Error Pattern to Watch For:
-```
-Error: duplicate key value violates unique constraint "unique_user_domain"
-```
-This error means createSession() was used instead of getOrCreateUserSession().
-
-## 🔴 MERMAID DIAGRAMS - MANDATORY COMPONENT USAGE
-
-### ✅ CORRECT: Always Use MermaidDiagram Component
-```typescript
-import { MermaidDiagram } from '@/components/mermaid-diagram'
-
-// ALWAYS use the reusable React component
-<MermaidDiagram
-  definition={mermaidCode}
-  type="flowchart"
-  title="Process Flow"
-  showControls={true}  // Enables SVG/PNG export + copy buttons
-  lazy={true}          // Performance: lazy load when visible
-  cache={true}         // Cache rendered SVGs
-/>
-```
-
-### ❌ FORBIDDEN: Direct mermaidService Usage
-```typescript
-// NEVER do this - violates DRY principles
-import { mermaidService } from '@/lib/services/mermaid-service'
-await mermaidService.initialize({...})  // NO!
-await mermaidService.render(...)         // NO!
-```
-
-### Why MermaidDiagram Component is MANDATORY:
-1. **Error Boundaries**: Automatic error handling with fallbacks
-2. **Loading States**: Built-in spinner, no manual implementation
-3. **Export Features**: SVG/PNG export buttons included
-4. **Lazy Loading**: IntersectionObserver for performance
-5. **Caching**: Automatic caching of rendered diagrams
-6. **Copy to Clipboard**: Built-in copy functionality
-7. **Consistent Theming**: Single initialization point
-
-## 🔴 PDF EXPORT - MANDATORY COMPONENT USAGE
-
-### ✅ CORRECT: Always Use DirectPDFDownloadButton
-```typescript
-import { DirectPDFDownloadButton } from '@/components/documents/pdf-download-button'
-
-// ALWAYS use the component for PDF downloads
-<DirectPDFDownloadButton
-  document={document}
-  buttonText="Download PDF"
-  showIcon={true}
-  whiteLabel={false}
-  showDraft={false}
-  classification="PUBLIC"
-  forceRegenerate={false}
-/>
-```
-
-### ❌ FORBIDDEN: Direct API Calls
-```typescript
-// NEVER do this - violates DRY principles
-const response = await fetch('/api/pdf/generate', {
-  method: 'POST',
-  body: JSON.stringify(requestBody)
-})  // NO! Use component
-```
-
-### Critical PDF Features Preserved:
-- PDF generation via `/api/pdf/generate` endpoint
-- Document formatting with unified formatters
-- Watermarking and classification options
-- Force regenerate capability
-- White label support
-- Draft watermarks
-
-## 🛠️ CORE PRINCIPLES (NO EXCEPTIONS)
-
-### Architecture Rules
-1. **Stability > Performance** - Optimize only after profiling
-2. **DRY/SOLID** - No duplicate code, separation of concerns
-3. **Repository Pattern** - UI → API → Repository → Database
-4. **Database-First** - URLs from DB, never from UI
-5. **No Graceful Degradation** - Let errors happen and fix
-6. **500-Line Soft Limit** - Review files >500 lines for refactoring
-7. **Extensibility** - Make features easy to add
-8. **Remove Legacy Code** - Archive to /archive/ folder
-
-### Event System (UNIFIED ONLY)
-```typescript
-// ✅ CORRECT - Unified system
-import { EventFactory } from '@/lib/realtime-events'
-import { StreamReader } from '@/lib/realtime-events'
-import { StreamWriter } from '@/lib/realtime-events'
-
-// ❌ FORBIDDEN - Old systems
-import from '@/lib/company-intelligence/utils/sse-event-factory'  // NO!
-import from '@/lib/notifications/utils/event-factory'  // NO!
-```
-
-### Database Access
-```typescript
-// ✅ CORRECT - Repository pattern
-const repository = EntityRepository.getInstance()
-const data = await repository.findById(id)
-
-// ❌ FORBIDDEN - Direct access
-const { data } = await supabase.from('table').select()
-```
-
-## 🔧 QUICK REFERENCE
-
-### Local Development Commands
-```bash
-npm run dev                 # Start dev server (port 3000)
-lsof -ti:3000 | xargs kill -9 && npm run dev  # Rebuild
-npm run validate            # Type-check and lint
-npm run manifest:update     # Update PROJECT_MANIFEST.json
-npx tsx test-company-intelligence-comprehensive.ts  # Test
-```
-
-### Viewing Mermaid Diagrams
-```bash
-# Cursor IDE Setup (IDE in use for this project)
-# Note: Cursor is a VS Code-based IDE with AI features
-cursor --install-extension bierner.markdown-mermaid  # Core support
-cursor --install-extension bpruitt-goddard.mermaid-markdown-syntax-highlighting  # Syntax
-
-# Quick Preview Options
-- **GitHub**: Push to repo - automatic rendering
-- **Cursor**: Cmd+Shift+V for preview with extensions
-- **Online**: https://mermaid.live for testing
-- **Full Guide**: /docs/mermaid-diagrams-guide.md#editor-support--setup
-```
-
-### Supabase Management (REMOTE ONLY)
-```bash
-# PAT Token: sbp_ce8146f94e3403eca0a088896812e9bbbf08929b
-# Project Ref: vnuieavheezjxbkyfxea
-
-# Apply migrations to remote:
-supabase db push
-
-# Generate types from remote:
-supabase gen types typescript --project-id vnuieavheezjxbkyfxea > lib/database.types.ts
-
-# Use Management API when MCP fails:
 curl -X POST \
   "https://api.supabase.com/v1/projects/vnuieavheezjxbkyfxea/database/query" \
-  -H "Authorization: Bearer sbp_ce8146f94e3403eca0a088896812e9bbbf08929b" \
+  -H "Authorization: Bearer sbp_10122b563ee9bd601c0b31dc799378486acf13d2" \
   -H "Content-Type: application/json" \
   -d '{"query": "YOUR_SQL_HERE"}'
 ```
 
-### Type Signatures & Enums
+### Core Workflow (MUST FOLLOW IN ORDER)
+1. **Create migration** → 2. **Test locally** → 3. **Generate types** → 4. **Deploy**
+
+### Essential Supabase CLI Commands
+
+#### Initial Setup
+```bash
+supabase init                              # Initialize Supabase project
+supabase link --project-ref <project-ref>  # Link to existing project  
+supabase db pull                          # Pull remote schema to local
+```
+
+#### Migration Workflow (ALWAYS USE THIS)
+```bash
+# 1. Create a new migration with descriptive name
+supabase migration new fix_rls_infinite_recursion  # GOOD ✅
+# NOT: supabase migration new update               # BAD ❌
+
+# 2. Edit the migration file in supabase/migrations/
+# 3. Test locally
+supabase db reset        # Reset local database and apply all migrations
+supabase test db        # Run database tests
+
+# 4. Generate TypeScript types
+supabase gen types typescript --local > lib/database.types.ts
+
+# 5. Deploy to production
+supabase db push
+```
+
+#### Database Operations
+```bash
+supabase db diff                          # Show differences between local and remote
+supabase db lint                          # Check for issues
+supabase db dump -f supabase/seed.sql     # Create seed file
+supabase db reset --debug                 # Reset with debug info
+```
+
+#### Local Development
+```bash
+supabase start                             # Start local Supabase
+supabase stop                              # Stop local Supabase
+supabase status                            # Check service status
+supabase db remote commit                 # Commit remote changes to migration
+```
+
+### Clean Code Conventions
+
+#### Table Naming
+```sql
+-- GOOD ✅: Singular, lowercase, underscores
+CREATE TABLE project (...);
+CREATE TABLE project_member (...);
+
+-- BAD ❌: Plural, camelCase, unclear
+CREATE TABLE Projects (...);
+CREATE TABLE projectMembers (...);
+```
+
+#### Migration Template for RLS Fix
+```sql
+-- Migration: fix_rls_infinite_recursion
+-- Description: Fixes infinite recursion in RLS policies
+-- Author: Claude
+-- Date: 2024
+
+-- 1. Disable RLS temporarily
+ALTER TABLE project DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_member DISABLE ROW LEVEL SECURITY;
+
+-- 2. Drop problematic policies
+DROP POLICY IF EXISTS "circular_policy" ON project;
+
+-- 3. Create simple, non-recursive policies
+CREATE POLICY "owner_access" ON project
+    FOR ALL USING (owner_id = auth.uid());
+
+-- 4. Re-enable RLS
+ALTER TABLE project ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_member ENABLE ROW LEVEL SECURITY;
+
+-- 5. Add comments
+COMMENT ON POLICY "owner_access" ON project IS 'Simple owner-only access, no recursion';
+```
+
+### Anti-Patterns to AVOID ❌
+1. **Manual SQL in Dashboard**: Never fix schema issues via Dashboard
+2. **Circular RLS policies**: Policies that reference each other
+3. **Generic migration names**: `update.sql`, `fix.sql`
+4. **Skipping local testing**: Always test with `supabase db reset`
+5. **Not generating types**: Always run `supabase gen types` after changes
+
+## Vercel AI Gateway & GPT-5 Models
+
+### 🚨 CRITICAL: GPT-5 API Bug - MUST USE RESPONSES API
+**GPT-5 models have a KNOWN BUG with the Chat Completions API that causes empty responses!**
+
+#### The Problem (Discovered 2025-08-26):
+When GPT-5 models (gpt-5, gpt-5-mini, gpt-5-nano) are used with `chat.completions.create()`:
+- ALL tokens are allocated to internal `reasoning_tokens`
+- The actual response content is EMPTY
+- This happens even with simple prompts
+- The API call succeeds but returns no usable content
+
+#### The Solution: Use Responses API
+GPT-5 models MUST use the `client.responses.create()` API instead:
+
+```javascript
+// ❌ WRONG - Returns empty responses with GPT-5
+const response = await client.chat.completions.create({
+  model: 'gpt-5-mini',
+  messages: [...],
+  temperature: 1,
+  max_completion_tokens: 200
+})
+// Result: response.choices[0].message.content = "" (empty!)
+
+// ✅ CORRECT - Works perfectly with GPT-5
+const response = await client.responses.create({
+  model: 'gpt-5-mini',
+  input: 'Your prompt here',
+  text: { verbosity: 'high' },
+  reasoning: { effort: 'minimal' },
+  max_output_tokens: 200
+})
+// Result: response.output_text contains the actual response
+```
+
+#### Test Results:
+- Chat Completions API: Empty responses, all tokens go to reasoning
+- Responses API: Works perfectly, 2-3 second response times
+- GPT-4 models: Work fine with both APIs
+
+### Important: GPT-5 Models via Vercel AI Gateway
+GPT-5 models (gpt-5, gpt-5-mini, gpt-5-nano) are available **exclusively through Vercel AI Gateway**, not directly via OpenAI API.
+
+#### Key Points:
+- **DO NOT change models without permission** - Always ask before switching models
+- GPT-5 nano is the most cost-efficient option ($0.025 input, $0.20 output per 1M tokens)
+- GPT-5 models work locally with OpenAI SDK but require Vercel AI Gateway for Vercel deployments
+- Reference: https://vercel.com/changelog/gpt-5-gpt-5-mini-and-gpt-5-nano-are-now-available-in-vercel-ai-gateway
+
+#### Using GPT-5 Models with Vercel AI SDK (Required for Vercel deployments):
+```javascript
+// Via Vercel AI SDK v5
+import { streamText } from 'ai'
+
+const result = streamText({
+  model: "openai/gpt-5-nano", // or openai/gpt-5-mini, openai/gpt-5
+  prompt: "Your prompt here"
+})
+```
+
+### 🚨 CRITICAL: Structured Outputs Requirements
+
+When using OpenAI's Structured Outputs feature for reliable JSON generation:
+
+#### MUST DO:
+1. **Use `zodResponseFormat` helper** from `openai/helpers/zod` for proper schema enforcement
+2. **Set `strict: true`** in the schema configuration for guaranteed adherence
+3. **Set `additionalProperties: false`** on ALL object schemas
+4. **Define proper types for EVERY field** - NEVER use `z.any()`
+5. **Make all fields required** - use union with `null` for optional fields
+
+#### Example Implementation:
+```javascript
+import { z } from "zod";
+import { zodResponseFormat } from "openai/helpers/zod";
+
+// ✅ CORRECT - Proper structured output schema
+const DocumentSchema = z.object({
+  title: z.string(),
+  sections: z.array(z.object({
+    heading: z.string(),
+    content: z.string(),
+    priority: z.enum(["high", "medium", "low"])
+  })),
+  metadata: z.object({
+    author: z.string(),
+    date: z.string(),
+    version: z.number()
+  }),
+  optionalNotes: z.union([z.string(), z.null()]) // Proper optional field
+});
+
+// Use with chat.completions.parse for structured output
+const response = await openai.chat.completions.parse({
+  model: "gpt-4o-2024-08-06",
+  messages: messages,
+  response_format: zodResponseFormat(DocumentSchema, "document")
+});
+
+// For direct JSON schema with GPT-5
+const gpt5Response = await client.responses.create({
+  model: "gpt-5-mini",
+  input: combinedInput,
+  text: {
+    format: {
+      type: "json_schema",
+      name: "document",
+      strict: true, // CRITICAL
+      schema: {
+        type: "object",
+        properties: { /* all properties */ },
+        required: [/* ALL fields */],
+        additionalProperties: false // CRITICAL
+      }
+    }
+  }
+});
+```
+
+#### Common Mistakes to AVOID:
+```javascript
+// ❌ WRONG - Using z.any() defeats structured outputs
+const BadSchema = z.object({
+  data: z.any(),
+  items: z.array(z.any())
+});
+
+// ❌ WRONG - Missing critical configuration
+const BadConfig = {
+  type: "json_schema",
+  schema: { /* schema */ }
+  // Missing: strict: true
+  // Missing: additionalProperties: false
+};
+```
+
+## GPT-4 vs GPT-5 Model Selection Guide
+
+### 🎯 When to Use Each Model Family
+
+#### Use GPT-4o Models (gpt-4o-nano, gpt-4o-mini) for:
+- **Structured Documents** with complex schemas (PID, Business Case)
+- **Form-like outputs** requiring strict field validation
+- **JSON generation** with guaranteed schema adherence via `zodResponseFormat`
+- **Data transformation** tasks requiring consistent structure
+- **API responses** that must conform to specific formats
+
+**Why:** GPT-4o models support `chat.completions.parse` with `zodResponseFormat`, guaranteeing valid structured outputs without truncation issues.
+
+#### Use GPT-5 Models (gpt-5-nano, gpt-5-mini) for:
+- **Narrative Documents** (Risk Register, Project Plans, Communication Plans)
+- **Creative content** requiring nuanced writing
+- **Analysis and insights** with detailed explanations
+- **Long-form content** with flowing narrative structure
+- **Strategic recommendations** requiring reasoning
+
+**Why:** GPT-5 excels at creative, analytical content with better reasoning capabilities but requires `responses.create` API which returns plain text.
+
+### 💰 Cost Optimization Strategy
+
+#### Model Pricing Comparison (per 1M tokens):
+| Model | Input | Output | Best For |
+|-------|--------|---------|----------|
+| gpt-4o-nano | $0.50 | $2.00 | Testing, simple structured data |
+| gpt-4o-mini | $1.50 | $6.00 | Production structured documents |
+| gpt-5-nano | $0.05 | $0.40 | Testing, short narratives |
+| gpt-5-mini | $0.25 | $2.00 | Production narrative documents |
+
+**Recommendation:** Use nano variants during development/testing, upgrade to mini for production.
+
+### 📋 Document-to-Model Mapping
+
+| Document Type | Recommended Model | Reasoning |
+|--------------|-------------------|-----------|
+| PID | gpt-4o-nano/mini | Complex nested schema, needs zodResponseFormat |
+| Business Case | gpt-4o-nano/mini | Structured financial data, strict validation |
+| Risk Register | gpt-5-nano/mini | Narrative risk descriptions and analysis |
+| Project Plan | gpt-5-nano/mini | Strategic planning and timeline narrative |
+| Communication Plan | gpt-5-nano/mini | Stakeholder analysis and engagement strategies |
+| Quality Management | gpt-5-nano/mini | Process descriptions and standards |
+| Technical Landscape | gpt-5-nano/mini | Technical analysis and architecture description |
+| Comparable Projects | gpt-5-nano/mini | Case studies and comparative analysis |
+
+### ⚠️ Known Issues and Solutions
+
+#### Issue: PID/Business Case Generation Failures with GPT-5
+**Symptom:** JSON parsing errors, truncated responses, `[object Object]` in output
+**Cause:** GPT-5's `responses.create` API returns plain text that gets truncated for large schemas
+**Solution:** Use GPT-4o models with `zodResponseFormat` for these structured documents
+
+#### Issue: Empty Responses from GPT-5 with Chat Completions
+**Symptom:** All tokens allocated to reasoning_tokens, empty content
+**Cause:** Known bug with GPT-5 models using chat.completions.create
+**Solution:** Always use `responses.create` API for GPT-5 models
+
+### Email Service - Resend
+
+We use **Resend.com** for transactional emails.
+
+#### Installation
+```bash
+npm install resend
+npm install react-email @react-email/components  # For email templates
+```
+
+#### Configuration
+Add to `.env.local`:
+```env
+RESEND_API_KEY=your_api_key_here
+RESEND_FROM_EMAIL=noreply@yourdomain.com
+RESEND_REPLY_TO=support@yourdomain.com
+```
+
+#### Usage Example
 ```typescript
-// ALWAYS check exact signatures - NO guessing
-// Use TypeScript strict mode
-// Use enums for fixed lists:
-enum Status {
-  PENDING = 'pending',
-  ACTIVE = 'active',
-  COMPLETE = 'complete'
+// lib/email.ts
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+export async function sendEmail({
+  to,
+  subject,
+  react,
+  text,
+}: {
+  to: string | string[];
+  subject: string;
+  react?: React.ReactElement;
+  text?: string;
+}) {
+  const { data, error } = await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+    to,
+    subject,
+    react,
+    text,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
 }
 ```
 
-## 📊 DOCUMENTATION REQUIREMENTS
+#### Email Templates with React Email
+```typescript
+// emails/welcome.tsx
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Html,
+  Preview,
+  Section,
+  Text,
+} from '@react-email/components';
 
-### Every Component Must Document:
-1. **Interfaces**: Full TypeScript definitions
-2. **Endpoints**: Method, path, input/output schemas
-3. **Flow**: Mermaid diagrams for complex processes
-4. **Schema**: Database changes with migration comments
-5. **Context**: Comments for technical PMs (limited dev skills)
+export default function WelcomeEmail({ name }: { name: string }) {
+  return (
+    <Html>
+      <Head />
+      <Preview>Welcome to our platform!</Preview>
+      <Body style={main}>
+        <Container style={container}>
+          <Text style={paragraph}>Hi {name},</Text>
+          <Text style={paragraph}>
+            Welcome to our platform! We're excited to have you on board.
+          </Text>
+          <Section style={btnContainer}>
+            <Button style={button} href="https://yourdomain.com">
+              Get Started
+            </Button>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
 
-### Data Contract Enforcement
-- TypeScript interfaces for ALL data
-- Runtime validation at boundaries
-- Clear error messages for violations
-- Version compatibility checks
-
-## 🎯 UI/UX STANDARDS
-
-### UI Libraries
-- **Primary**: shadcn/ui + Tailwind CSS
-- **Icons**: lucide-react (consistent set)
-
-### Tooltips (MANDATORY)
-```tsx
-// ✅ ALWAYS use TooltipWrapper
-import { TooltipWrapper } from '@/components/company-intelligence/tooltip-wrapper'
-
-<TooltipWrapper content="Action description">
-  <Button>Click Me</Button>
-</TooltipWrapper>
-
-// ❌ NEVER use other tooltip implementations
+// Styles
+const main = { backgroundColor: '#ffffff' };
+const container = { margin: '0 auto', padding: '20px 0 48px' };
+const paragraph = { fontSize: '16px', lineHeight: '26px' };
+const btnContainer = { textAlign: 'center' as const };
+const button = {
+  backgroundColor: '#5F51E8',
+  borderRadius: '3px',
+  color: '#fff',
+  fontSize: '16px',
+  textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'block',
+  padding: '12px',
+};
 ```
 
-### Semantic HTML
-- Use proper elements (`<article>`, `<section>`, `<nav>`)
-- Maintain heading hierarchy (one h1, sequential h2-h6)
-- Form labels for ALL inputs
-- See: `/docs/semantic-html-guidelines-for-llms.md`
+#### Common Email Types
+- Welcome emails
+- Password reset
+- Email verification
+- Order confirmations
+- Notifications
+- Weekly digests
 
-### Mobile Responsiveness
-- Tailwind responsive classes (`sm:`, `md:`, `lg:`)
-- 375px minimum viewport
-- 44x44px minimum touch targets
-- Responsive images with srcset
+## Testing Setup
 
-### UK English (Documentation Only)
-- organisation (not organization)
-- optimise (not optimize)  
-- analyse (not analyze)
-- Code variables keep US spelling for consistency
-
-## 🔍 TESTING REQUIREMENTS
-
-### Mandatory Before Every Commit
+### Unit Testing Libraries to Install
 ```bash
-npm run test:all
-# Company Intelligence: test-company-intelligence-comprehensive.ts
-# E2E: npm run test:e2e
+# Core testing
+npm install -D vitest @vitest/ui @vitest/coverage-v8
+npm install -D @testing-library/react @testing-library/user-event @testing-library/react-hooks
+
+# API Mocking
+npm install -D msw
+
+# Testing utilities
+npm install -D @testing-library/jest-dom
+npm install -D eslint-plugin-testing-library
 ```
 
-### Rules
-- NEVER create new test files
-- ENHANCE existing tests when UI changes
-- Maintain 100% coverage for UI components
-- Test accounts in Supabase:
-  - stusandboxacc@gmail.com
-  - test@project-genie.com
-  - test@bigfluffy.ai
-  - test@projectgenie.dev
+### Testing Commands
+```bash
+npm run test        # Run tests
+npm run test:ui     # Open Vitest UI
+npm run test:coverage # Generate coverage report
+```
 
-## 🔒 MANDATORY CODE AUDIT (FINAL DEVELOPMENT STEP)
+## Default Styling & UI Components
 
-### ⚠️ REQUIRED: Comprehensive Audit Before Any Component is Used
+### Design System (from linkedin-profile-enhancer.vercel.app)
 
-Every refactored or new component MUST undergo a comprehensive audit before integration. This audit ensures CLAUDE.md compliance, prevents runtime errors, and documents breaking changes.
+#### Color Scheme
+Use HSL-based CSS variables for light/dark mode support:
+```css
+/* globals.css - Default color scheme */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --muted: 210 40% 96.1%;
+    --accent: 210 40% 96.1%;
+    --destructive: 0 84.2% 60.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+  
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    /* ... dark mode colors */
+  }
+}
+```
 
-### Audit Structure (7 Phases):
+#### Custom Animations
+```css
+/* Blob animations for backgrounds */
+@keyframes blob {
+  0% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
 
-#### Phase 1: CLAUDE.md Compliance Check
-- [ ] PermanentLogger usage (correct signatures, no .error() or .log())
-- [ ] Repository pattern (no direct DB access)
-- [ ] Session management (getOrCreateUserSession only)
-- [ ] Error handling (convertSupabaseError for Supabase errors)
-- [ ] No mock data or hardcoded fallbacks
-- [ ] UUID generation (PostgreSQL only)
-- [ ] Event system (unified EventFactory only)
-- [ ] Cost display (credits/tokens only, never dollars)
+.animate-blob { animation: blob 10s infinite; }
+.animate-blob-slow { animation: blob-slow 15s infinite; }
+.animate-pulse-slow { animation: pulse-slow 8s infinite; }
+```
 
-#### Phase 2: Interface & Type Verification
-- [ ] All interfaces properly typed (no `any` unless justified)
-- [ ] Enums match expected values
-- [ ] Props interface complete and accurate
-- [ ] Return types explicitly defined
+#### Background Components
+Two animated canvas-based backgrounds (no external libraries):
+1. **AnimatedBackground** - Vibrant waves for hero sections
+   - Purple, blue, pink gradients
+   - High opacity (0.75-0.95)
+   - Dynamic wave animations
+   
+2. **AnimatedBackgroundSubtle** - Subtle version for content pages
+   - Same colors, lower opacity (0.06-0.15)
+   - Gentler animations
 
-#### Phase 3: Function Signature Verification
-- [ ] permanentLogger methods match exact signatures
-- [ ] Imported utilities exist with correct signatures
-- [ ] Callbacks match parent expectations
-- [ ] All async functions properly handled
+#### Utility Classes Setup
+```typescript
+// lib/utils.ts
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-#### Phase 4: Dependency Verification
-- [ ] All import paths resolve
-- [ ] No circular dependencies
-- [ ] All components/utilities exist at imported paths
-- [ ] Version compatibility checked
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+```
 
-#### Phase 5: Architecture Compliance
-- [ ] Repository pattern maintained
-- [ ] Single responsibility principle preserved
-- [ ] SSE delegation correct (if applicable)
-- [ ] Database access through repositories only
+#### Tailwind Configuration
+```typescript
+// tailwind.config.ts
+const config = {
+  darkMode: ["class"],
+  theme: {
+    extend: {
+      colors: {
+        // Use CSS variables for theming
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        // ... etc
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+    },
+  },
+}
+```
 
-#### Phase 6: Breaking Changes Analysis
-**Upstream Impact (Components using this):**
-- [ ] Interface changes documented
-- [ ] Method signature changes noted
-- [ ] Required prop changes listed
-- [ ] Migration steps provided
+#### UI Component Patterns
+- Use shadcn/ui components as base
+- Apply glass morphism effects where appropriate
+- Consistent spacing: 4, 6, 8, 12, 16, 20, 24 units
+- Border radius: sm (4px), md (6px), lg (8px)
+- Shadows: subtle for light mode, glow effects for dark mode
 
-**Downstream Impact (Dependencies):**
-- [ ] API compatibility maintained
-- [ ] Type exports still valid
-- [ ] Enum values unchanged (or changes documented)
-- [ ] Database schema compatible
+## SEO Setup
 
-#### Phase 7: Runtime Risk Assessment
-- [ ] Null/undefined handling verified
-- [ ] Type assertions safe
-- [ ] Optional chaining used appropriately
-- [ ] Error boundaries in place (for components)
-- [ ] Loading states handled
-- [ ] Edge cases considered
+### Essential SEO Libraries to Install
+```bash
+# Core SEO
+npm install next-seo
+npm install next-sitemap
 
-### Audit Report Template
+# Schema & Structured Data
+npm install schema-dts
+
+# Analytics & Monitoring
+npm install @vercel/analytics @vercel/speed-insights
+npm install @next/third-parties  # For Google Analytics
+
+# SEO Testing
+npm install -D lighthouse
+```
+
+### SEO Configuration Files Needed
+1. `next-seo.config.js` - Global SEO settings
+2. `next-sitemap.config.js` - Sitemap generation
+3. `robots.txt` - Search engine directives
+
+## Project Structure
+
+```
+project/
+├── app/                    # Next.js App Router
+│   ├── (auth)/            # Auth group routes
+│   ├── (marketing)/       # Public pages
+│   ├── (dashboard)/       # Protected pages
+│   ├── api/               # API routes
+│   ├── layout.tsx         # Root layout
+│   └── page.tsx           # Home page
+├── components/
+│   ├── ui/                # shadcn/ui components
+│   ├── forms/             # Form components
+│   └── layouts/           # Layout components
+├── lib/
+│   ├── supabase/          # Supabase client & types
+│   ├── utils/             # Utility functions
+│   └── hooks/             # Custom React hooks
+├── tests/
+│   ├── unit/              # Unit tests
+│   ├── integration/       # Integration tests
+│   └── e2e/               # End-to-end tests
+├── public/                # Static assets
+├── styles/
+│   └── globals.css        # Global styles with Tailwind
+└── development-progress-implementation-log.md  # Implementation tracking
+```
+
+## Development Progress Tracking
+
+### IMPORTANT: Implementation Log
+**ALL projects MUST maintain a `development-progress-implementation-log.md` file in the project root.**
+
+This file tracks all significant implementations with:
+- Version numbers (v1.0, v2.0, etc.)
+- Date and timestamp
+- Features implemented
+- Files created/modified
+- Key improvements and metrics
+
+#### Format Example:
 ```markdown
-# Audit Report: [Component Name]
-**Date:** [YYYY-MM-DD]
-**Component:** [File Path]
-**Lines:** [Line Count]
-**Audit Type:** Comprehensive Code Compliance Review
+### v1.0 - Initial Setup
+**Date: 2025-01-25**
+**Timestamp: 10:00 GMT**
 
-## CLAUDE.md Compliance Score: X/10
+#### Features Implemented:
+- Project initialization
+- Core functionality
+- Database schema
 
-### ✅ Compliant Areas:
-- [List all guidelines followed correctly]
+### v2.0 - Feature Enhancement
+**Date: 2025-01-25**
+**Timestamp: 15:30 GMT**
 
-### ⚠️ Issues Found:
-- **[SEVERITY]** [Issue description] - Line [X]
-  - Current: [What's wrong]
-  - Should Be: [Correct implementation]
-  - Impact: [What breaks]
-
-### 📦 Breaking Changes:
-#### Upstream:
-- [Components affected and how]
-
-#### Downstream:
-- [Dependencies affected and how]
-
-### 🔧 Required Fixes (Priority):
-1. **[P0 - BUILD BLOCKER]** [Critical fixes]
-2. **[P1 - HIGH]** [Important fixes]
-3. **[P2 - MEDIUM]** [Should fix]
-
-### ✅ Verification Checklist:
-- [ ] All P0 issues resolved
-- [ ] All P1 issues resolved or documented
-- [ ] Breaking changes communicated
-- [ ] Tests updated if needed
+#### Features Implemented:
+- New feature description
+- Files modified
+- Performance improvements
 ```
 
-### When to Run Audit:
-1. **ALWAYS after refactoring** (>30% code change)
-2. **ALWAYS when creating new components**
-3. **ALWAYS when changing interfaces/APIs**
-4. **Before marking TODO items complete**
-5. **Before creating PRs**
+**When to Update:**
+- After completing any significant feature
+- When creating new architectural components
+- After major refactoring
+- When implementing integrations
+- At the end of each development session
 
-### Audit Output:
-- Create `[component-name]-audit-[YYYY-MM-DD].md` file
-- Include in PR description
-- Reference in TodoWrite completion notes
+**Auto-create this file** when starting work on any project that doesn't have one.
 
-### Time Investment:
-- Simple component: ~5-10 minutes
-- Complex component: ~15-20 minutes
-- Critical system: ~30 minutes
+## Coding Standards
 
-**NO CODE SHIPS WITHOUT AUDIT**
+### Best Practices
+1. **Always use TypeScript** with strict mode enabled
+2. **Prefer server components** in Next.js App Router (default)
+3. **Use 'use client' directive** only when necessary
+4. **Implement proper error boundaries** for robust error handling
+5. **Use environment variables** for all sensitive data
+6. **Follow atomic design principles** for components
+7. **Implement proper loading and error states**
+8. **Use React.Suspense** for async components
 
-## 📚 EXTERNAL DOCUMENTATION
+### Security Best Practices
+1. **Never expose API keys** in client-side code
+2. **Always validate and sanitize** user input
+3. **Use Supabase RLS** (Row Level Security) policies
+4. **Implement rate limiting** on API routes
+5. **Use HTTPS everywhere** in production
+6. **Enable CSP headers** for XSS protection
+7. **Keep dependencies updated** regularly
+8. **Use secrets management** for sensitive data
 
-### Troubleshooting Guides
-- Authentication: `/docs/authentication-issues.md`
-- API Integration: `/docs/api-integration-guide.md`
-- Repository Pattern: `/docs/repository-pattern-architecture.md`
+### Code Style
+- Use functional components with hooks
+- Implement proper TypeScript types (avoid `any`)
+- Follow ESLint and Prettier configurations
+- Use semantic HTML elements
+- Implement accessible components (ARIA labels)
+- Write self-documenting code (clear naming)
+- Keep components small and focused
+- Use custom hooks for reusable logic
 
-### Development Patterns
-- Event System: `/docs/development-patterns.md`
-- Error Logging: `/docs/error-logging-best-practices.md`
-- Testing: `/docs/testing-guidelines.md`
+## Essential Configuration Files
 
-### Architecture
-- PDF Generation: `/docs/pdf-architecture-and-styling.md`
-- Semantic HTML: `/docs/semantic-html-guidelines-for-llms.md`
+### package.json scripts
+```json
+{
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:e2e": "playwright test",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "analyze": "ANALYZE=true next build",
+    "lighthouse": "lighthouse http://localhost:3000 --view"
+  }
+}
+```
 
-## 🛡️ SECURITY
+### TypeScript Configuration
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}
+```
 
-### Never Expose
-- API keys in client code
-- Service role keys anywhere
-- Sensitive data in logs
+## Documentation Resources
 
-### Always Implement
-- Input validation/sanitization
-- Supabase RLS policies
-- Rate limiting on APIs
-- HTTPS everywhere
-- CSP headers
+### Official Documentation
+- Next.js: https://nextjs.org/docs
+- shadcn/ui: https://ui.shadcn.com
+- Tailwind CSS: https://tailwindcss.com/docs
+- Framer Motion: https://www.framer.com/motion
+- Supabase: https://supabase.com/docs
+- Vitest: https://vitest.dev
+- Testing Library: https://testing-library.com
 
-## 🔑 ENVIRONMENT
+### Local Claude Docs
+Available at `~/.claude-docs/docs/`:
+- quickstart.md - Getting started
+- memory.md - Using CLAUDE.md files
+- common-workflows.md - Typical development patterns
+- settings.md - Configuration options
 
-### Tech Stack
-- IDE: Cursor (VS Code-based IDE with AI features)
-- Framework: Next.js App Router
-- UI: shadcn/ui + Tailwind CSS
-- Database: Supabase (REMOTE ONLY - no local DB)
-- AI: GPT-5 (default) via Vercel AI Gateway
-- Testing: Vitest + Testing Library + Playwright (E2E)
-- PDF Generation: Playwright (server-side HTML to PDF)
-- PDF Viewing: Native browser PDF display
+## Common Commands Reference
 
-### Environment Variables
+### Development
 ```bash
-# Supabase (remote access only)
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+npm run dev          # Start dev server
+npm run build        # Build for production
+npm run lint         # Run ESLint
+npm run type-check   # Check TypeScript
 ```
 
-### Available CLIs
-- `gh` - GitHub CLI
-- `vercel` - Vercel CLI  
-- `supabase` - Supabase CLI
-- `stripe` - Stripe CLI
-- `npm`/`npx` - Package managers
+### Database (Supabase) - ALWAYS USE CLI
+```bash
+# Development workflow
+supabase start                                    # Start local Supabase
+supabase migration new descriptive_change_name    # Create migration
+supabase db reset                                # Test migration locally
+supabase gen types typescript --local > lib/database.types.ts  # Generate types
+supabase db push                                 # Deploy to production
 
-## ⚠️ COMMON PITFALLS TO AVOID
+# Debugging
+supabase db diff                                 # Check local vs remote
+supabase db lint                                # Check for issues
+```
 
-1. **Creating mock data** - Let real errors surface
-2. **Direct DB access** - Use repositories
-3. **Generating UUIDs** - Let PostgreSQL handle
-4. **Using old event systems** - Use unified EventFactory
-5. **Skipping tests** - Test before every commit
-6. **Creating ad-hoc test files** - Enhance existing
-7. **Silent error handling** - Log and throw
-8. **Token-heavy MCP calls** - Use compact functions
-9. **Forgetting manifest update** - Run after changes
-10. **Missing tooltips** - Every UI element needs one
-11. **Local DB commands** - No local DB, always use remote
-12. **Wrong logger methods** - No .error() or .log(), use exact signatures
+### Deployment
+```bash
+vercel              # Deploy to Vercel
+vercel --prod       # Deploy to production
+gh repo create      # Create GitHub repo
+gh pr create        # Create pull request
+```
 
-## 🚀 SESSION CHECKLIST
+### Testing
+```bash
+npm test            # Run tests
+npm run test:coverage # With coverage
+npm run lighthouse  # SEO/Performance audit
+```
 
-- [ ] Read PROJECT_MANIFEST.json
-- [ ] Check quickWins section
-- [ ] Use TodoWrite for complex tasks
-- [ ] Test scripts on single file first
-- [ ] Update manifest after changes
-- [ ] Run tests before commits
-- [ ] **Run mandatory code audit on new/refactored components**
-- [ ] Archive redundant code
-- [ ] Document in UK English
-- [ ] Write problem analysis on exit
-- [ ] Generate types from remote DB after schema changes
-- [ ] Add breadcrumbs at all interface boundaries
-- [ ] Include timing for performance-critical operations
+## Project Initialization Checklist
+
+When starting a new project, run `claude-init` in an empty directory. It will:
+
+1. [x] Initialize Next.js with TypeScript (automatic)
+2. [x] Install and configure shadcn/ui (automatic with random color theme)
+3. [x] Install all preferred libraries (automatic)
+4. [x] Create animated background components (automatic)
+5. [x] Set up ESLint (automatic, answers yes)
+6. [x] Install testing framework (automatic)
+7. [x] Install SEO libraries (automatic)
+8. [x] Create CLAUDE.md in project root (automatic)
+9. [ ] Set up Supabase project (manual - visit supabase.com)
+10. [ ] Configure environment variables (manual - copy .env.local.example)
+11. [ ] Set up GitHub repository (manual - use `gh repo create`)
+12. [ ] Configure Vercel deployment (manual - use `vercel`)
+
+### Quick Start for New Projects:
+```bash
+mkdir my-project && cd my-project
+claude-init  # Creates entire project automatically
+cp .env.local.example .env.local  # Then add your API keys
+npm run dev
+```
+
+## Stripe Integration
+
+### Configuration
+Stripe is fully integrated with products and pricing configured via CLI.
+
+#### Environment Variables (Already Set)
+```env
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_51RzYXh2dFhd680hG...
+STRIPE_SECRET_KEY=sk_test_51RzYXh2dFhd680hG...
+STRIPE_WEBHOOK_SECRET=whsec_dcf456ce20a7fd39c813b7ae4d4cfa436...
+
+# Price IDs (Already Created)
+NEXT_PUBLIC_STRIPE_PRICE_ID_BASIC_MONTHLY=price_1RzZ1t2dFhd680hGONR7esBs
+NEXT_PUBLIC_STRIPE_PRICE_ID_BASIC_ANNUAL=price_1RzZ232dFhd680hGZsmm1VJM
+NEXT_PUBLIC_STRIPE_PRICE_ID_PREMIUM_MONTHLY=price_1RzZ2M2dFhd680hGSWQOd2cQ
+NEXT_PUBLIC_STRIPE_PRICE_ID_PREMIUM_ANNUAL=price_1RzZ2V2dFhd680hGnSHYUZeu
+```
+
+#### Products & Pricing (Already Created)
+- **Basic Plan**: $19/month or $190/year
+- **Premium Plan**: $49/month or $490/year
+
+### Stripe CLI Commands
+```bash
+# Authentication
+stripe login                           # Authenticate with Stripe account
+
+# Product Management
+stripe products list                   # List all products
+stripe prices list                     # List all prices
+stripe customers list                  # List customers
+
+# Webhook Testing
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+
+# Create checkout session (example)
+stripe checkout sessions create \
+  --success-url="http://localhost:3000/success" \
+  --cancel-url="http://localhost:3000/cancel" \
+  --line-items="price=price_1RzZ1t2dFhd680hGONR7esBs,quantity=1" \
+  --mode=subscription
+
+# View logs
+stripe logs tail                      # Stream API logs
+```
+
+### Key Files
+- `/lib/stripe/client.ts` - Stripe client initialization
+- `/lib/hooks/use-stripe-checkout.ts` - Checkout session hook
+- `/app/api/stripe/checkout/route.ts` - Checkout API endpoint
+- `/app/api/stripe/webhook/route.ts` - Webhook handler
+- `/STRIPE_QUICKSTART.md` - Quick setup guide
+- `/docs/stripe-llm-docs.txt` - Complete Stripe LLM documentation (cached locally)
+
+### Testing Cards
+```
+4242 4242 4242 4242  # Success
+4000 0000 0000 0002  # Decline
+4000 0025 0000 3155  # Requires authentication
+```
+
+### Common Operations
+```typescript
+// Create checkout session (already implemented)
+const { createCheckoutSession } = useStripeCheckout()
+await createCheckoutSession(priceId, 'monthly')
+
+// Open customer portal (already implemented)
+const { openCustomerPortal } = useStripeCheckout()
+await openCustomerPortal()
+```
+
+### References
+- Full Stripe documentation cached at: `/docs/stripe-llm-docs.txt`
+- Quick setup guide: `/STRIPE_QUICKSTART.md`
+- Stripe Dashboard: https://dashboard.stripe.com
+- API Reference: https://stripe.com/docs/api
+
+## Notes
+
+- Always prefer editing existing files over creating new ones
+- Run linting and type checking before commits
+- Use semantic commit messages
+- Write tests for critical functionality
+- Document complex logic with comments
+- Keep bundle size optimized
+- Monitor Core Web Vitals
+- #DO NOT switch LLM models without approval.
+- DO NOT CHANGE LLM MODEL WITHOUT USER PERMISSION!
+- INCREASING TIMEOUTS IS NOT USUALLY A SOLUTION. IT IS A SYMPTOM OF AN UNDERLYING CODE ISSUE. ADJUST TIMEOUTS AS A LAST RESORT

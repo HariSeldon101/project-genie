@@ -1,10 +1,6 @@
 /**
  * PDF Cache Service
  * Handles caching of generated PDFs in Supabase Storage
- *
- * EXCEPTION: Uses Supabase Storage directly (not database)
- * Storage operations are different from database queries and don't
- * fit the repository pattern for database operations.
  */
 
 import { createClient } from '@/lib/supabase/server'

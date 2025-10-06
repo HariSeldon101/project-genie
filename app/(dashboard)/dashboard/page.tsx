@@ -1,11 +1,8 @@
 'use client'
 
-// ULTRA-NUCLEAR: Force dynamic rendering
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createBrowserClient } from '@supabase/ssr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,34 +33,42 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      // Check authentication status via API
-      const authResponse = await fetch('/api/auth/user')
-      if (!authResponse.ok) {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      // Get current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      
+      if (!currentUser) {
         router.push('/login')
         return
       }
 
-      const currentUser = await authResponse.json()
-      setUser({
-        id: currentUser.id,
-        email: currentUser.email || ''
-      })
+      setUser(currentUser)
+      
+      // Check if user is admin
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', currentUser.id)
+        .single()
+      
+      setIsAdmin(profile?.is_admin || false)
 
-      // Check if user is admin via profile API
-      const profileResponse = await fetch('/api/profiles/current')
-      if (profileResponse.ok) {
-        const profile = await profileResponse.json()
-        setIsAdmin(profile?.is_admin || false)
-      }
+      // Load projects (simplified query like projects page)
+      const { data: projectsData, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('owner_id', currentUser.id)
+        .order('created_at', { ascending: false })
 
-      // Load projects via API
-      const projectsResponse = await fetch('/api/projects')
-      if (projectsResponse.ok) {
-        const projectsData = await projectsResponse.json()
-        console.log(`Dashboard: Loaded ${projectsData?.length || 0} projects`)
-        setProjects(projectsData || [])
+      if (error) {
+        console.error('Error loading projects:', error)
       } else {
-        console.error('Error loading projects')
+        console.log(`Dashboard: Loaded ${projectsData?.length || 0} projects for user ${currentUser.id}`)
+        setProjects(projectsData || [])
       }
     } catch (error) {
       console.error('Error loading dashboard:', error)

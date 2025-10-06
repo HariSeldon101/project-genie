@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { BugReportForm } from '@/components/bug-tracker/bug-report-form'
@@ -8,6 +8,8 @@ import { BugList } from '@/components/bug-tracker/bug-list'
 import { BugDetailModal } from '@/components/bug-tracker/bug-detail-modal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Plus, Bug, AlertCircle, CheckCircle, Clock, TrendingUp } from 'lucide-react'
+import { useEffect } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
 
 export default function BugTrackerPage() {
   const [showReportForm, setShowReportForm] = useState(false)
@@ -23,41 +25,44 @@ export default function BugTrackerPage() {
   })
   const [isAdmin, setIsAdmin] = useState(false)
 
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+
   useEffect(() => {
     fetchStats()
     checkAdminStatus()
   }, [refreshKey])
 
   const checkAdminStatus = async () => {
-    try {
-      const response = await fetch('/api/profiles/current')
-      if (response.ok) {
-        const profile = await response.json()
-        setIsAdmin(profile?.is_admin || false)
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single()
+      
+      setIsAdmin(data?.is_admin || false)
     }
   }
 
   const fetchStats = async () => {
-    try {
-      const response = await fetch('/api/bugs')
-      if (response.ok) {
-        const data = await response.json()
+    const { data } = await supabase
+      .from('bug_reports')
+      .select('status, severity')
 
-        const newStats = {
-          open: data.filter((b: any) => b.status === 'open').length,
-          investigating: data.filter((b: any) => b.status === 'investigating').length,
-          resolved: data.filter((b: any) => b.status === 'resolved').length,
-          closed: data.filter((b: any) => b.status === 'closed').length,
-          critical: data.filter((b: any) => b.severity === 5).length,
-          high: data.filter((b: any) => b.severity === 4).length
-        }
-        setStats(newStats)
+    if (data) {
+      const newStats = {
+        open: data.filter(b => b.status === 'open').length,
+        investigating: data.filter(b => b.status === 'investigating').length,
+        resolved: data.filter(b => b.status === 'resolved').length,
+        closed: data.filter(b => b.status === 'closed').length,
+        critical: data.filter(b => b.severity === 5).length,
+        high: data.filter(b => b.severity === 4).length
       }
-    } catch (error) {
-      console.error('Error fetching bug stats:', error)
+      setStats(newStats)
     }
   }
 

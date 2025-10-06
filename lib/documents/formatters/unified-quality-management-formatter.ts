@@ -543,7 +543,7 @@ graph LR
               </tr>
             </thead>
             <tbody>
-              <tr class="fatal">
+              <tr class="critical">
                 <td>Critical</td>
                 <td>System down, data loss</td>
                 <td>4 hours</td>

@@ -10,7 +10,7 @@ import { Prince2PIDSchema, RiskRegisterSchema } from './schemas/prince2-pid'
 import { DocumentQueue } from './queue'
 import { DocumentCache } from './cache'
 import { documentLogger } from '../utils/document-logger'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { logger } from '@/lib/utils/permanent-logger'
 import { TwoStageGenerator, ResearchContext } from './two-stage-generator'
 import { DevLogger } from '@/lib/utils/dev-logger'
 import { SectionedDocumentGenerator } from './sectioned-generator'
@@ -246,7 +246,7 @@ export class DocumentGenerator {
       let researchContext: ResearchContext = {}
       
       if (useTwoStage) {
-        permanentLogger.info('TWO_STAGE', 'Using two-stage generation with research context')
+        logger.info('TWO_STAGE', 'Using two-stage generation with research context')
       }
       
       switch (methodology) {
@@ -318,7 +318,7 @@ export class DocumentGenerator {
               
             } catch (error) {
               console.error('  ⚠️ Research generation failed, continuing without context:', error)
-              permanentLogger.captureError('TWO_STAGE', new Error('Research generation failed'), error)
+              logger.error('TWO_STAGE', 'Research generation failed', error)
             }
           }
           
@@ -534,7 +534,7 @@ export class DocumentGenerator {
               
             } catch (error) {
               console.error('  ⚠️ Research generation failed, continuing without context:', error)
-              permanentLogger.captureError('TWO_STAGE', new Error('Research generation failed'), error)
+              logger.error('TWO_STAGE', 'Research generation failed', error)
             }
           }
           
@@ -793,7 +793,7 @@ export class DocumentGenerator {
               
             } catch (error) {
               console.error('  ⚠️ Research generation failed, continuing without context:', error)
-              permanentLogger.captureError('TWO_STAGE', new Error('Research generation failed'), error)
+              logger.error('TWO_STAGE', 'Research generation failed', error)
             }
           }
           
@@ -1020,7 +1020,7 @@ export class DocumentGenerator {
         this.aggregatedMetrics.documentCount++
         
         // Log to permanent file
-        permanentLogger.docGen(projectId, documentType, 'completed', {
+        logger.docGen(projectId, documentType, 'completed', {
           ...doc.metadata.usage,
           generationTimeMs: duration,
           provider: doc.metadata.provider,
@@ -1129,7 +1129,7 @@ export class DocumentGenerator {
       })
       
       // Log to permanent file
-      permanentLogger.docGen(projectId, 'charter', 'completed', {
+      logger.docGen(projectId, 'charter', 'completed', {
         ...result.usage,
         generationTimeMs,
         provider: providerInfo.provider,

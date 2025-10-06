@@ -1,7 +1,7 @@
 #!/bin/bash
 
 API_URL="https://api.supabase.com/v1/projects/vnuieavheezjxbkyfxea/database/query"
-AUTH_HEADER="Authorization: Bearer sbp_ce8146f94e3403eca0a088896812e9bbbf08929b"
+AUTH_HEADER="Authorization: Bearer sbp_10122b563ee9bd601c0b31dc799378486acf13d2"
 
 echo "📍 Applying RLS Performance Fixes..."
 echo "===================================="

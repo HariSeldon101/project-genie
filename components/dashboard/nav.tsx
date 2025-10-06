@@ -10,12 +10,11 @@ import {
   Settings,
   FileText,
   BarChart3,
+  MessageSquare,
   Plus,
   Bug,
   User,
-  HelpCircle,
-  Building2,
-  ScrollText
+  HelpCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -34,11 +33,6 @@ const navItems = [
     title: 'Documents',
     href: '/documents',
     icon: FileText,
-  },
-  {
-    title: 'Company Intelligence',
-    href: '/company-intelligence',
-    icon: Building2,
   },
   {
     title: 'Bug Tracker',
@@ -75,17 +69,6 @@ const navItems = [
 export function DashboardNav() {
   const pathname = usePathname()
 
-  // Add logs link only in development
-  const isDevelopment = process.env.NODE_ENV === 'development'
-  
-  const allNavItems = isDevelopment 
-    ? [...navItems, {
-        title: 'Logs (Dev)',
-        href: '/logs',
-        icon: ScrollText,
-      }]
-    : navItems
-
   return (
     <nav className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
       <div className="p-6">
@@ -98,7 +81,7 @@ export function DashboardNav() {
       </div>
 
       <div className="px-3">
-        {allNavItems.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
           
@@ -118,6 +101,15 @@ export function DashboardNav() {
             </Link>
           )
         })}
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
+        <Link href="/chat">
+          <Button variant="outline" className="w-full justify-start">
+            <MessageSquare className="mr-2 h-4 w-4" />
+            AI Assistant
+          </Button>
+        </Link>
       </div>
     </nav>
   )

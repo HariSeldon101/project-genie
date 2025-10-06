@@ -17,7 +17,6 @@ export default function GenerateDocumentsPage() {
   const [loading, setLoading] = useState(true)
   const [project, setProject] = useState<Record<string, unknown> | null>(null)
   const [projectData, setProjectData] = useState<Record<string, unknown> | null>(null)
-  const [companyIntelligencePack, setCompanyIntelligencePack] = useState<any | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const supabase = createBrowserClient(
@@ -31,42 +30,16 @@ export default function GenerateDocumentsPage() {
 
   const loadProject = async () => {
     try {
-      // Use API endpoint instead of direct database access
-      const response = await fetch(`/api/projects/${projectId}/full`)
+      // Get project from database
+      const { data: projectRecord, error: projectError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single()
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Project not found')
-        }
-        if (response.status === 403) {
-          throw new Error('Access denied')
-        }
-        throw new Error('Failed to load project')
-      }
-
-      const { project: projectRecord, stakeholders } = await response.json()
+      if (projectError) throw projectError
       setProject(projectRecord)
 
-      // Try to get company intelligence pack ID from session or project
-      const companyInfo = projectRecord.company_info || {}
-      const packId = sessionStorage.getItem('company_intelligence_pack_id') || companyInfo.companyIntelligencePackId
-      
-      if (packId) {
-        // Fetch the company intelligence pack
-        try {
-          const response = await fetch(`/api/company-intelligence/pack/${packId}`)
-          if (response.ok) {
-            const pack = await response.json()
-            setCompanyIntelligencePack(pack)
-            console.log('Loaded company intelligence pack:', pack.companyName)
-          }
-        } catch (err) {
-          console.error('Failed to load company intelligence pack:', err)
-        }
-        // Clean up session storage
-        sessionStorage.removeItem('company_intelligence_pack_id')
-      }
-      
       // Try to get project data from session (if coming from wizard)
       const storedData = sessionStorage.getItem(`project_data_${projectId}`)
       if (storedData) {
@@ -74,7 +47,15 @@ export default function GenerateDocumentsPage() {
         // Clean up session storage
         sessionStorage.removeItem(`project_data_${projectId}`)
       } else {
-        // Reconstruct project data from what we already fetched
+        // Reconstruct project data from database
+        const { data: stakeholders } = await supabase
+          .from('stakeholders')
+          .select('*')
+          .eq('project_id', projectId)
+
+        // Extract company_info fields
+        const companyInfo = projectRecord.company_info || {}
+        
         const reconstructedData = {
           name: projectRecord.name,
           description: projectRecord.description,
@@ -87,8 +68,6 @@ export default function GenerateDocumentsPage() {
           timeline: companyInfo.timeline || '',
           startDate: companyInfo.startDate || '',
           endDate: companyInfo.endDate || '',
-          companyName: companyInfo.companyName || '',
-          companyDomain: companyInfo.companyDomain || '',
           stakeholders: stakeholders?.map(s => ({
             name: s.name,
             email: s.email || '',
@@ -211,7 +190,6 @@ export default function GenerateDocumentsPage() {
               <DocumentGenerator
                 projectId={projectId}
                 projectData={projectData}
-                companyIntelligencePack={companyIntelligencePack}
                 onComplete={handleComplete}
               />
 

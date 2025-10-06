@@ -751,7 +751,7 @@ export class BacklogFormatter extends BaseHTMLFormatter {
   private getPriorityClass(priority: string | undefined): string {
     if (!priority) return ''
     const p = priority.toLowerCase()
-    if (p === 'fatal' || p === 'highest') return 'priority-critical'
+    if (p === 'critical' || p === 'highest') return 'priority-critical'
     if (p === 'high') return 'priority-high'
     if (p === 'low') return 'priority-low'
     return 'priority-medium'

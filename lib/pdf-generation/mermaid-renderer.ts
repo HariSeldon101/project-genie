@@ -1,23 +1,23 @@
 /**
  * Server-side Mermaid diagram rendering for PDF generation
  * Converts Mermaid syntax to SVG images
- * Uses Playwright instead of Puppeteer to reduce bundle size
  */
 
-import { chromium } from 'playwright'
+import puppeteer from 'puppeteer'
 
 /**
  * Render Mermaid diagram to SVG
  */
 export async function renderMermaidToSVG(mermaidCode: string): Promise<string> {
   let browser
-
+  
   try {
-    // Launch headless browser with Playwright (lighter than Puppeteer)
-    browser = await chromium.launch({
-      headless: true
+    // Launch headless browser
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
-
+    
     const page = await browser.newPage()
     
     // Create HTML with Mermaid
@@ -49,11 +49,11 @@ export async function renderMermaidToSVG(mermaidCode: string): Promise<string> {
       </html>
     `
     
-    await page.setContent(html, { waitUntil: 'networkidle' })
-
+    await page.setContent(html, { waitUntil: 'networkidle0' })
+    
     // Wait for Mermaid to render
     await page.waitForSelector('svg', { timeout: 5000 })
-
+    
     // Get SVG content
     const svg = await page.evaluate(() => {
       const svgElement = document.querySelector('svg')

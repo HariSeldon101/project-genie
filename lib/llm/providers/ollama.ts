@@ -139,12 +139,8 @@ export class OllamaProvider implements LLMProvider {
               onChunk(data.message.content)
             }
           } catch (e) {
-      // Log error but re-throw to avoid silent failures
-      permanentLogger.captureError('ERROR', e as Error, {
-        context: 'Unhandled error - needs proper handling'
-      })
-      throw e
-    }
+            // Skip invalid JSON lines
+          }
         }
       }
     } catch (error) {

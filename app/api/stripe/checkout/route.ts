@@ -1,88 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe, PRICING } from '@/lib/stripe/client'
-import { createClient } from '@/lib/supabase/server'
-import { SubscriptionsRepository } from '@/lib/repositories/subscriptions-repository'
-import { parseJsonRequest, createErrorResponse } from '@/lib/utils/request-parser'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
-import { z } from 'zod'
-
-// Request schema for checkout session creation
-const CheckoutRequestSchema = z.object({
-  priceId: z.string().min(1, 'Price ID is required'),
-  tier: z.enum(['free', 'basic', 'premium'], {
-    errorMap: () => ({ message: 'Invalid subscription tier' })
-  }),
-  billingCycle: z.enum(['monthly', 'yearly'], {
-    errorMap: () => ({ message: 'Invalid billing cycle' })
-  })
-})
-
-type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
-  const startTime = Date.now()
-  const routeCategory = 'STRIPE_CHECKOUT'
-
-  // Add breadcrumb for route entry
-  permanentLogger.info(routeCategory, 'Checkout session request started', {
-    method: 'POST',
-    url: request.url,
-    timestamp: new Date().toISOString()
-  })
-
   try {
     // Check if Stripe is configured
     if (!stripe) {
-      permanentLogger.captureError(routeCategory, new Error('Stripe not configured'), {
-        message: 'Payment system not configured'
-      })
       return NextResponse.json(
         { error: 'Payment system not configured' },
         { status: 503 }
       )
     }
+    const { priceId, tier, billingCycle } = await request.json()
 
-    // Use shared request parser with schema validation
-    const parseResult = await parseJsonRequest<CheckoutRequest>(request, {
-      schema: CheckoutRequestSchema,
-      logCategory: routeCategory,
-      maxBodySize: 100 * 1024 // 100KB limit for checkout requests
-    })
+    // Get user session
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
 
-    // Check if parsing was successful
-    const errorResponse = createErrorResponse(parseResult)
-    if (errorResponse) {
-      permanentLogger.captureError(routeCategory, new Error('Request parsing failed'), {
-        error: parseResult.error,
-        timing: parseResult.timing
-      })
-      return errorResponse
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Type-safe access to validated body
-    const { priceId, tier, billingCycle } = parseResult.data!
-
-    // Log validated request
-    permanentLogger.info(routeCategory, 'Checkout request validated', {
-      tier,
-      billingCycle,
-      parseTimeMs: parseResult.timing?.parseMs,
-      validationTimeMs: parseResult.timing?.validationMs
-    })
-
-    // Get user session using server client
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Use repository instead of direct database access
-    const subscriptionsRepo = SubscriptionsRepository.getInstance()
-    const subscription = await subscriptionsRepo.getUserSubscription(user.id)
+    // Check if user already has a Stripe customer ID
+    const { data: userData } = await supabase
+      .from('subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_id', user.id)
+      .single()
 
-    let customerId = subscription?.stripe_customer_id
+    let customerId = userData?.stripe_customer_id
 
     // Create customer if doesn't exist
     if (!customerId) {
@@ -94,13 +50,15 @@ export async function POST(request: NextRequest) {
       })
       customerId = customer.id
 
-      // Store customer ID using repository
-      await subscriptionsRepo.upsertSubscription({
-        user_id: user.id,
-        stripe_customer_id: customerId,
-        tier: 'free',
-        status: 'inactive'
-      })
+      // Store customer ID
+      await supabase
+        .from('subscriptions')
+        .upsert({
+          user_id: user.id,
+          stripe_customer_id: customerId,
+          tier: 'free',
+          status: 'inactive'
+        })
     }
 
     // Create checkout session
@@ -130,47 +88,11 @@ export async function POST(request: NextRequest) {
       allow_promotion_codes: true,
     })
 
-    // Log successful checkout session creation
-    const totalTimeMs = Date.now() - startTime
-    permanentLogger.info(routeCategory, 'Checkout session created successfully', {
-      sessionId: session.id,
-      tier,
-      billingCycle,
-      customerId,
-      parseTimeMs: parseResult.timing?.parseMs,
-      sessionCreationTimeMs: totalTimeMs - (parseResult.timing?.parseMs || 0),
-      totalTimeMs
-    })
-
-    return NextResponse.json({
-      sessionId: session.id,
-      url: session.url,
-      timing: {
-        parseMs: parseResult.timing?.parseMs,
-        processingMs: totalTimeMs - (parseResult.timing?.parseMs || 0),
-        totalMs: totalTimeMs
-      }
-    })
+    return NextResponse.json({ sessionId: session.id, url: session.url })
   } catch (error: any) {
-    // Comprehensive error logging
-    const errorMessage = error.message || 'Failed to create checkout session'
-    const totalTimeMs = Date.now() - startTime
-
-    permanentLogger.captureError(routeCategory, error as Error, {
-      method: 'POST',
-      path: '/api/stripe/checkout',
-      errorMessage,
-      totalTimeMs,
-      breadcrumbs: permanentLogger.getBreadcrumbs ? permanentLogger.getBreadcrumbs() : []
-    })
-
-    // Return detailed error response (NO fallback data)
+    console.error('Stripe checkout error:', error)
     return NextResponse.json(
-      {
-        error: errorMessage,
-        timing: { totalMs: totalTimeMs },
-        requestId: request.headers.get('x-request-id') || 'unknown'
-      },
+      { error: error.message || 'Failed to create checkout session' },
       { status: 500 }
     )
   }
@@ -178,59 +100,51 @@ export async function POST(request: NextRequest) {
 
 // Handle customer portal for managing subscriptions
 export async function GET(request: NextRequest) {
-  const timer = permanentLogger.timing('api.stripe.portal.get')
-
   try {
     // Check if Stripe is configured
     if (!stripe) {
-      timer.stop()
       return NextResponse.json(
         { error: 'Payment system not configured' },
         { status: 503 }
       )
     }
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
 
-    // Get user session using server client
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      timer.stop()
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    permanentLogger.breadcrumb('api', 'Creating Stripe portal session', {
-      userId: user.id,
-      timestamp: Date.now()
-    })
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    // Get customer ID using repository
-    const subscriptionsRepo = SubscriptionsRepository.getInstance()
-    const subscription = await subscriptionsRepo.getUserSubscription(user.id)
+    // Get customer ID
+    const { data: userData } = await supabase
+      .from('subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_id', user.id)
+      .single()
 
-    if (!subscription?.stripe_customer_id) {
-      timer.stop()
+    if (!userData?.stripe_customer_id) {
       return NextResponse.json({ error: 'No subscription found' }, { status: 404 })
     }
 
     // Create portal session
     const session = await stripe!.billingPortal.sessions.create({
-      customer: subscription.stripe_customer_id,
+      customer: userData.stripe_customer_id,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
     })
 
-    permanentLogger.info('STRIPE_CHECKOUT', 'Portal session created', {
-      userId: user.id
-    })
-
-    timer.stop()
     return NextResponse.json({ url: session.url })
   } catch (error: any) {
-    timer.stop()
-    permanentLogger.captureError('STRIPE_CHECKOUT', error as Error, {
-      endpoint: 'GET /api/stripe/checkout'
-    })
-
+    console.error('Portal session error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to create portal session' },
       { status: 500 }

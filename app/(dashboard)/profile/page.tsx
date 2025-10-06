@@ -21,7 +21,7 @@ import {
   Phone,
   MapPin
 } from 'lucide-react'
-import { persistentToast } from '@/lib/hooks/use-persistent-toast'
+import { toast } from 'sonner'
 
 interface UserProfile {
   id: string
@@ -43,7 +43,10 @@ export default function ProfilePage() {
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Removed direct Supabase client - using API endpoints instead
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     loadProfile()
@@ -52,30 +55,46 @@ export default function ProfilePage() {
   const loadProfile = async () => {
     try {
       setLoading(true)
-
-      // Use API endpoint instead of direct database access
-      const response = await fetch('/api/profile')
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          persistentToast.error('Not authenticated')
-          return
-        }
-        throw new Error('Failed to load profile')
+      
+      // Get the authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        console.error('Auth error:', authError)
+        toast.error('Failed to load user data')
+        return
       }
 
-      const profileData = await response.json()
-      setProfile({
-        id: profileData.id,
-        email: profileData.email || '',
-        full_name: profileData.full_name || '',
-        avatar_url: profileData.avatar_url || '',
-        phone: profileData.phone || '',
-        location: profileData.location || ''
-      })
+      // Try to get profile from profiles table first
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (profileData) {
+        setProfile({
+          id: user.id,
+          email: user.email || '',
+          full_name: profileData.full_name || user.user_metadata?.full_name || '',
+          avatar_url: profileData.avatar_url || user.user_metadata?.avatar_url,
+          phone: profileData.phone || '',
+          location: profileData.location || ''
+        })
+      } else {
+        // If no profile exists, use auth metadata
+        setProfile({
+          id: user.id,
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || '',
+          avatar_url: user.user_metadata?.avatar_url,
+          phone: '',
+          location: ''
+        })
+      }
     } catch (error) {
       console.error('Error loading profile:', error)
-      persistentToast.error('Failed to load profile')
+      toast.error('Failed to load profile')
     } finally {
       setLoading(false)
     }
@@ -84,41 +103,39 @@ export default function ProfilePage() {
   const handleSave = async () => {
     try {
       setSaving(true)
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No authenticated user')
 
-      // Use API endpoint instead of direct database access
-      const response = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      // Update auth metadata
+      const { error: authError } = await supabase.auth.updateUser({
+        data: { 
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url 
+        }
+      })
+
+      if (authError) throw authError
+
+      // Upsert to profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
           email: profile.email,
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
           phone: profile.phone,
-          location: profile.location
+          location: profile.location,
+          updated_at: new Date().toISOString()
         })
-      })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to save profile')
-      }
+      if (profileError) throw profileError
 
-      const updatedProfile = await response.json()
-      setProfile({
-        id: updatedProfile.id,
-        email: updatedProfile.email || '',
-        full_name: updatedProfile.full_name || '',
-        avatar_url: updatedProfile.avatar_url || '',
-        phone: updatedProfile.phone || '',
-        location: updatedProfile.location || ''
-      })
-
-      persistentToast.success('Profile updated successfully')
+      toast.success('Profile updated successfully')
     } catch (error: any) {
       console.error('Error saving profile:', error)
-      persistentToast.error(error.message || 'Failed to save profile')
+      toast.error(error.message || 'Failed to save profile')
     } finally {
       setSaving(false)
     }
@@ -133,29 +150,26 @@ export default function ProfilePage() {
 
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        persistentToast.error('Please upload an image file')
+        toast.error('Please upload an image file')
         return
       }
 
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        persistentToast.error('Image must be less than 5MB')
+        toast.error('Image must be less than 5MB')
         return
       }
 
-      // Create Supabase client for storage operations only
-      const supabaseStorage = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No authenticated user')
 
-      // Create unique filename using profile ID
+      // Create unique filename
       const fileExt = file.name.split('.').pop()
-      const fileName = `${profile.id}-${Date.now()}.${fileExt}`
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`
       const filePath = `avatars/${fileName}`
 
       // Upload to Supabase storage
-      const { error: uploadError, data } = await supabaseStorage.storage
+      const { error: uploadError, data } = await supabase.storage
         .from('avatars')
         .upload(filePath, file, {
           upsert: true,
@@ -165,19 +179,19 @@ export default function ProfilePage() {
       if (uploadError) {
         // If bucket doesn't exist, try to create it
         if (uploadError.message?.includes('not found')) {
-          const { error: createError } = await supabaseStorage.storage.createBucket('avatars', {
+          const { error: createError } = await supabase.storage.createBucket('avatars', {
             public: true
           })
-
+          
           if (!createError) {
             // Retry upload
-            const { error: retryError } = await supabaseStorage.storage
+            const { error: retryError } = await supabase.storage
               .from('avatars')
               .upload(filePath, file, {
                 upsert: true,
                 cacheControl: '3600'
               })
-
+            
             if (retryError) throw retryError
           }
         } else {
@@ -186,7 +200,7 @@ export default function ProfilePage() {
       }
 
       // Get public URL
-      const { data: { publicUrl } } = supabaseStorage.storage
+      const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath)
 
@@ -196,10 +210,10 @@ export default function ProfilePage() {
       // Auto-save the new avatar
       await handleSave()
       
-      persistentToast.success('Avatar uploaded successfully')
+      toast.success('Avatar uploaded successfully')
     } catch (error: any) {
       console.error('Error uploading avatar:', error)
-      persistentToast.error(error.message || 'Failed to upload avatar')
+      toast.error(error.message || 'Failed to upload avatar')
     } finally {
       setUploading(false)
     }

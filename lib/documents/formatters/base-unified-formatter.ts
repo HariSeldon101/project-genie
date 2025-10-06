@@ -25,8 +25,6 @@ import {
   calculateDelayThresholds
 } from './date-utils'
 
-import { validateMermaidSyntax, getMermaidErrorFallback } from '@/lib/utils/mermaid-helpers'
-
 export interface DocumentMetadata {
   projectName: string
   companyName?: string
@@ -412,82 +410,15 @@ export abstract class BaseUnifiedFormatter<T = any> {
   }
 
   /**
-   * Dedent a Mermaid definition to remove unwanted indentation from template strings
-   * Special handling for gantt and timeline diagrams which have strict indentation rules
-   */
-  protected dedentMermaidDefinition(definition: string, type?: string): string {
-    const lines = definition.split('\n')
-
-    // Filter out empty lines for calculating minimum indentation
-    const nonEmptyLines = lines.filter(line => line.trim().length > 0)
-
-    if (nonEmptyLines.length === 0) return definition
-
-    // Check if this is a gantt or timeline diagram (strict indentation rules)
-    const firstLine = nonEmptyLines[0].trim()
-    const isGantt = firstLine === 'gantt' || type === 'gantt'
-    const isTimeline = firstLine === 'timeline' || type === 'timeline'
-
-    if (isGantt || isTimeline) {
-      // For gantt and timeline, we need special handling
-      return lines.map(line => {
-        const trimmed = line.trim()
-        if (trimmed.length === 0) return ''
-
-        // For timeline, preserve exactly 8 spaces for continuation lines
-        if (isTimeline && trimmed.startsWith(':') && !trimmed.includes(' : ')) {
-          return '        ' + trimmed  // Exactly 8 spaces for continuation events
-        }
-
-        // All other lines should have no indentation
-        return trimmed
-      }).join('\n').trim()
-    }
-
-    // For other diagram types, use standard dedenting
-    const minIndent = Math.min(...nonEmptyLines.map(line => {
-      const match = line.match(/^(\s*)/);
-      return match ? match[1].length : 0
-    }))
-
-    // Remove the minimum indentation from all lines
-    if (minIndent > 0) {
-      return lines.map(line => {
-        // Preserve empty lines
-        if (line.trim().length === 0) return line.trim()
-        // Remove the common indentation
-        return line.substring(minIndent)
-      }).join('\n').trim()
-    }
-
-    return definition.trim()
-  }
-
-  /**
-   * Create a Mermaid chart with validation and error handling
+   * Create a Mermaid chart
    */
   protected createMermaidChart(type: string, definition: string): string {
     if (!this.options.includeCharts) return ''
-
-    // Dedent the definition to remove template string indentation
-    const dedentedDefinition = this.dedentMermaidDefinition(definition, type)
-
-    // Validate with suppressErrors for more permissive validation
-    const validation = validateMermaidSyntax(dedentedDefinition, { suppressErrors: true })
-
-    // Only log warnings, don't block rendering
-    if (validation.warnings && validation.warnings.length > 0) {
-      console.warn(`Mermaid ${type} diagram warnings:`, validation.warnings)
-    }
-
-    // ALWAYS try to render the diagram - let client-side Mermaid handle validation
-    // This ensures valid diagrams aren't blocked by overly strict server-side validation
-
-    // Return properly formatted Mermaid chart
+    
     return `
       <div class="mermaid-chart" data-chart-type="${type}">
         <pre class="mermaid">
-${dedentedDefinition}
+${definition}
         </pre>
       </div>
     `

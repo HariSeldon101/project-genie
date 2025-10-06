@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { createBrowserClient } from '@supabase/ssr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -97,46 +97,81 @@ export default function TeamPage() {
 
   const loadTeamData = async () => {
     try {
-      // Load projects from API
-      const projectsResponse = await fetch('/api/projects')
-      if (projectsResponse.ok) {
-        const projectsData = await projectsResponse.json()
-        setProjects(projectsData || [])
-      }
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
 
-      // Load team members from API
-      const membersResponse = await fetch('/api/team')
-      if (membersResponse.ok) {
-        const membersData = await membersResponse.json()
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) return
 
-        // Get current user for owner display
-        const profileResponse = await fetch('/api/profiles/current')
-        let ownerProfile = null
-        if (profileResponse.ok) {
-          ownerProfile = await profileResponse.json()
+      // Load projects
+      const { data: projectsData } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('owner_id', user.user.id)
+
+      setProjects(projectsData || [])
+
+      // Load team members without complex joins
+      let membersData: any[] = []
+      
+      if (projectsData && projectsData.length > 0) {
+        const { data: rawMembers } = await supabase
+          .from('project_members')
+          .select('*')
+          .in('project_id', projectsData.map(p => p.id))
+          .order('added_at', { ascending: false })
+        
+        // Enrich members with user and project data
+        if (rawMembers && rawMembers.length > 0) {
+          // Get unique user IDs
+          const userIds = [...new Set(rawMembers.map(m => m.user_id))]
+          
+          // Fetch user profiles
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, email, full_name, avatar_url')
+            .in('id', userIds)
+          
+          // Create lookup maps
+          const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+          const projectMap = Object.fromEntries(projectsData.map(p => [p.id, p]))
+          
+          // Combine the data
+          membersData = rawMembers.map(member => ({
+            ...member,
+            user: profileMap[member.user_id] || null,
+            project: { name: projectMap[member.project_id]?.name || 'Unknown' }
+          }))
         }
-
-        // Include project owners as members (if we have projects)
-        const ownersAsMembers = projects.map(project => ({
-          id: `owner-${project.id}`,
-          user_id: project.owner_id,
-          project_id: project.id,
-          role: 'owner' as const,
-          added_at: project.created_at,
-          user: ownerProfile || {
-            id: project.owner_id,
-            email: 'Project Owner',
-            full_name: 'Project Owner',
-            avatar_url: null
-          },
-          project: {
-            id: project.id,
-            name: project.name
-          }
-        }))
-
-        setMembers([...ownersAsMembers, ...membersData])
       }
+
+      // Get owner's profile
+      const { data: ownerProfile } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url')
+        .eq('id', user.user.id)
+        .single()
+      
+      // Include project owners as members
+      const ownersAsMembers = projectsData?.map(project => ({
+        id: `owner-${project.id}`,
+        user_id: project.owner_id,
+        project_id: project.id,
+        role: 'owner' as const,
+        added_at: project.created_at,
+        user: ownerProfile || {
+          email: user.user.email || '',
+          full_name: 'Project Owner',
+          avatar_url: null
+        },
+        project: {
+          name: project.name
+        }
+      })) || []
+
+      setMembers([...ownersAsMembers, ...(membersData || [])])
 
       // Load pending invitations (mock data for now)
       setInvitations([])
@@ -149,29 +184,28 @@ export default function TeamPage() {
 
   const sendInvitation = async () => {
     try {
-      // TODO: Implement proper invitation system with email verification
-      // For now, add member directly
-      if (!inviteProject || !inviteEmail) {
-        alert('Please select a project and enter an email')
-        return
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      // In a real app, this would create an invitation record and send an email
+      // For now, we'll just add them directly as a member
+      const { error } = await supabase
+        .from('project_members')
+        .insert({
+          project_id: inviteProject,
+          user_id: crypto.randomUUID(), // In real app, would lookup user by email
+          role: inviteRole
+        })
+
+      if (!error) {
+        setInviteOpen(false)
+        setInviteEmail('')
+        setInviteRole('member')
+        setInviteProject('')
+        loadTeamData()
       }
-
-      // In a real app, we'd look up the user by email and get their ID
-      // For now, this is a placeholder
-      permanentLogger.warn('TEAM_PAGE', 'Direct member add without invitation', {
-        email: inviteEmail,
-        project: inviteProject,
-        role: inviteRole
-      })
-
-      // Reset form
-      setInviteOpen(false)
-      setInviteEmail('')
-      setInviteRole('member')
-      setInviteProject('')
-
-      // Reload to show updated state
-      loadTeamData()
     } catch (error) {
       console.error('Error sending invitation:', error)
     }
@@ -181,14 +215,18 @@ export default function TeamPage() {
     if (!confirm('Are you sure you want to remove this team member?')) return
 
     try {
-      const response = await fetch(`/api/team/${memberId}`, {
-        method: 'DELETE',
-      })
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
 
-      if (response.ok) {
+      const { error } = await supabase
+        .from('project_members')
+        .delete()
+        .eq('id', memberId)
+
+      if (!error) {
         loadTeamData()
-      } else {
-        console.error('Failed to remove member')
       }
     } catch (error) {
       console.error('Error removing member:', error)
@@ -197,18 +235,18 @@ export default function TeamPage() {
 
   const updateRole = async (memberId: string, newRole: string) => {
     try {
-      const response = await fetch(`/api/team/${memberId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ role: newRole }),
-      })
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
 
-      if (response.ok) {
+      const { error } = await supabase
+        .from('project_members')
+        .update({ role: newRole })
+        .eq('id', memberId)
+
+      if (!error) {
         loadTeamData()
-      } else {
-        console.error('Failed to update member role')
       }
     } catch (error) {
       console.error('Error updating role:', error)

@@ -3,7 +3,7 @@ import { DocumentGenerator } from '@/lib/documents/generator'
 import { DocumentStorage, GenerationMetrics } from '@/lib/documents/storage'
 import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { logger } from '@/lib/utils/permanent-logger'
 
 // Set maximum duration for streaming
 export const maxDuration = 300 // 5 minutes
@@ -18,7 +18,7 @@ const DOCUMENT_TYPES = {
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
   
-  permanentLogger.info('STREAM_API', 'Generate stream endpoint called', {
+  logger.info('STREAM_API', 'Generate stream endpoint called', {
     timestamp: new Date().toISOString()
   })
   
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
               error: errorMessage
             })
             
-            permanentLogger.captureError('STREAM_DOCUMENT', new Error('Failed to generate ${docType}'), { error: errorMessage })
+            logger.error('STREAM_DOCUMENT', `Failed to generate ${docType}`, { error: errorMessage })
             
             // Continue with next document instead of failing entire generation
           }
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
         const metrics = generator.getAggregatedMetrics()
         
         // Log aggregated metrics
-        permanentLogger.info('STREAM_METRICS', 'Final aggregated metrics', {
+        logger.info('STREAM_METRICS', 'Final aggregated metrics', {
           projectId,
           methodology: projectData.methodology,
           documentsGenerated: successfulDocuments.length,
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
                 count: artifactIds.length
               })
             } catch (storageError) {
-              permanentLogger.captureError('STREAM_STORAGE', new Error('Failed to store documents'), storageError)
+              logger.error('STREAM_STORAGE', 'Failed to store documents', storageError)
               sendEvent('storage_failed', {
                 error: storageError instanceof Error ? storageError.message : 'Storage failed'
               })
@@ -236,17 +236,18 @@ export async function POST(request: NextRequest) {
         
         // Update project status if not in test mode
         if (!forceProvider && user && successfulDocuments.length > 0) {
-          // Use ProjectsRepository instead of direct database access
-          const projectsRepo = (await import('@/lib/repositories/projects-repository')).ProjectsRepository.getInstance()
-          await projectsRepo.updateProject(projectId, {
-            updated_at: new Date().toISOString(),
-            rag_status: failedDocuments.length === 0 ? 'green' : 'yellow'
-          })
+          await supabase
+            .from('projects')
+            .update({ 
+              updated_at: new Date().toISOString(),
+              rag_status: failedDocuments.length === 0 ? 'green' : 'yellow'
+            })
+            .eq('id', projectId)
         }
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        permanentLogger.captureError('STREAM_API', new Error('Stream generation failed'), { error: errorMessage })
+        logger.error('STREAM_API', 'Stream generation failed', { error: errorMessage })
         sendError('Generation failed', errorMessage)
       } finally {
         // Close the stream

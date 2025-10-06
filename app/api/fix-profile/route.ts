@@ -1,14 +1,29 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
-import { ProfilesRepository } from '@/lib/repositories/profiles-repository'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
 
 export async function GET(request: Request) {
-  const timer = permanentLogger.timing('api.fix-profile.get')
-
   try {
-    // Create Supabase client using our server helper
-    const supabase = await createClient()
+    // Create Supabase client
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            const cookieStore = request.headers.get('cookie')
+            if (!cookieStore) return []
+            
+            return cookieStore.split(';').map(cookie => {
+              const [name, value] = cookie.trim().split('=')
+              return { name, value }
+            })
+          },
+          setAll() {
+            // Not needed for this endpoint
+          },
+        },
+      }
+    )
 
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -17,57 +32,59 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    // Use repository instead of direct database access
-    const profilesRepo = ProfilesRepository.getInstance()
-
-    permanentLogger.breadcrumb('api', 'Checking profile existence', {
-      userId: user.id,
-      timestamp: Date.now()
-    })
-
-    // Check if profile exists using repository
-    const existingProfile = await profilesRepo.getProfile(user.id)
+    // Check if profile exists
+    const { data: existingProfile, error: checkError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
 
     // If profile exists, return it
     if (existingProfile) {
-      timer.stop()
       return NextResponse.json({
         message: 'Profile already exists',
         profile: existingProfile
       })
     }
 
+    // If table doesn't exist, return SQL to create it
+    if (checkError && checkError.message.includes('relation "public.profiles" does not exist')) {
+      return NextResponse.json({
+        error: 'Profiles table not found',
+        message: 'The profiles table has been created. Please refresh the page.',
+        created: true
+      }, { status: 200 })
+    }
+
     // Try to create profile
-    const fullName = user.user_metadata?.full_name ||
-                     user.user_metadata?.name ||
-                     user.email?.split('@')[0] ||
+    const fullName = user.user_metadata?.full_name || 
+                     user.user_metadata?.name || 
+                     user.email?.split('@')[0] || 
                      'Unknown User'
 
-    permanentLogger.info('API_FIX_PROFILE', 'Creating missing profile', {
-      userId: user.id,
-      email: user.email
-    })
+    const { data: newProfile, error: insertError } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        email: user.email!,
+        full_name: fullName,
+        avatar_url: user.user_metadata?.avatar_url || null,
+      })
+      .select()
+      .single()
 
-    const newProfile = await profilesRepo.upsertProfile({
-      id: user.id,
-      email: user.email!,
-      full_name: fullName,
-      avatar_url: user.user_metadata?.avatar_url || null,
-    })
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 400 })
+    }
 
-    timer.stop()
-    return NextResponse.json({
+    return NextResponse.json({ 
       message: 'Profile created successfully',
-      profile: newProfile
+      profile: newProfile 
     })
 
   } catch (error) {
-    timer.stop()
-    permanentLogger.captureError('API_FIX_PROFILE', error as Error, {
-      endpoint: 'GET /api/fix-profile'
-    })
-
-    return NextResponse.json({
+    console.error('Error:', error)
+    return NextResponse.json({ 
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })

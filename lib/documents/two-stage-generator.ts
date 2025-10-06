@@ -10,7 +10,7 @@
  */
 
 import { SanitizedProjectData, GeneratedDocument } from '../llm/types'
-import { permanentLogger } from '../utils/permanent-logger'
+import { logger } from '../utils/permanent-logger'
 
 export interface ResearchContext {
   technicalLandscape?: any
@@ -114,7 +114,7 @@ export class TwoStageGenerator {
       context.industryInsights = [...new Set(context.industryInsights)]
     }
     
-    permanentLogger.info('RESEARCH', `Extracted research context with ${Object.keys(context).length} categories`)
+    logger.info('RESEARCH', `Extracted research context with ${Object.keys(context).length} categories`)
     
     return context
   }
@@ -197,7 +197,7 @@ Now, based on this context and the project requirements below, generate the ${do
 
 ${originalPrompt}`
       
-      permanentLogger.info('PROMPT_ENHANCEMENT', `Enhanced ${documentType} prompt with ${contextSections.length} context sections`)
+      logger.info('PROMPT_ENHANCEMENT', `Enhanced ${documentType} prompt with ${contextSections.length} context sections`)
     }
     
     return enhancedPrompt
@@ -231,7 +231,7 @@ ${originalPrompt}`
     const budget = projectData.budget || 0
     
     // Log the decision for debugging
-    permanentLogger.info('RESEARCH_DECISION', `Research generation ENABLED for all projects. Project: ${projectType}, Industry: ${industry}, Budget: $${budget}`)
+    logger.info('RESEARCH_DECISION', `Research generation ENABLED for all projects. Project: ${projectType}, Industry: ${industry}, Budget: $${budget}`)
     
     // Always return true to enable two-stage generation for all projects
     // This maximizes document quality by providing context from research

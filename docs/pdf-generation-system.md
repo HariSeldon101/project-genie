@@ -19,12 +19,11 @@ The Project Genie PDF Generation System is a comprehensive solution for converti
    - Convert JSON content to styled HTML
    - Support for charts, tables, and visualizations
 
-3. **Playwright Generator** (`/lib/pdf-generation/generators/playwright-generator.ts`)
-   - Headless Chrome PDF generation using Playwright
+3. **Puppeteer Generator** (`/lib/pdf-generation/generators/puppeteer-generator.ts`)
+   - Headless Chrome PDF generation
    - Tagged PDFs with outline support
    - Clickable TOC and bookmarks
    - Custom headers/footers
-   - Lighter bundle size compared to Puppeteer
 
 4. **Chart Renderer** (`/lib/pdf-generation/chart-renderer.ts`)
    - Server-side Chart.js rendering
@@ -33,7 +32,7 @@ The Project Genie PDF Generation System is a comprehensive solution for converti
 
 5. **Mermaid Renderer** (`/lib/pdf-generation/mermaid-renderer.ts`)
    - Diagram generation from Mermaid syntax
-   - Playwright-based SVG rendering
+   - Puppeteer-based SVG rendering
    - Template library for common diagrams
 
 6. **PDF Cache Service** (`/lib/pdf-generation/cache-service.ts`)
@@ -323,7 +322,7 @@ interface PDFOptions {
 
 **Headers:**
 - `X-PDF-Cached`: Indicates if PDF was served from cache
-- `X-PDF-Generator`: Generator used (playwright)
+- `X-PDF-Generator`: Generator used (puppeteer)
 
 ## Testing
 
@@ -358,7 +357,7 @@ Each test dataset includes:
 4. **Cache Bypass**: Available via `useCache: false` option
 
 ### Resource Management
-- Playwright browser instance pooling
+- Puppeteer browser instance pooling
 - Lazy loading of formatters
 - Efficient memory usage for large documents
 - Stream-based PDF delivery
@@ -388,7 +387,7 @@ Each test dataset includes:
 ```json
 {
   "dependencies": {
-    "playwright": "^1.55.0",
+    "puppeteer": "^24.17.1",
     "chart.js": "^4.5.0",
     "canvas": "^3.2.0",
     "mermaid": "^11.10.1",
@@ -415,7 +414,7 @@ PDF_STORAGE_BUCKET=pdfs
 
 1. **Blank PDFs**
    - Check HTML formatter output
-   - Verify Playwright installation
+   - Verify Puppeteer installation
    - Review console errors
 
 2. **Missing Charts**
@@ -424,7 +423,7 @@ PDF_STORAGE_BUCKET=pdfs
    - Verify data format
 
 3. **Mermaid Diagrams Not Rendering**
-   - Check Playwright permissions
+   - Check Puppeteer permissions
    - Verify Mermaid syntax
    - Review SVG generation logs
 
@@ -483,7 +482,7 @@ PDF_STORAGE_BUCKET=pdfs
 ## License and Credits
 
 ### Technologies Used
-- Playwright (Microsoft)
+- Puppeteer (Google Chrome team)
 - Chart.js (Open source)
 - Mermaid (Open source)
 - Supabase (Open source backend)

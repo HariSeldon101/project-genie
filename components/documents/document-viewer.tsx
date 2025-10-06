@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MarkdownRenderer } from '@/components/markdown-renderer'
-import { MermaidDiagram } from '@/components/mermaid-diagram'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
@@ -23,6 +22,7 @@ import {
 } from 'lucide-react'
 import { saveAs } from 'file-saver'
 import DOMPurify from 'dompurify'
+import mermaid from 'mermaid'
 import { DirectPDFDownloadButton } from './pdf-download-button'
 import { UnifiedPIDFormatter } from '@/lib/documents/formatters/unified-pid-formatter'
 import { UnifiedBusinessCaseFormatter } from '@/lib/documents/formatters/unified-business-case-formatter'
@@ -76,67 +76,6 @@ interface DocumentViewerProps {
   }
 }
 
-// Helper component to render HTML content with mermaid diagrams
-function HTMLContentWithMermaid({ content }: { content: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (containerRef.current) {
-      // Parse the HTML and find mermaid blocks
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(content, 'text/html')
-      const mermaidElements = doc.querySelectorAll('.mermaid-chart, pre.mermaid')
-
-      // Replace mermaid elements with placeholders
-      mermaidElements.forEach((element, index) => {
-        const placeholder = doc.createElement('div')
-        placeholder.className = 'mermaid-placeholder'
-        placeholder.dataset.mermaidIndex = index.toString()
-        placeholder.dataset.mermaidDefinition = element.textContent || ''
-        placeholder.dataset.chartType = element.getAttribute('data-chart-type') || 'auto'
-        element.parentNode?.replaceChild(placeholder, element)
-      })
-
-      // Set the modified HTML
-      containerRef.current.innerHTML = DOMPurify.sanitize(doc.body.innerHTML, {
-        ADD_TAGS: ['style'],
-        ADD_ATTR: ['class', 'id', 'href', 'target', 'data-mermaid-index', 'data-mermaid-definition', 'data-chart-type'],
-        ALLOW_DATA_ATTR: true,
-        KEEP_CONTENT: true
-      })
-
-      // Now render MermaidDiagram components in the placeholders
-      const placeholders = containerRef.current.querySelectorAll('.mermaid-placeholder')
-      placeholders.forEach(placeholder => {
-        const definition = placeholder.getAttribute('data-mermaid-definition') || ''
-        const chartType = placeholder.getAttribute('data-chart-type') || 'auto'
-
-        if (definition) {
-          // Create a container for the React component
-          const container = document.createElement('div')
-          placeholder.parentNode?.replaceChild(container, placeholder)
-
-          // Render the MermaidDiagram component
-          import('react-dom/client').then(({ createRoot }) => {
-            const root = createRoot(container)
-            root.render(
-              <MermaidDiagram
-                definition={definition}
-                type={chartType}
-                showControls={true}
-                lazy={true}
-                cache={true}
-              />
-            )
-          })
-        }
-      })
-    }
-  }, [content])
-
-  return <div ref={containerRef} className="document-html-content" />
-}
-
 export function DocumentViewer({ document, onClose, currentUser }: DocumentViewerProps) {
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted')
   const [copied, setCopied] = useState(false)
@@ -147,6 +86,7 @@ export function DocumentViewer({ document, onClose, currentUser }: DocumentViewe
   const [isDownloading, setIsDownloading] = useState(false)
   const router = useRouter()
   const contentRef = useRef<HTMLDivElement>(null)
+  const [mermaidInitialized, setMermaidInitialized] = useState(false)
   
   // Helper function to extract company name from project
   const getCompanyName = () => {
@@ -178,7 +118,94 @@ export function DocumentViewer({ document, onClose, currentUser }: DocumentViewe
     }
   }
 
-  // Note: Mermaid diagrams are now handled by the MermaidDiagram component
+
+  // Initialize Mermaid for HTML content
+  useEffect(() => {
+    if (contentType === 'html' && !mermaidInitialized) {
+      mermaid.initialize({ 
+        startOnLoad: false,
+        theme: 'default',
+        themeVariables: {
+          primaryColor: '#6366f1',
+          primaryTextColor: '#fff',
+          primaryBorderColor: '#4f46e5',
+          lineColor: '#e5e7eb',
+          secondaryColor: '#f3f4f6',
+          tertiaryColor: '#fef3c7',
+        }
+      })
+      setMermaidInitialized(true)
+    }
+  }, [contentType, mermaidInitialized])
+
+  // Process Mermaid diagrams in HTML content
+  useEffect(() => {
+    const processMermaidDiagrams = async () => {
+      if (contentType === 'html' && mermaidInitialized && contentRef.current) {
+        // Add a small delay to ensure DOM is ready
+        await new Promise(resolve => setTimeout(resolve, 100))
+        // Look for .mermaid-chart containers that have .mermaid pre elements inside
+        const chartContainers = contentRef.current.querySelectorAll('.mermaid-chart')
+        for (let i = 0; i < chartContainers.length; i++) {
+          const container = chartContainers[i] as HTMLElement
+          
+          // Skip if already processed
+          if (container.querySelector('svg')) continue
+          
+          // Find the mermaid pre element inside the container
+          const mermaidPre = container.querySelector('pre.mermaid') as HTMLElement
+          if (mermaidPre) {
+            const graphDefinition = mermaidPre.textContent?.trim() || ''
+            if (graphDefinition) {
+              try {
+                const id = `mermaid-${Date.now()}-${i}`
+                const { svg } = await mermaid.render(id, graphDefinition)
+                // Replace the entire container content with the SVG
+                container.innerHTML = svg
+                container.classList.add('mermaid-processed')
+              } catch (error) {
+                console.error('Mermaid rendering error:', error)
+                // Instead of showing error, show the raw chart definition as fallback
+                container.innerHTML = `<div class="text-gray-600 p-4 bg-gray-100 rounded">
+                  <pre class="text-xs">${graphDefinition.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                </div>`
+                container.classList.add('mermaid-error')
+              }
+            }
+          }
+        }
+        
+        // Also process standalone .mermaid elements
+        const standaloneMermaid = contentRef.current.querySelectorAll('pre.mermaid:not(.mermaid-chart pre.mermaid)')
+        for (let i = 0; i < standaloneMermaid.length; i++) {
+          const element = standaloneMermaid[i] as HTMLElement
+          
+          // Skip if already processed
+          if (element.querySelector('svg') || element.classList.contains('mermaid-processed')) continue
+          
+          const graphDefinition = element.textContent?.trim() || ''
+          if (graphDefinition) {
+            try {
+              const id = `mermaid-standalone-${Date.now()}-${i}`
+              const { svg } = await mermaid.render(id, graphDefinition)
+              element.innerHTML = svg
+              element.classList.add('mermaid-processed')
+            } catch (error) {
+              console.error('Mermaid rendering error:', error)
+              element.innerHTML = `<div class="text-red-500 p-2 border border-red-300 rounded">
+                Failed to render chart: ${error instanceof Error ? error.message : 'Unknown error'}
+              </div>`
+            }
+          }
+        }
+      }
+    }
+    
+    if (viewMode === 'formatted' && contentType === 'html') {
+      // Small delay to ensure DOM is ready
+      setTimeout(processMermaidDiagrams, 100)
+    }
+  }, [formattedContent, viewMode, contentType, mermaidInitialized])
 
   // Calculate document size
   const getDocumentSize = () => {
@@ -876,8 +903,42 @@ export function DocumentViewer({ document, onClose, currentUser }: DocumentViewe
           <div className="prose prose-sm dark:prose-invert max-w-none" ref={contentRef}>
             {viewMode === 'formatted' ? (
               contentType === 'html' ? (
-                // Render HTML content with MermaidDiagram components
-                <HTMLContentWithMermaid content={formattedContent} />
+                // Render HTML content directly with proper sanitization
+                <>
+                  <style jsx global>{`
+                    .document-html-content .mermaid-chart,
+                    .document-html-content .mermaid-processed {
+                      margin: 1.5rem 0;
+                      padding: 1rem;
+                      background: #f9f9f9;
+                      border-radius: 8px;
+                      display: flex;
+                      justify-content: center;
+                      align-items: center;
+                      overflow-x: auto;
+                    }
+                    .document-html-content .mermaid-chart svg,
+                    .document-html-content .mermaid-processed svg {
+                      max-width: 100%;
+                      height: auto;
+                    }
+                    .dark .document-html-content .mermaid-chart,
+                    .dark .document-html-content .mermaid-processed {
+                      background: #1a1a1a;
+                    }
+                  `}</style>
+                  <div 
+                    className="document-html-content"
+                    dangerouslySetInnerHTML={{ 
+                      __html: DOMPurify.sanitize(formattedContent, {
+                        ADD_TAGS: ['style'],
+                        ADD_ATTR: ['class', 'id', 'href', 'target'],
+                        ALLOW_DATA_ATTR: true,
+                        KEEP_CONTENT: true
+                      })
+                    }}
+                  />
+                </>
               ) : (
                 // Render Markdown content
                 <MarkdownRenderer 

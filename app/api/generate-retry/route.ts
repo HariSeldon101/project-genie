@@ -3,7 +3,7 @@ import { DocumentGenerator } from '@/lib/documents/generator'
 import { DocumentStorage, GenerationMetrics } from '@/lib/documents/storage'
 import { DataSanitizer } from '@/lib/llm/sanitizer'
 import { createClient } from '@supabase/supabase-js'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { logger } from '@/lib/utils/permanent-logger'
 
 // Set maximum duration for retrying
 export const maxDuration = 300 // 5 minutes
@@ -12,7 +12,7 @@ export const runtime = 'nodejs'
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
   
-  permanentLogger.info('RETRY_API', 'Generate retry endpoint called', {
+  logger.info('RETRY_API', 'Generate retry endpoint called', {
     timestamp: new Date().toISOString()
   })
   
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
               error: errorMessage
             })
             
-            permanentLogger.captureError('RETRY_DOCUMENT', new Error('Failed to retry ${docType}'), { error: errorMessage })
+            logger.error('RETRY_DOCUMENT', `Failed to retry ${docType}`, { error: errorMessage })
           }
         }
         
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
                 count: artifactIds.length
               })
             } catch (storageError) {
-              permanentLogger.captureError('RETRY_STORAGE', new Error('Failed to store documents'), storageError)
+              logger.error('RETRY_STORAGE', 'Failed to store documents', storageError)
               sendEvent('storage_failed', {
                 error: storageError instanceof Error ? storageError.message : 'Storage failed'
               })
@@ -226,17 +226,18 @@ export async function POST(request: NextRequest) {
           // If all retries succeeded, set to green, otherwise keep yellow
           const newStatus = stillFailedDocuments.length === 0 ? 'green' : 'yellow'
           
-          // Use ProjectsRepository instead of direct database access
-          const projectsRepo = (await import('@/lib/repositories/projects-repository')).ProjectsRepository.getInstance()
-          await projectsRepo.updateProject(projectId, {
-            updated_at: new Date().toISOString(),
-            rag_status: newStatus
-          })
+          await supabase
+            .from('projects')
+            .update({ 
+              updated_at: new Date().toISOString(),
+              rag_status: newStatus
+            })
+            .eq('id', projectId)
         }
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        permanentLogger.captureError('RETRY_API', new Error('Retry generation failed'), { error: errorMessage })
+        logger.error('RETRY_API', 'Retry generation failed', { error: errorMessage })
         sendError('Retry failed', errorMessage)
       } finally {
         // Close the stream

@@ -50,4 +50,3 @@ claude-code-dev-log-*.md
 /tests/*.log
 /tests/*.json
 /tests/scripts/output/
-.claude-model-config.json

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { createBrowserClient } from '@supabase/ssr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -68,60 +68,81 @@ export default function ProjectsPage() {
   }, [])
 
   const loadProjects = async () => {
-    const timer = permanentLogger.timing('ui.loadProjects')
-
     try {
-      setLoading(true)
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
 
-      permanentLogger.breadcrumb('ui', 'Loading projects', {
-        timestamp: Date.now()
-      })
-
-      // Use API endpoint instead of direct database access
-      const response = await fetch('/api/projects?withCounts=true')
-
-      if (response.status === 401) {
-        permanentLogger.breadcrumb('ui', 'User not authenticated', {})
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) {
         router.push('/login')
         return
       }
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to load projects')
+      // Get user profile to check subscription tier
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_tier')
+        .eq('id', user.user.id)
+        .single()
+
+      const tier = (profile?.subscription_tier || 'free') as SubscriptionTier
+      setUserTier(tier)
+
+      // Load projects first (without complex joins)
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('owner_id', user.user.id)
+        .order('created_at', { ascending: false })
+
+      if (projectsError) {
+        console.error('Error loading projects:', {
+          message: projectsError.message,
+          code: projectsError.code,
+          details: projectsError.details
+        })
+        setProjects([])
+        setCanCreateMore(canCreateProject(0, tier))
+        return
       }
 
-      const projectsData = await response.json()
+      console.log(`Projects page: Loaded ${projectsData?.length || 0} projects for user ${user.user.id}`)
 
-      // NO FALLBACK - if we get here, we have real data
-      setProjects(projectsData)
-
-      // Load profile via API
-      const profileResponse = await fetch('/api/profiles/current')
-      if (profileResponse.ok) {
-        const profile = await profileResponse.json()
-        const tier = (profile?.subscription_tier || 'free') as SubscriptionTier
-        setUserTier(tier)
-        setCanCreateMore(canCreateProject(projectsData.length, tier))
+      // Get counts for each project separately
+      const projectsWithCounts = []
+      
+      for (const project of (projectsData || [])) {
+        // Get counts for each project
+        const [artifactsResult, membersResult] = await Promise.all([
+          supabase
+            .from('artifacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('project_id', project.id),
+          supabase
+            .from('project_members')
+            .select('id', { count: 'exact', head: true })
+            .eq('project_id', project.id)
+        ])
+        
+        projectsWithCounts.push({
+          ...project,
+          _count: {
+            artifacts: artifactsResult.count || 0,
+            risks: 0, // Risks table doesn't exist
+            project_members: membersResult.count || 0
+          }
+        })
       }
 
-      const duration = timer.stop()
-      permanentLogger.breadcrumb('ui', 'Projects loaded', {
-        count: projectsData.length,
-        duration
-      })
-
+      setProjects(projectsWithCounts)
+      
+      // Check if user can create more projects
+      const projectCount = projectsWithCounts?.length || 0
+      setCanCreateMore(canCreateProject(projectCount, tier))
     } catch (error) {
-      timer.stop()
-
-      // NO FALLBACK DATA - show the error
-      permanentLogger.captureError('UI_PROJECTS', error as Error, {
-        component: 'ProjectsPage'
-      })
-
       console.error('Error loading projects:', error)
-      setProjects([]) // Empty, not mock data
-
     } finally {
       setLoading(false)
     }
@@ -129,53 +150,45 @@ export default function ProjectsPage() {
 
   const handleDeleteProject = async () => {
     if (!projectToDelete) return
-
+    
     setIsDeleting(true)
-    const timer = permanentLogger.timing('ui.deleteProject')
-
     try {
-      permanentLogger.breadcrumb('ui', 'Deleting project', {
-        projectId: projectToDelete.id,
-        projectName: projectToDelete.name
-      })
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
 
-      // Use API endpoint for deletion - cascades handled by database
-      const response = await fetch(`/api/projects/${projectToDelete.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
+      // Delete all documents (artifacts) first
+      const { error: artifactsError } = await supabase
+        .from('artifacts')
+        .delete()
+        .eq('project_id', projectToDelete.id)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to delete project')
+      if (artifactsError) {
+        console.error('Error deleting project documents:', artifactsError)
+        throw artifactsError
+      }
+
+      // Delete the project
+      const { error: projectError } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectToDelete.id)
+
+      if (projectError) {
+        console.error('Error deleting project:', projectError)
+        throw projectError
       }
 
       // Remove from local state
       setProjects(projects.filter(p => p.id !== projectToDelete.id))
-
+      
       // Close dialog
       setDeleteDialogOpen(false)
       setProjectToDelete(null)
-
-      const duration = timer.stop()
-      permanentLogger.breadcrumb('ui', 'Project deleted successfully', {
-        projectId: projectToDelete.id,
-        duration
-      })
-
     } catch (error) {
-      timer.stop()
-
-      // NO FALLBACK - show real error
-      permanentLogger.captureError('UI_PROJECTS', error as Error, {
-        operation: 'deleteProject',
-        projectId: projectToDelete.id
-      })
-
       console.error('Failed to delete project:', error)
-      alert(`Failed to delete project: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      alert('Failed to delete project. Please try again.')
     } finally {
       setIsDeleting(false)
     }

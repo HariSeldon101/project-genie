@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ExcelExporter } from '@/lib/export/excel-exporter'
-import { createClient } from '@/lib/supabase/server'
-import { ProjectsRepository } from '@/lib/repositories/projects-repository'
-import { TeamRepository } from '@/lib/repositories/team-repository'
-import { ArtifactsRepository } from '@/lib/repositories/artifacts-repository'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { createClient } from '@supabase/supabase-js'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ format: string }> }
+  { params }: { params: { format: string } }
 ) {
   try {
-    const { format } = await params
+    const { format } = params
     const { searchParams } = new URL(request.url)
     const projectId = searchParams.get('projectId')
     
@@ -31,37 +27,38 @@ export async function GET(
       )
     }
 
-    const timer = permanentLogger.timing('api.export.get')
+    // Get user session
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'No authorization header' },
+        { status: 401 }
+      )
+    }
 
-    // Get user session using server client
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
     if (authError || !user) {
-      timer.stop()
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    permanentLogger.breadcrumb('api', 'Export request', {
-      userId: user.id,
-      projectId,
-      format,
-      timestamp: Date.now()
-    })
-
-    // Use repositories instead of direct database access
-    const projectsRepo = ProjectsRepository.getInstance()
-    const teamRepo = TeamRepository.getInstance()
-    const artifactsRepo = ArtifactsRepository.getInstance()
-
-    // Fetch and verify project access
-    const project = await projectsRepo.getProject(projectId)
-
-    if (!project) {
-      timer.stop()
+    // Fetch project data
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single()
+    
+    if (projectError || !project) {
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
@@ -69,25 +66,29 @@ export async function GET(
     }
 
     // Check if user has access to this project
-    const hasAccess = project.owner_id === user.id ||
-                      await teamRepo.isProjectMember(user.id, projectId)
-
-    if (!hasAccess) {
-      timer.stop()
+    const { data: member } = await supabase
+      .from('project_members')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', user.id)
+      .single()
+    
+    if (!member && project.owner_id !== user.id) {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
       )
     }
 
-    // Fetch project data using repositories
-    const tasksRepo = (await import('@/lib/repositories/tasks-repository')).TasksRepository.getInstance()
-    const risksRepo = (await import('@/lib/repositories/risks-repository')).RisksRepository.getInstance()
-
-    const [artifacts, tasks, risks] = await Promise.all([
-      artifactsRepo.getProjectArtifacts(projectId),
-      tasksRepo.getProjectTasks(projectId),
-      risksRepo.getProjectRisks(projectId)
+    // Fetch project data
+    const [
+      { data: tasks },
+      { data: risks },
+      { data: artifacts }
+    ] = await Promise.all([
+      supabase.from('tasks').select('*').eq('project_id', projectId),
+      supabase.from('risks').select('*').eq('project_id', projectId),
+      supabase.from('artifacts').select('*').eq('project_id', projectId)
     ])
 
     // Generate export based on format
@@ -136,32 +137,17 @@ export async function GET(
         )
     }
 
-    // Log the export activity
-    const activityRepo = (await import('@/lib/repositories/activity-log-repository')).ActivityLogRepository.getInstance()
-    await activityRepo.logActivity({
-      project_id: projectId,
-      user_id: user.id,
-      action: 'export',
-      entity_type: 'project',
-      entity_id: projectId,
-      details: {
-        format,
-        artifactCount: artifacts.length,
-        taskCount: tasks.length,
-        riskCount: risks.length
-      }
-    })
-
-    permanentLogger.info('API_EXPORT', 'Project exported', {
-      projectId,
-      userId: user.id,
-      format,
-      artifactCount: artifacts.length,
-      taskCount: tasks.length,
-      riskCount: risks.length
-    })
-
-    timer.stop()
+    // Log export event
+    await supabase
+      .from('activity_log')
+      .insert({
+        project_id: projectId,
+        user_id: user.id,
+        action: 'export',
+        entity_type: 'project',
+        entity_id: projectId,
+        details: { format }
+      })
 
     // Return file
     return new NextResponse(exportData, {
@@ -173,14 +159,9 @@ export async function GET(
     })
 
   } catch (error) {
-    timer.stop()
-    permanentLogger.captureError('API_EXPORT', error as Error, {
-      endpoint: 'GET /api/export/[format]',
-      format
-    })
-
+    console.error('Export error:', error)
     return NextResponse.json(
-      {
+      { 
         error: 'Export failed',
         details: error instanceof Error ? error.message : 'Unknown error occurred'
       },

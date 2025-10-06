@@ -1,23 +1,18 @@
 'use client'
 
-// ULTRA-NUCLEAR: Force dynamic rendering
-// Note: Named this export 'dynamicConfig' to avoid collision with dynamic() import
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-
-import { useState, useEffect, Suspense } from 'react'
-import nextDynamic from 'next/dynamic'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { createBrowserClient } from '@supabase/ssr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  FileText,
-  Download,
-  Eye,
+import { 
+  FileText, 
+  Download, 
+  Eye, 
   Search,
   Filter,
   Calendar,
@@ -35,45 +30,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-
-// Lazy load heavy document components
-const DirectPDFDownloadButton = nextDynamic(
-  () => import('@/components/documents/pdf-download-button').then(mod => ({
-    default: mod.DirectPDFDownloadButton
-  })),
-  {
-    loading: () => (
-      <Button disabled className="opacity-50">
-        <Download className="mr-2 h-4 w-4" />
-        Loading...
-      </Button>
-    )
-  }
-)
-
-const DocumentViewer = nextDynamic(
-  () => import('@/components/documents/document-viewer').then(mod => ({
-    default: mod.DocumentViewer
-  })),
-  {
-    loading: () => (
-      <div className="h-96 bg-gray-50 dark:bg-gray-800 animate-pulse rounded-lg flex items-center justify-center">
-        <div className="text-gray-500">Loading document viewer...</div>
-      </div>
-    ),
-    ssr: false // Document viewer needs browser APIs
-  }
-)
-
-const ResizableModal = nextDynamic(
-  () => import('@/components/ui/resizable-modal').then(mod => ({
-    default: mod.ResizableModal
-  })),
-  {
-    loading: () => null,
-    ssr: false
-  }
-)
+import { DocumentViewer } from '@/components/documents/document-viewer'
+import { ResizableModal } from '@/components/ui/resizable-modal'
 
 interface Document {
   id: string
@@ -130,74 +88,108 @@ export default function AllDocumentsPage() {
 
   const loadDocuments = async () => {
     try {
-      // Check authentication
-      const authResponse = await fetch('/api/auth/user')
-      if (!authResponse.ok) {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) {
         router.push('/login')
         return
       }
 
-      const user = await authResponse.json()
-
       // Get user profile for display name
-      const profileResponse = await fetch('/api/profiles/current')
-      if (profileResponse.ok) {
-        const profile = await profileResponse.json()
-        const fullName = profile?.full_name || user.email?.split('@')[0] || 'User'
-        const firstName = fullName.split(' ')[0]
-        setCurrentUser({ firstName, fullName })
-      }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.user.id)
+        .single()
+
+      const fullName = profile?.full_name || user.user.user_metadata?.full_name || user.user.email?.split('@')[0] || 'User'
+      const firstName = fullName.split(' ')[0]
+      setCurrentUser({ firstName, fullName })
 
       // Load all projects for the user
-      const projectsResponse = await fetch('/api/projects')
-      if (!projectsResponse.ok) {
-        console.error('[AllDocuments] Error loading projects')
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('id, name, methodology_type')
+        .eq('owner_id', user.user.id)
+
+      if (projectsError) {
+        console.error('[AllDocuments] Error loading projects:', {
+          message: projectsError.message,
+          code: projectsError.code,
+          details: projectsError.details,
+          hint: projectsError.hint,
+          fullError: JSON.stringify(projectsError)
+        })
         setProjects([])
         setDocuments([])
         return
       }
 
-      const projectsData = await projectsResponse.json()
-
       console.log('[AllDocuments] Loaded projects:', projectsData?.length || 0)
       console.log('[AllDocuments] Project IDs:', projectsData?.map(p => p.id) || [])
       setProjects(projectsData || [])
 
-      // Load all documents across all projects via API
+      // Load all documents across all projects
+      // Use separate queries to avoid join issues
       let transformedDocs: any[] = []
-
+      
       if (projectsData && projectsData.length > 0) {
-        console.log('[AllDocuments] Fetching artifacts for projects')
+        console.log('[AllDocuments] Querying artifacts for project IDs:', projectsData.map(p => p.id))
+        
+        // Use simple query without join
+        const { data: docs, error } = await supabase
+          .from('artifacts')
+          .select('*')
+          .in('project_id', projectsData.map(p => p.id))
+          .order('created_at', { ascending: false })
+        
+        console.log('[AllDocuments] Query result:', { 
+          success: !error, 
+          count: docs?.length || 0,
+          error: error,
+          projectIds: projectsData.map(p => p.id),
+          documents: docs 
+        })
 
-        // Fetch artifacts via API
-        const artifactsResponse = await fetch('/api/artifacts')
-        if (!artifactsResponse.ok) {
-          console.error('[AllDocuments] Error loading artifacts')
+        if (error) {
+          console.error('[AllDocuments] Error loading documents:', error)
           setDocuments([])
           return
         }
-
-        const docs = await artifactsResponse.json()
-
-        console.log('[AllDocuments] Loaded artifacts:', {
-          count: docs?.length || 0,
-          documents: docs
-        })
         
         // Create a project map for quick lookup
         const projectMap = Object.fromEntries(
           projectsData.map(p => [p.id, p])
         )
+        
+        // Get creator profiles for documents
+        const creatorIds = [...new Set(docs?.map(doc => doc.created_by).filter(Boolean))]
+        let profilesMap: Record<string, any> = {}
+        
+        if (creatorIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', creatorIds)
+          
+          if (profiles) {
+            profilesMap = Object.fromEntries(
+              profiles.map(p => [p.id, p])
+            )
+          }
+        }
 
         // Transform data to match expected structure
-        // For now, we'll use the current user's info for creator
-        // In the future, we could enhance the artifacts API to include creator details
         transformedDocs = (docs || []).map(doc => ({
           ...doc,
           project: projectMap[doc.project_id] || null,
-          creator: {
-            full_name: currentUser?.fullName || 'User',
-            email: user.email
+          creator: profilesMap[doc.created_by] || { 
+            full_name: fullName || 'User', // Use the logged-in user's name
+            email: user.user.email 
           }
         }))
       }
@@ -254,9 +246,69 @@ export default function AllDocumentsPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
-  const exportDocument = async (doc: Document, format: 'json' | 'markdown' = 'json') => {
+  const exportDocument = async (doc: Document, format: 'json' | 'markdown' | 'pdf' = 'json') => {
     try {
-      // Note: PDF export is now handled by DirectPDFDownloadButton component
+      if (format === 'pdf') {
+        console.log('📥 Exporting PDF for document:', {
+          type: doc.type,
+          id: doc.id,
+          projectName: doc.project?.name
+        })
+        
+        // Use new PDF generation API
+        const requestBody = {
+          documentType: doc.type, // Already in correct format from DB
+          content: doc.content,
+          projectName: doc.project?.name || 'Project',  // Use actual project name, not document title
+          companyName: 'Your Company',
+          options: {
+            pageNumbers: true,
+            watermarkText: 'Project Genie',
+            useCache: !isDevelopment, // Disable caching during development
+            forceRegenerate: isDevelopment // Always regenerate during development
+          },
+          artifactId: doc.id
+        }
+        
+        console.log('📤 Sending PDF request:', requestBody)
+        
+        const response = await fetch('/api/pdf/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Include cookies for authentication
+          body: JSON.stringify(requestBody)
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          console.error('❌ PDF generation error:', errorData)
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+        
+        // Get the PDF blob
+        const blob = await response.blob()
+        console.log('✅ PDF blob received, size:', blob.size)
+        
+        // Create download link with cleaner filename
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        // Create filename like: "project-name-pid.pdf" or "project-name-business-case.pdf"
+        const projectSlug = (doc.project?.name || 'project').replace(/[^a-z0-9]/gi, '-').toLowerCase()
+        const docTypeSlug = doc.type.replace(/[^a-z0-9]/gi, '-').toLowerCase()
+        link.download = `${projectSlug}-${docTypeSlug}.pdf`
+        
+        // Trigger download
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        
+        // Clean up
+        URL.revokeObjectURL(url)
+        return
+      }
 
       let content: string
       let mimeType: string
@@ -674,14 +726,9 @@ export default function AllDocumentsPage() {
                           <FileText className="h-4 w-4 mr-2" />
                           Download as Markdown
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <DirectPDFDownloadButton
-                            document={doc}
-                            buttonText="Download as PDF"
-                            showIcon={true}
-                            variant="ghost"
-                            size="sm"
-                          />
+                        <DropdownMenuItem onClick={() => exportDocument(doc, 'pdf')}>
+                          <FileSpreadsheet className="h-4 w-4 mr-2" />
+                          Download as PDF
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => exportDocument(doc, 'json')}>
                           <FileText className="h-4 w-4 mr-2" />
@@ -711,8 +758,8 @@ export default function AllDocumentsPage() {
         isOpen={!!selectedDoc}
         onClose={() => setSelectedDoc(null)}
         title={selectedDoc?.title}
-        defaultWidth={1400}  // SSR-safe: Fixed default instead of window access
-        defaultHeight={800}  // SSR-safe: Fixed default instead of window access
+        defaultWidth={window.innerWidth * 0.85}
+        defaultHeight={window.innerHeight * 0.85}
         minWidth={600}
         minHeight={400}
       >

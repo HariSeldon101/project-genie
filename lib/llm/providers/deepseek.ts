@@ -464,11 +464,7 @@ Generate complete, professional JSON content now.`,
       return json
       
     } catch (e) {
-      // Log and re-throw - no silent failures allowed
-      permanentLogger.captureError('ERROR', e as Error, {
-        context: 'Error caught - propagating instead of returning fallback'
-      })
-      throw e
+      return null
     }
   }
   

@@ -4,20 +4,17 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import {
-  Settings,
-  FileText,
+import { 
+  Settings, 
+  FileText, 
   Server,
   Shield,
   Activity,
-  Database,
-  Users
+  Database
 } from 'lucide-react'
 import { LLMProviderConfig } from '@/components/admin/provider-config'
 import { PromptEditor } from '@/components/admin/prompt-editor'
 import { AdminStats } from '@/components/admin/admin-stats'
-import Link from 'next/link'
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState('provider')
@@ -35,17 +32,9 @@ export default function AdminDashboardPage() {
             Manage LLM providers, system prompts, and application settings
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href="/admin/users">
-              <Users className="mr-2 h-4 w-4" />
-              User Management
-            </Link>
-          </Button>
-          <Badge variant="destructive" className="text-sm">
-            Admin Access
-          </Badge>
-        </div>
+        <Badge variant="destructive" className="text-sm">
+          Admin Access
+        </Badge>
       </div>
 
       {/* Quick Stats */}

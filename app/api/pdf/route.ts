@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { PDFService } from '@/lib/pdf-generation/pdf-service'
-import { ProfilesRepository } from '@/lib/repositories/profiles-repository'
-import { ArtifactsRepository } from '@/lib/repositories/artifacts-repository'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,9 +34,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user profile for the author name using repository
-    const profilesRepo = ProfilesRepository.getInstance()
-    const profile = await profilesRepo.getProfile(user.id)
+    // Get user profile for the author name
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', user.id)
+      .single()
 
     // Use the user's name or email as the author
     const authorName = profile?.full_name || profile?.email || user.email || 'User'
@@ -118,29 +118,27 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch the document from the database using repository
-    // Note: generated_documents table doesn't exist - using artifacts instead
-    const artifactsRepo = ArtifactsRepository.getInstance()
-    const document = await artifactsRepo.getArtifact(documentId)
+    // Fetch the document from the database
+    const { data: document, error: fetchError } = await supabase
+      .from('generated_documents')
+      .select('*')
+      .eq('id', documentId)
+      .eq('user_id', user.id)
+      .single()
 
-    if (!document) {
+    if (fetchError || !document) {
       return NextResponse.json(
         { error: 'Document not found' },
         { status: 404 }
       )
     }
 
-    // Verify user has access to this document
-    if (document.created_by !== user.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 403 }
-      )
-    }
-
-    // Get user profile for the author name using repository
-    const profilesRepo = ProfilesRepository.getInstance()
-    const profile = await profilesRepo.getProfile(user.id)
+    // Get user profile for the author name
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', user.id)
+      .single()
 
     const authorName = profile?.full_name || profile?.email || user.email || 'User'
 

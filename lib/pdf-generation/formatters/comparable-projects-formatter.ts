@@ -551,7 +551,7 @@ export class ComparableProjectsFormatter extends BaseHTMLFormatter {
           html.push(`<p>${factor}</p>`)
           html.push(`</div>`)
         } else {
-          const importanceClass = (factor.importance || '').toLowerCase() === 'fatal' ? 'importance-critical' :
+          const importanceClass = (factor.importance || '').toLowerCase() === 'critical' ? 'importance-critical' :
                                 (factor.importance || '').toLowerCase() === 'nice-to-have' ? 'importance-low' :
                                 'importance-high'
           html.push(`<div class="factor-item ${importanceClass}">`)

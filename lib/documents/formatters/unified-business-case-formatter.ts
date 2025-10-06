@@ -1069,14 +1069,14 @@ graph LR
 
   private getRiskScore(level: string): number {
     const lower = level.toLowerCase()
-    if (lower.includes('high') || lower.includes('fatal')) return 5
+    if (lower.includes('high') || lower.includes('critical')) return 5
     if (lower.includes('medium') || lower.includes('moderate')) return 3
     return 1
   }
 
   private getRiskIndicator(level: string): string {
     const lower = level.toLowerCase()
-    if (lower.includes('high') || lower.includes('fatal')) 
+    if (lower.includes('high') || lower.includes('critical')) 
       return this.createVisualIndicator('error')
     if (lower.includes('medium') || lower.includes('moderate')) 
       return this.createVisualIndicator('warning')

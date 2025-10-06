@@ -6,7 +6,7 @@ import * as path from 'path'
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') })
 
-const SUPABASE_PAT = 'sbp_ce8146f94e3403eca0a088896812e9bbbf08929b'
+const SUPABASE_PAT = 'sbp_10122b563ee9bd601c0b31dc799378486acf13d2'
 const PROJECT_REF = 'vnuieavheezjxbkyfxea'
 const SUPABASE_API_URL = `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`
 

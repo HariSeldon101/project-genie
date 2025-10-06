@@ -1,37 +1,13 @@
 {
-  "git": {
-    "deploymentEnabled": {
-      "main": true
-    }
-  },
-  "installCommand": "npm install --force --legacy-peer-deps",
-  "buildCommand": "npm run vercel-build",
-  "env": {
-    "SKIP_ENV_VALIDATION": "true",
-    "NODE_ENV": "production",
-    "NEXT_FORCE_DYNAMIC": "true",
-    "NEXT_RUNTIME": "nodejs"
-  },
-  "ignoreCommand": "exit 1",
-  "github": {
-    "enabled": true,
-    "autoAlias": false
-  },
   "functions": {
-    "app/api/auth/callback/route.ts": {
+    "app/auth/callback/route.ts": {
       "maxDuration": 10
     },
     "app/api/generate/route.ts": {
       "maxDuration": 300
     },
-    "app/api/generate-stream/route.ts": {
-      "maxDuration": 300
-    },
-    "app/api/generate-retry/route.ts": {
-      "maxDuration": 300
-    },
     "app/api/**/*.ts": {
-      "maxDuration": 60
+      "maxDuration": 10
     }
   },
   "headers": [

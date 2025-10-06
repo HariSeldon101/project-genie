@@ -1,6 +1,6 @@
-import { ArtifactsRepository } from '@/lib/repositories/artifacts-repository'
+import { createClient } from '@supabase/supabase-js'
 import { GeneratedDocument } from '../llm/types'
-import { permanentLogger } from '../utils/permanent-logger'
+import { logger } from '../utils/permanent-logger'
 import { DevLogger } from '@/lib/utils/dev-logger'
 
 export interface GenerationMetrics {
@@ -20,19 +20,14 @@ export interface GenerationMetrics {
   retryCount?: number
 }
 
-/**
- * Document Storage - Manages document persistence using repository pattern
- *
- * Technical PM Note: This class now uses ArtifactsRepository instead of
- * direct database calls. This ensures consistent error handling and
- * makes the code testable (mock the repository).
- */
 export class DocumentStorage {
-  private artifactsRepo: ArtifactsRepository
+  private supabase
 
   constructor() {
-    // Use repository instead of direct Supabase client
-    this.artifactsRepo = ArtifactsRepository.getInstance()
+    this.supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY! // Use service role for server-side operations
+    )
   }
 
   /**
@@ -50,7 +45,7 @@ export class DocumentStorage {
     // Validate userId is a proper UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!userId || !uuidRegex.test(userId)) {
-      permanentLogger.warn('STORAGE', `Invalid user ID provided: ${userId}. Skipping document storage.`)
+      logger.warn('STORAGE', `Invalid user ID provided: ${userId}. Skipping document storage.`)
       DevLogger.logWarning('Invalid user ID, skipping storage', { userId })
       return [] // Return empty array if no valid user
     }
@@ -109,33 +104,34 @@ export class DocumentStorage {
         }
         
         DevLogger.logDatabaseOperation(`INSERT ${doc.metadata.type}`, insertData)
-
-        // Use repository to store artifact - NO ID generation in app
-        const artifact = await this.artifactsRepo.createArtifact(insertData)
-
-        permanentLogger.breadcrumb('database', 'Artifact stored successfully', {
-          artifactId: artifact.id,
-          type: doc.metadata.type,
-          table: 'artifacts'
-        })
-        DevLogger.logSuccess(`Stored ${doc.metadata.type}`, { artifactId: artifact.id })
-        artifactIds.push(artifact.id)
+        
+        const { data, error } = await this.supabase
+          .from('artifacts')
+          .insert(insertData)
+          .select('id')
+          .single()
+        
+        if (error) {
+          logger.database('INSERT', 'artifacts', false, error.message, { doc: doc.metadata })
+          DevLogger.logError(`Failed to store ${doc.metadata.type}`, error)
+          throw error
+        }
+        
+        logger.database('INSERT', 'artifacts', true, undefined, { artifactId: data.id, type: doc.metadata.type })
+        DevLogger.logSuccess(`Stored ${doc.metadata.type}`, { artifactId: data.id })
+        artifactIds.push(data.id)
         
         // Store generation analytics if metrics provided
         if (metrics) {
-          await this.artifactsRepo.storeGenerationAnalytics(
-            artifact.id,
-            doc.metadata.projectId,
-            metrics
-          )
+          await this.storeGenerationAnalytics(data.id, doc.metadata.projectId, metrics)
         }
-
+        
         // Store AI insights separately if needed
         if (doc.aiInsights) {
-          await this.storeAIInsights(artifact.id, doc.aiInsights)
+          await this.storeAIInsights(data.id, doc.aiInsights)
         }
       } catch (error) {
-        permanentLogger.captureError('STORAGE', new Error('Failed to store document ${doc.metadata.type}'), error, error.stack)
+        logger.error('STORAGE', `Failed to store document ${doc.metadata.type}`, error, error.stack)
         console.error('Failed to store document:', error)
         throw new Error(`Failed to store ${doc.metadata.type}: ${error.message}`)
       }
@@ -145,80 +141,103 @@ export class DocumentStorage {
   }
 
   /**
-   * Retrieve document from repository
-   * Technical PM: Now uses repository pattern for consistency
+   * Retrieve document from Supabase
    */
   async getDocument(artifactId: string): Promise<any> {
-    return this.artifactsRepo.getArtifact(artifactId)
+    const { data, error } = await this.supabase
+      .from('artifacts')
+      .select('*')
+      .eq('id', artifactId)
+      .single()
+    
+    if (error) throw error
+    
+    return data
   }
 
   /**
-   * Update document content through repository
-   * Technical PM: Version increment handled automatically by repository
+   * Update document content
    */
   async updateDocument(
     artifactId: string,
     content: any,
     userId: string
   ): Promise<void> {
-    await this.artifactsRepo.updateArtifact(artifactId, {
-      content,
-      // Version handled automatically by repository
-    })
-
+    // Get current version
+    const { data: current } = await this.supabase
+      .from('artifacts')
+      .select('version')
+      .eq('id', artifactId)
+      .single()
+    
+    const newVersion = (current?.version || 1) + 1
+    
+    // Update with new version
+    const { error } = await this.supabase
+      .from('artifacts')
+      .update({
+        content,
+        version: newVersion,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', artifactId)
+    
+    if (error) throw error
+    
     // Log the update in activity log
     await this.logActivity(artifactId, 'update', userId, {
-      // Repository handles version tracking
+      version: newVersion
     })
   }
 
   /**
-   * Get all documents for a project through repository
+   * Get all documents for a project
    */
   async getProjectDocuments(projectId: string): Promise<any[]> {
-    return this.artifactsRepo.getProjectArtifacts(projectId)
+    const { data, error } = await this.supabase
+      .from('artifacts')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true })
+    
+    if (error) throw error
+    
+    return data || []
   }
 
   /**
-   * Store AI insights through repository
-   * Technical PM: Merges insights into existing content
+   * Store AI insights
    */
   private async storeAIInsights(
     artifactId: string,
     insights: any
   ): Promise<void> {
-    try {
-      // Get current artifact content
-      const artifact = await this.artifactsRepo.getArtifact(artifactId)
-
-      // Merge insights into content
-      const updatedContent = {
-        ...artifact.content,
-        _aiInsights: insights
-      }
-
-      // Update through repository
-      await this.artifactsRepo.updateArtifact(artifactId, {
-        content: updatedContent
+    // Store insights as metadata in the artifact
+    const { error } = await this.supabase
+      .from('artifacts')
+      .update({
+        content: await this.supabase
+          .from('artifacts')
+          .select('content')
+          .eq('id', artifactId)
+          .single()
+          .then(({ data }) => ({
+            ...data?.content,
+            _aiInsights: insights
+          }))
       })
-
-      permanentLogger.breadcrumb('database', 'Artifact updated', {
-        artifactId,
-        table: 'artifacts',
-        operation: 'UPDATE'
-      })
-    } catch (error) {
-      permanentLogger.captureError('STORAGE', error as Error, {
-        operation: 'storeAIInsights',
-        artifactId
-      })
-      // Don't throw - insights are secondary
+      .eq('id', artifactId)
+    
+    if (error) {
+      logger.database('UPDATE', 'artifacts', false, error.message, { artifactId, insights })
+      console.error('Failed to store AI insights:', error)
+    } else {
+      logger.database('UPDATE', 'artifacts', true, undefined, { artifactId })
     }
   }
 
   /**
-   * Log activity - temporarily disabled pending ActivityLogRepository
-   * Technical PM: Activity logging needs its own repository
+   * Log activity
    */
   private async logActivity(
     entityId: string,
@@ -226,47 +245,34 @@ export class DocumentStorage {
     userId: string,
     details: any
   ): Promise<void> {
-    try {
-      // Use ActivityLogRepository to log the activity
-      const activityRepo = (await import('@/lib/repositories/activity-log-repository')).ActivityLogRepository.getInstance()
-
-      // Get project ID for this entity
-      const projectId = await this.getProjectIdFromArtifact(entityId)
-
-      await activityRepo.logActivity({
-        project_id: projectId,
+    const { error } = await this.supabase
+      .from('activity_log')
+      .insert({
+        project_id: await this.getProjectIdFromArtifact(entityId),
         user_id: userId,
         action,
         entity_type: 'artifact',
         entity_id: entityId,
         details
       })
-    } catch (error) {
-      // Fall back to permanent logger if activity logging fails
-      permanentLogger.breadcrumb('activity', action, {
-        entityId,
-        userId,
-        details,
-        entityType: 'artifact',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      })
+    
+    if (error) {
+      logger.database('INSERT', 'activity_log', false, error.message, { action, entityId })
+      console.error('Failed to log activity:', error)
     }
   }
 
   /**
-   * Get project ID from artifact through repository
+   * Get project ID from artifact
    */
   private async getProjectIdFromArtifact(artifactId: string): Promise<string> {
-    try {
-      const artifact = await this.artifactsRepo.getArtifact(artifactId)
-      return artifact.project_id || ''
-    } catch (error) {
-      permanentLogger.captureError('STORAGE', error as Error, {
-        operation: 'getProjectIdFromArtifact',
-        artifactId
-      })
-      return ''
-    }
+    const { data } = await this.supabase
+      .from('artifacts')
+      .select('project_id')
+      .eq('id', artifactId)
+      .single()
+    
+    return data?.project_id || ''
   }
 
   /**
@@ -290,23 +296,20 @@ export class DocumentStorage {
   }
 
   /**
-   * Check if documents exist for a project through repository
+   * Check if documents exist for a project
    */
   async hasDocuments(projectId: string): Promise<boolean> {
-    try {
-      const artifacts = await this.artifactsRepo.getProjectArtifacts(projectId)
-      return artifacts.length > 0
-    } catch (error) {
-      permanentLogger.captureError('STORAGE', error as Error, {
-        operation: 'hasDocuments',
-        projectId
-      })
-      return false
-    }
+    const { data } = await this.supabase
+      .from('artifacts')
+      .select('id')
+      .eq('project_id', projectId)
+      .limit(1)
+    
+    return (data?.length || 0) > 0
   }
 
   /**
-   * Delete document through repository
+   * Delete document
    */
   async deleteDocument(
     artifactId: string,
@@ -314,15 +317,17 @@ export class DocumentStorage {
   ): Promise<void> {
     // Log deletion first
     await this.logActivity(artifactId, 'delete', userId, {})
-
-    // Delete through repository
-    await this.artifactsRepo.deleteArtifact(artifactId)
+    
+    const { error } = await this.supabase
+      .from('artifacts')
+      .delete()
+      .eq('id', artifactId)
+    
+    if (error) throw error
   }
 
   /**
-   * Store generation analytics through repository
-   * Technical PM: Delegates to ArtifactsRepository for consistency
-   * NO BACKWARD COMPATIBILITY - old code archived per CLAUDE.md
+   * Store generation analytics
    */
   private async storeGenerationAnalytics(
     documentId: string,
@@ -330,19 +335,52 @@ export class DocumentStorage {
     metrics: GenerationMetrics
   ): Promise<void> {
     try {
-      // Delegate to repository - single source of truth
-      await this.artifactsRepo.storeGenerationAnalytics(
-        documentId,
-        projectId,
-        metrics
-      )
+      // Get user ID from auth context
+      const { data: { user } } = await this.supabase.auth.getUser()
+      
+      // Skip analytics if no user (test mode) - user_id is a required UUID field
+      if (!user?.id) {
+        logger.info('ANALYTICS', 'Skipping analytics storage - no authenticated user')
+        return
+      }
+      
+      // Store analytics with correct schema
+      const { error } = await this.supabase
+        .from('generation_analytics')
+        .insert({
+          project_id: projectId,
+          user_id: user.id,
+          document_type: 'document', // We can enhance this later
+          provider: metrics.provider,
+          model: metrics.model,
+          tokens_used: metrics.totalTokens,
+          generation_time_ms: metrics.generationTimeMs,
+          success: metrics.success,
+          error_message: metrics.errorMessage,
+          metadata: {
+            document_id: documentId,
+            input_tokens: metrics.inputTokens,
+            output_tokens: metrics.outputTokens,
+            reasoning_tokens: metrics.reasoningTokens,
+            reasoning_effort: metrics.reasoningEffort,
+            temperature: metrics.temperature,
+            max_tokens: metrics.maxTokens,
+            cost_usd: metrics.costUsd,
+            retry_count: metrics.retryCount || 0
+          }
+        })
+      
+      if (error) {
+        logger.database('INSERT', 'generation_analytics', false, error.message, metrics)
+        console.error('Failed to store generation analytics:', error)
+        // Don't throw error - analytics failure shouldn't break document storage
+      } else {
+        logger.database('INSERT', 'generation_analytics', true, undefined, { projectId, documentId })
+      }
     } catch (error) {
-      // Analytics are secondary - log but don't fail
-      permanentLogger.captureError('STORAGE', error as Error, {
-        operation: 'storeGenerationAnalytics',
-        documentId,
-        projectId
-      })
+      logger.error('ANALYTICS', 'Error storing generation analytics', error, error.stack)
+      console.error('Error storing generation analytics:', error)
+      // Continue without throwing - analytics is supplementary
     }
   }
 
@@ -351,13 +389,17 @@ export class DocumentStorage {
    */
   async getProjectAnalytics(projectId: string): Promise<any[]> {
     try {
-      const analyticsRepo = (await import('@/lib/repositories/generation-analytics-repository')).GenerationAnalyticsRepository.getInstance()
-      return await analyticsRepo.getProjectAnalytics(projectId)
+      const { data, error } = await this.supabase
+        .from('generation_analytics')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      
+      return data || []
     } catch (error) {
-      permanentLogger.captureError('STORAGE', error as Error, {
-        operation: 'getProjectAnalytics',
-        projectId
-      })
+      console.error('Failed to get project analytics:', error)
       return []
     }
   }
@@ -367,27 +409,16 @@ export class DocumentStorage {
    */
   async getAnalyticsSummary(projectId: string): Promise<any> {
     try {
-      const analyticsRepo = (await import('@/lib/repositories/generation-analytics-repository')).GenerationAnalyticsRepository.getInstance()
-      const analytics = await analyticsRepo.getProjectAnalytics(projectId)
-      const totalCost = await analyticsRepo.getProjectTotalCost(projectId)
-
-      // Calculate summary
-      const totalTokens = analytics.reduce((sum, item) => sum + (item.total_tokens || 0), 0)
-      const totalGenerations = analytics.length
-      const avgTokensPerGeneration = totalGenerations > 0 ? totalTokens / totalGenerations : 0
-
-      return {
-        totalGenerations,
-        totalTokens,
-        totalCost,
-        avgTokensPerGeneration,
-        analytics
-      }
+      const { data, error } = await this.supabase
+        .from('generation_analytics_summary')
+        .select('*')
+        .eq('project_id', projectId)
+      
+      if (error) throw error
+      
+      return data || []
     } catch (error) {
-      permanentLogger.captureError('STORAGE', error as Error, {
-        operation: 'getAnalyticsSummary',
-        projectId
-      })
+      console.error('Failed to get analytics summary:', error)
       return null
     }
   }

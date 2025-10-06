@@ -1,0 +1,884 @@
+
+      <style>
+        
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: white;
+      }
+      
+      .pdf-container {
+        width: 100%;
+        max-width: 210mm;
+        margin: 0 auto;
+        padding: 40mm 20mm 20mm 20mm; /* Add top padding to avoid header overlap */
+      }
+      
+      h1 { font-size: 2rem; margin: 1.5rem 0 1rem; color: #1a1a1a; }
+      h2 { font-size: 1.5rem; margin: 1.25rem 0 0.75rem; color: #333; }
+      h3 { font-size: 1.25rem; margin: 1rem 0 0.5rem; color: #444; }
+      h4 { font-size: 1.1rem; margin: 0.75rem 0 0.5rem; color: #555; }
+      
+      p { margin: 0.75rem 0; }
+      
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+      }
+      
+      th {
+        background: #f5f5f5;
+        padding: 0.75rem;
+        text-align: left;
+        border: 1px solid #ddd;
+        font-weight: 600;
+      }
+      
+      td {
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+      }
+      
+      tr:nth-child(even) {
+        background: #fafafa;
+      }
+      
+      ul, ol {
+        margin: 0.75rem 0;
+        padding-left: 2rem;
+      }
+      
+      li {
+        margin: 0.25rem 0;
+      }
+      
+      .section {
+        margin: 2rem 0;
+        page-break-inside: avoid;
+      }
+      
+      .highlight-box {
+        background: #f0f8ff;
+        border-left: 4px solid #2196F3;
+        padding: 1rem;
+        margin: 1rem 0;
+      }
+      
+      .watermark {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 6rem;
+        color: rgba(0, 0, 0, 0.05);
+        font-weight: bold;
+        z-index: -1;
+        pointer-events: none;
+      }
+      
+      /* Cover page styles */
+      .cover-page {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        text-align: center;
+        page-break-after: always;
+      }
+      
+      .cover-logo {
+        margin-bottom: 3rem;
+      }
+      
+      .cover-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #1a1a1a;
+        margin: 2rem 0 1rem;
+        max-width: 80%;
+      }
+      
+      .cover-subtitle {
+        font-size: 1.5rem;
+        color: #666;
+        margin-bottom: 3rem;
+      }
+      
+      .cover-metadata {
+        margin-top: auto;
+        padding: 2rem;
+        background: #f9f9f9;
+        border-radius: 8px;
+        min-width: 400px;
+      }
+      
+      .cover-metadata-item {
+        margin: 0.5rem 0;
+        font-size: 1rem;
+        color: #555;
+      }
+      
+      .cover-metadata-item strong {
+        color: #333;
+        margin-right: 0.5rem;
+      }
+      
+      /* Header and footer styles */
+      .pdf-header {
+        position: fixed;
+        top: 10mm;
+        left: 20mm;
+        right: 20mm;
+        padding: 5mm 0;
+        font-size: 0.9rem;
+        color: #666;
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #e0e0e0;
+        background: white;
+        z-index: 100;
+      }
+      
+      /* Hide header on first page (cover page) */
+      @page:first {
+        @top-center {
+          content: none;
+        }
+      }
+      
+      .pdf-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 10mm 20mm;
+        font-size: 0.85rem;
+        color: #666;
+        text-align: center;
+        border-top: 1px solid #e0e0e0;
+      }
+      
+      /* Table of contents styles */
+      .toc {
+        margin: 2rem 0;
+      }
+      
+      .toc h2 {
+        margin-bottom: 1.5rem;
+        color: #1a1a1a;
+      }
+      
+      .toc-item {
+        display: flex;
+        justify-content: space-between;
+        margin: 0.5rem 0;
+        padding: 0.25rem 0;
+        border-bottom: 1px dotted #ddd;
+      }
+      
+      .toc-title {
+        color: #333;
+      }
+      
+      .toc-page {
+        color: #666;
+      }
+      
+      /* Subsection styles */
+      .subsection {
+        margin-left: 2rem;
+        margin-top: 1.5rem;
+      }
+      
+      .subsection h3 {
+        color: #444;
+        border-bottom: 2px solid #e0e0e0;
+        padding-bottom: 0.5rem;
+      }
+      
+      .subsection h4 {
+        color: #666;
+        margin-top: 1rem;
+      }
+    
+        
+      /* PID-specific styles */
+      .pid-document {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
+        color: #333;
+      }
+      
+      .pid-section {
+        margin: 2rem 0;
+        page-break-inside: avoid;
+      }
+      
+      .pid-section h2 {
+        color: #1a1a1a;
+        border-bottom: 2px solid #e0e0e0;
+        padding-bottom: 0.5rem;
+        margin-top: 2rem;
+      }
+      
+      .pid-section h3 {
+        color: #444;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+      }
+      
+      .pid-section h4 {
+        color: #666;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+      }
+      
+      .table-of-contents {
+        margin: 2rem 0;
+        padding: 1.5rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+      }
+      
+      .table-of-contents h2 {
+        margin-bottom: 1rem;
+        color: #1a1a1a;
+      }
+      
+      .table-of-contents ol {
+        list-style-type: decimal;
+        padding-left: 1.5rem;
+      }
+      
+      .table-of-contents li {
+        margin: 0.5rem 0;
+      }
+      
+      .table-of-contents a {
+        color: #333;
+        text-decoration: none;
+      }
+      
+      .table-of-contents a:hover {
+        color: #667eea;
+        text-decoration: underline;
+      }
+      
+      .business-option {
+        margin: 1rem 0;
+        padding: 1rem;
+        background: #f5f5f5;
+        border-left: 3px solid #667eea;
+      }
+      
+      .stage {
+        margin: 1rem 0;
+        padding: 1rem;
+        background: #f9f9f9;
+        border-radius: 4px;
+      }
+      
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+      }
+      
+      th {
+        background: #f5f5f5;
+        padding: 0.75rem;
+        text-align: left;
+        border: 1px solid #ddd;
+        font-weight: 600;
+      }
+      
+      td {
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+      }
+      
+      tr:nth-child(even) {
+        background: #fafafa;
+      }
+      
+      ul, ol {
+        margin: 0.75rem 0;
+        padding-left: 2rem;
+      }
+      
+      li {
+        margin: 0.25rem 0;
+      }
+      
+      /* Ensure sections don't break across pages */
+      .pid-section > h3,
+      .pid-section > h4 {
+        page-break-after: avoid;
+      }
+      
+      .pid-section > h3 + *,
+      .pid-section > h4 + * {
+        page-break-before: avoid;
+      }
+    
+      </style>
+    
+<div class="watermark">Project Genie</div>
+
+
+      <div class="pdf-footer">
+        <span style="font-size: 0.7rem; opacity: 0.7;">Created by <a href="https://projectgenie.com" style="color: #667eea; text-decoration: none;">Project Genie</a></span>
+      </div>
+    
+<div class="pdf-container">
+
+      <div class="cover-page">
+        
+          <div class="cover-logo">
+            <svg width="150" height="50" viewBox="0 0 150 50">
+              <text x="0" y="35" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#667eea">
+                Project Genie
+              </text>
+            </svg>
+          </div>
+        
+        
+        <h1 class="cover-title">Project Initiation Document</h1>
+        <p class="cover-subtitle">Digital Banking Transformation Initiative</p>
+        
+        <div class="cover-metadata">
+          <p class="cover-metadata-item"><strong>Company:</strong> Your Company</p>
+          <p class="cover-metadata-item"><strong>Date:</strong> 28 August 2025</p>
+          <p class="cover-metadata-item"><strong>Version:</strong> 1</p>
+          <p class="cover-metadata-item"><strong>Author:</strong> Project Genie</p>
+          <p class="cover-metadata-item"><strong>Status:</strong> FINAL</p>
+        </div>
+      </div>
+    
+<div style="page-break-after: always;"></div>
+
+      <div class="pid-document">
+        
+      <nav class="table-of-contents">
+        <h2>Table of Contents</h2>
+        <ol>
+          <li><a href="#executive-summary">Executive Summary</a></li>
+          <li><a href="#project-background">Project Background</a></li>
+          <li><a href="#project-definition">Project Definition</a></li>
+          <li><a href="#business-case">Business Case</a></li>
+          <li><a href="#organization-structure">Organization Structure</a></li>
+          <li><a href="#quality-management">Quality Management Approach</a></li>
+          <li><a href="#configuration-management">Configuration Management Approach</a></li>
+          <li><a href="#risk-management">Risk Management Approach</a></li>
+          <li><a href="#communication-management">Communication Management Approach</a></li>
+          <li><a href="#project-plan">Project Plan</a></li>
+          <li><a href="#project-controls">Project Controls</a></li>
+          <li><a href="#tailoring">Tailoring</a></li>
+        </ol>
+      </nav>
+    
+
+        <section class="pid-section">
+          <h2 id="executive-summary">1. Executive Summary</h2>
+          <p>The Digital Banking Transformation Initiative project aims to deliver key business value through strategic initiatives. Key objectives include Achieve PSD2 compliance by Q3 2024 and Reduce operational costs by 35% by end of 2025. Major deliverables encompass Open Banking APIs and Mobile Customer Portal.</p>
+        </section>
+      
+
+        <section class="pid-section">
+          <h2 id="project-background">2. Project Background</h2>
+          <p>The Digital Banking Transformation Initiative aims to address the urgent need for modernization of our legacy banking systems in response to regulatory pressures such as the Payment Services Directive 2 (PSD2) and to enhance our competitive positioning in the digital banking sector. As a leading financial institution, we recognize the necessity to adopt advanced technologies that not only comply with regulatory requirements but also improve customer experience and operational efficiency.</p>
+        </section>
+      
+
+      <section class="pid-section">
+        <h2 id="project-definition">3. Project Definition</h2>
+        
+        
+          <h3>3.1 Objectives</h3>
+          <ul>
+            <li>Achieve PSD2 compliance by Q3 2024</li><li>Reduce operational costs by 35% by end of 2025</li><li>Increase customer acquisition by 45% within 12 months post-implementation</li><li>Ensure zero downtime during the migration of 2.3 million customer accounts</li><li>Implement AI-driven fraud detection systems by end of project.</li>
+          </ul>
+        
+
+        
+          <h3>3.2 Scope</h3>
+          
+            <h4>In Scope:</h4>
+            <ul>
+              <li>Implementation of open banking APIs</li><li>Real-time payment processing capabilities</li><li>Enhanced KYC/AML procedures</li><li>Development of a mobile-first customer portal</li><li>AI-driven fraud detection systems</li><li>Migration of 2.3 million customer accounts with zero downtime</li>
+            </ul>
+          
+          
+            <h4>Out of Scope:</h4>
+            <ul>
+              <li>Legacy system maintenance post-migration</li><li>Development of non-digital banking services</li><li>Changes to existing physical branch operations</li>
+            </ul>
+          
+        
+
+        
+          <h3>3.3 Deliverables</h3>
+          <ul>
+            <li>Open Banking APIs</li><li>Mobile Customer Portal</li><li>Real-time Payment Processing System</li>
+          </ul>
+        
+
+        
+          <h3>3.4 Constraints</h3>
+          <ul>
+            <li>Regulatory compliance deadline of Q3 2024</li><li>Budget limitations of £12M</li><li>Zero downtime requirement during customer migration</li>
+          </ul>
+        
+
+        
+          <h3>3.5 Assumptions</h3>
+          <ul>
+            <li>All stakeholders will provide timely feedback</li><li>Necessary technology resources will be available</li><li>Regulatory requirements will not change during the project</li>
+          </ul>
+        
+
+        
+
+        
+          <h3>3.7 Interfaces</h3>
+          <ul>
+            <li>Integration with existing banking systems</li><li>Collaboration with third-party API providers</li><li>Coordination with regulatory bodies for compliance checks</li>
+          </ul>
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="business-case">4. Business Case</h2>
+        
+        
+          <h3>4.1 Reasons for the Project</h3>
+          <p>The Digital Banking Transformation Initiative is essential for regulatory compliance with PSD2, which mandates significant changes to banking operations and infrastructure. Failure to comply could result in fines of up to 4% of annual turnover, which is approximately £2.4M based on last year's revenue.</p>
+        
+
+        
+          <h3>4.2 Business Options</h3>
+          
+            <div class="business-option">
+              <h4>Do Nothing</h4>
+              <p>Maintain current legacy systems without upgrades or changes.</p>
+              <p><strong>Benefits:</strong> No initial investment required, but high risk of regulatory fines and operational inefficiencies.</p>
+              <p><strong>Costs:</strong> £0</p>
+              <p><strong>Risks:</strong> Non-compliance with PSD2 leading to fines and loss of customers.</p>
+            </div>
+          
+            <div class="business-option">
+              <h4>Partial Upgrade</h4>
+              <p>Implement some digital features while retaining legacy systems.</p>
+              <p><strong>Benefits:</strong> Reduced initial investment but limited operational improvements and continued compliance risk.</p>
+              <p><strong>Costs:</strong> £5M</p>
+              <p><strong>Risks:</strong> Inability to fully meet PSD2 requirements.</p>
+            </div>
+          
+            <div class="business-option">
+              <h4>Full Transformation (Recommended)</h4>
+              <p>Complete overhaul of banking infrastructure ensuring compliance and modern features.</p>
+              <p><strong>Benefits:</strong> Full compliance with PSD2, operational cost reduction, and enhanced customer acquisition.</p>
+              <p><strong>Costs:</strong> £12M</p>
+              <p><strong>Risks:</strong> High initial investment but mitigated by long-term savings and revenue generation.</p>
+            </div>
+          
+        
+
+        
+          <h3>4.3 Expected Benefits</h3>
+          <ul>
+            <li>Regulatory compliance avoiding fines</li><li>Operational cost savings</li><li>Increased customer acquisition</li>
+          </ul>
+        
+
+        
+          <h3>4.4 Costs</h3>
+          
+            <table>
+              <tr><th>Type</th><th>Amount</th></tr>
+              <tr><td>total</td><td>£12M</td></tr><tr><td>development</td><td>£12M</td></tr><tr><td>maintenance</td><td>£1M annually after the first year</td></tr><tr><td>operational</td><td>£2M annually post-implementation</td></tr>
+            </table>
+          
+        
+
+        
+          <h3>4.5 Major Risks</h3>
+          <ul>
+            <li>Regulatory changes affecting project scope</li><li>Technological challenges during migration</li><li>Potential data breaches during transition</li>
+          </ul>
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="organization-structure">5. Organization Structure</h2>
+        
+        
+          <h3>5.1 Project Board</h3>
+          
+            <ul>
+              <li><strong>Executive:</strong> John Smith</li>
+              <li><strong>Senior User:</strong> Alice Johnson</li>
+              <li><strong>Senior Supplier:</strong> Mark Brown</li>
+            </ul>
+          
+        
+
+        
+          <h3>5.2 Project Manager</h3>
+          <p>Samantha Green</p>
+        
+
+        
+          <h3>5.3 Team Managers</h3>
+          <ul>
+            <li>Tom White</li><li>Lisa Black</li><li>Raj Patel</li>
+          </ul>
+        
+
+        
+          <h3>5.4 Project Assurance</h3>
+          
+            <ul>
+              <li><strong>user:</strong> Emily Clark</li><li><strong>business:</strong> Angela Davis</li><li><strong>specialist:</strong> Robert King</li>
+            </ul>
+          
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="quality-management">6. Quality Management Approach</h2>
+        
+        
+          <h3>6.1 Quality Method</h3>
+          <p>Continuous quality assurance throughout the project lifecycle with periodic reviews and audits.</p>
+        
+
+        
+          <h3>6.2 Quality Standards</h3>
+          <ul>
+            <li>ISO 9001</li><li>ISO 27001</li><li>NIST Cybersecurity Framework</li>
+          </ul>
+        
+
+        
+          <h3>6.3 Quality Criteria</h3>
+          <ul>
+            <li>All deliverables meet defined specifications</li><li>User acceptance testing passes with at least 90% satisfaction</li><li>Compliance with all regulatory standards</li>
+          </ul>
+        
+
+        
+          <h3>6.4 Quality Responsibilities</h3>
+          <p>Quality assurance will be the responsibility of the Project Assurance team, with regular reporting to the Project Board.</p>
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="configuration-management">7. Configuration Management Approach</h2>
+        
+        
+          <h3>7.1 Purpose</h3>
+          <p>To manage changes to project deliverables and ensure that all changes are documented and approved.</p>
+        
+
+        
+          <h3>7.2 Procedure</h3>
+          <p>All change requests must be submitted to the Change Control Board (CCB) for evaluation and approval before implementation.</p>
+        
+
+        
+          <h3>7.3 Tools and Techniques</h3>
+          <ul>
+            <li>JIRA for issue tracking</li><li>Confluence for documentation</li><li>CMDB for configuration management</li>
+          </ul>
+        
+
+        
+          <h3>7.4 Issue and Change Control</h3>
+          <p>Changes will be logged in the Configuration Management Database (CMDB) and tracked through to resolution.</p>
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="risk-management">8. Risk Management Approach</h2>
+        
+        
+          <h3>8.1 Risk Management Procedure</h3>
+          <p>Risks will be identified, assessed, and managed on a continuous basis throughout the project lifecycle. A risk register will be maintained and reviewed regularly.</p>
+        
+
+        
+          <h3>8.2 Risk Categories</h3>
+          <ul>
+            <li>Technical Risks</li><li>Operational Risks</li><li>Compliance Risks</li><li>Financial Risks</li><li>Market Risks</li>
+          </ul>
+        
+
+        
+          <h3>8.3 Risk Tolerances</h3>
+          
+            <ul>
+              
+            </ul>
+          
+        
+
+        
+          <h3>8.4 Tools and Techniques</h3>
+          <ul>
+            <li>Risk register software</li><li>Risk analysis tools</li>
+          </ul>
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="communication-management">9. Communication Management Approach</h2>
+        
+        
+          <h3>9.1 Communication Procedure</h3>
+          <p>Regular communication through scheduled meetings, email updates, and project dashboards.</p>
+        
+
+        
+          <h3>9.2 Communication Methods</h3>
+          <ul>
+            <li>Face-to-face meetings</li><li>Virtual meetings</li><li>Email communications</li><li>Project dashboards</li>
+          </ul>
+        
+
+        
+          <h3>9.3 Communication Frequency</h3>
+          <p>Weekly updates for the project team, monthly updates for the Project Board, and quarterly updates for all stakeholders.</p>
+        
+
+        
+          <h3>9.4 Stakeholder Analysis</h3>
+          <table>
+            <tr>
+              <th>Stakeholder</th>
+              <th>Interest</th>
+              <th>Influence</th>
+              <th>Communication</th>
+            </tr>
+            
+              <tr>
+                <td>Project Board</td>
+                <td>high</td>
+                <td>high</td>
+                <td>Monthly meetings</td>
+              </tr>
+            
+              <tr>
+                <td>Team Managers</td>
+                <td>high</td>
+                <td>medium</td>
+                <td>Weekly meetings</td>
+              </tr>
+            
+              <tr>
+                <td>Regulatory Bodies</td>
+                <td>high</td>
+                <td>high</td>
+                <td>Formal reports</td>
+              </tr>
+            
+              <tr>
+                <td>Customers</td>
+                <td>medium</td>
+                <td>medium</td>
+                <td>Surveys and feedback sessions</td>
+              </tr>
+            
+              <tr>
+                <td>IT Department</td>
+                <td>high</td>
+                <td>high</td>
+                <td>Daily stand-ups</td>
+              </tr>
+            
+          </table>
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="project-plan">10. Project Plan</h2>
+        
+        
+          <h3>10.1 Project Stages</h3>
+          
+            <div class="stage">
+              <h4>Stage 1: Initiation</h4>
+              <p><strong>Start:</strong> 2023-10-01</p>
+              <p><strong>End:</strong> 2023-10-31</p>
+              
+                <p><strong>Objectives:</strong></p>
+                <ul>
+                  <li>Define project scope</li><li>Establish project governance</li><li>Identify key stakeholders</li>
+                </ul>
+              
+              
+                <p><strong>Deliverables:</strong></p>
+                <ul>
+                  <li>Project Initiation Document (PID)</li><li>Project Plan</li>
+                </ul>
+              
+            </div>
+          
+            <div class="stage">
+              <h4>Stage 2: Development</h4>
+              <p><strong>Start:</strong> 2023-11-01</p>
+              <p><strong>End:</strong> 2024-03-31</p>
+              
+                <p><strong>Objectives:</strong></p>
+                <ul>
+                  <li>Develop core banking systems</li><li>Implement APIs and payment processing</li><li>Conduct user acceptance testing</li>
+                </ul>
+              
+              
+                <p><strong>Deliverables:</strong></p>
+                <ul>
+                  <li>Open Banking APIs</li><li>Real-time Payment System</li>
+                </ul>
+              
+            </div>
+          
+            <div class="stage">
+              <h4>Stage 3: Migration</h4>
+              <p><strong>Start:</strong> 2024-04-01</p>
+              <p><strong>End:</strong> 2024-06-30</p>
+              
+                <p><strong>Objectives:</strong></p>
+                <ul>
+                  <li>Migrate customer accounts with zero downtime</li><li>Ensure data integrity and security</li><li>Conduct post-migration testing</li>
+                </ul>
+              
+              
+                <p><strong>Deliverables:</strong></p>
+                <ul>
+                  <li>Migrated customer accounts</li><li>Post-migration report</li>
+                </ul>
+              
+            </div>
+          
+            <div class="stage">
+              <h4>Stage 4: Closure</h4>
+              <p><strong>Start:</strong> 2024-07-01</p>
+              <p><strong>End:</strong> 2024-07-31</p>
+              
+                <p><strong>Objectives:</strong></p>
+                <ul>
+                  <li>Finalize project documentation</li><li>Conduct lessons learned session</li><li>Obtain project sign-off</li>
+                </ul>
+              
+              
+                <p><strong>Deliverables:</strong></p>
+                <ul>
+                  <li>Project Closure Report</li><li>Lessons Learned Document</li>
+                </ul>
+              
+            </div>
+          
+        
+
+        
+          <h3>10.2 Milestones</h3>
+          <table>
+            <tr>
+              <th>Milestone</th>
+              <th>Date</th>
+              <th>Criteria</th>
+            </tr>
+            
+              <tr>
+                <td>Project Kick-off</td>
+                <td>2023-10-01</td>
+                <td>Project team assembled and initiation phase started.</td>
+              </tr>
+            
+              <tr>
+                <td>Completion of Development Phase</td>
+                <td>2024-03-31</td>
+                <td>All development deliverables completed and accepted.</td>
+              </tr>
+            
+              <tr>
+                <td>Successful Migration of Customer Accounts</td>
+                <td>2024-06-30</td>
+                <td>All accounts migrated without downtime.</td>
+              </tr>
+            
+              <tr>
+                <td>Project Closure</td>
+                <td>2024-07-31</td>
+                <td>All project deliverables completed and signed off.</td>
+              </tr>
+            
+          </table>
+        
+
+        
+          <h3>10.3 Schedule</h3>
+          <p>The project is scheduled to start on October 1, 2023, and is expected to be completed by July 31, 2024.</p>
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="project-controls">11. Project Controls</h2>
+        
+        
+          <h3>11.1 Control Stages</h3>
+          <ul>
+            <li>Initiation</li><li>Development</li><li>Migration</li><li>Closure</li>
+          </ul>
+        
+
+        
+          <h3>11.2 Tolerances</h3>
+          
+            <ul>
+              <li><strong>cost:</strong> +/- 10%</li><li><strong>risk:</strong> Acceptable risk level is defined as low to medium.</li><li><strong>time:</strong> +/- 2 weeks</li><li><strong>scope:</strong> No significant changes to project scope</li><li><strong>quality:</strong> All deliverables must meet quality standards</li><li><strong>benefits:</strong> Must achieve expected benefits</li>
+            </ul>
+          
+        
+
+        
+          <h3>11.3 Reporting Arrangements</h3>
+          <p>Weekly progress updates to the Project Board and monthly reports to stakeholders.</p>
+        
+      </section>
+    
+
+      <section class="pid-section">
+        <h2 id="tailoring">12. Tailoring</h2>
+        
+        
+          <h3>12.1 Tailoring Approach</h3>
+          <p>The PRINCE2 methodology will be tailored to suit the scale and complexity of the Digital Banking Transformation Initiative, focusing on agile principles for development phases.</p>
+        
+
+        
+          <h3>12.2 Tailoring Justification</h3>
+          <p>Given the rapid pace of technological change and the need for flexibility in response to regulatory requirements, an agile approach within the PRINCE2 framework will allow for iterative development and faster response to stakeholder feedback.</p>
+        
+      </section>
+    
+      </div>
+    
+</div>

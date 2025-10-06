@@ -7,10 +7,6 @@ import { getPDFService } from '@/lib/pdf-generation/pdf-service'
 import { getPDFCacheService } from '@/lib/pdf-generation/services/pdf-cache-service'
 import { DocumentType, PDFOptions } from '@/lib/pdf-generation/types'
 import { createClient } from '@/lib/supabase/server'
-import { ProfilesRepository } from '@/lib/repositories/profiles-repository'
-import { ArtifactsRepository } from '@/lib/repositories/artifacts-repository'
-import { ProjectsRepository } from '@/lib/repositories/projects-repository'
-import { TeamRepository } from '@/lib/repositories/team-repository'
 
 export async function POST(request: NextRequest) {
   console.log('\n' + '='.repeat(60))
@@ -57,41 +53,62 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Fetch user profile to get subscription tier, PDF settings, and user name using repository
-    const profilesRepo = ProfilesRepository.getInstance()
-    const profile = await profilesRepo.getProfile(user.id)
+    // Fetch user profile to get subscription tier, PDF settings, and user name
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, email, subscription_tier, pdf_watermark_text, pdf_hide_attribution, pdf_watermark_enabled')
+      .eq('id', user.id)
+      .single()
     
     // Get the user's name for document author
     const authorName = profile?.full_name || profile?.email || user.email || 'User'
     
-    // If artifactId provided, verify ownership using repositories
+    // If artifactId provided, verify ownership
     if (artifactId) {
-      const artifactsRepo = ArtifactsRepository.getInstance()
-      const projectsRepo = ProjectsRepository.getInstance()
-      const teamRepo = TeamRepository.getInstance()
-
-      // Check artifacts table
-      const artifact = await artifactsRepo.getArtifact(artifactId)
-
-      if (!artifact) {
-        return NextResponse.json(
-          { error: 'Artifact not found or unauthorized' },
-          { status: 403 }
-        )
-      }
-
-      // Verify user has access to this artifact via project ownership
-      const project = await projectsRepo.getProject(artifact.project_id)
-
-      if (!project || project.owner_id !== user.id) {
-        // Check if user is a project member
-        const isMember = await teamRepo.isProjectMember(user.id, artifact.project_id)
-
-        if (!isMember) {
+      // First check artifacts table
+      const { data: artifact, error: artifactError } = await supabase
+        .from('artifacts')
+        .select('id, project_id')
+        .eq('id', artifactId)
+        .single()
+      
+      if (artifactError || !artifact) {
+        // If not found in artifacts, check generation_artifacts for backward compatibility
+        const { data: genArtifact, error: genError } = await supabase
+          .from('generation_artifacts')
+          .select('id, user_id')
+          .eq('id', artifactId)
+          .single()
+        
+        if (genError || !genArtifact || genArtifact.user_id !== user.id) {
           return NextResponse.json(
             { error: 'Artifact not found or unauthorized' },
             { status: 403 }
           )
+        }
+      } else {
+        // Verify user has access to this artifact via project ownership
+        const { data: project, error: projectError } = await supabase
+          .from('projects')
+          .select('id, owner_id')
+          .eq('id', artifact.project_id)
+          .single()
+        
+        if (projectError || !project || project.owner_id !== user.id) {
+          // Check if user is a project member
+          const { data: member } = await supabase
+            .from('project_members')
+            .select('id')
+            .eq('project_id', artifact.project_id)
+            .eq('user_id', user.id)
+            .single()
+          
+          if (!member) {
+            return NextResponse.json(
+              { error: 'Artifact not found or unauthorized' },
+              { status: 403 }
+            )
+          }
         }
       }
     }
@@ -211,13 +228,13 @@ export async function POST(request: NextRequest) {
         console.log('PDF cached successfully:', cacheResult.url)
         
         // If storing was requested, return the URL
-        if (options.store && artifactId) {
-          // Update artifact with PDF URL using repository
-          const artifactsRepo = ArtifactsRepository.getInstance()
-          await artifactsRepo.updateArtifact(artifactId, {
-            pdf_url: cacheResult.url
-          })
-
+        if (options.store) {
+          // Update artifact with PDF URL
+          await supabase
+            .from('generation_artifacts')
+            .update({ pdf_url: cacheResult.url })
+            .eq('id', artifactId)
+          
           return NextResponse.json({
             success: true,
             url: cacheResult.url,

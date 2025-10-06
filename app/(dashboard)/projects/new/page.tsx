@@ -16,10 +16,7 @@ import { ArrowLeft, ArrowRight, Loader2, Sparkles, FileText, Users, Globe, Build
 import { AnimatedBackgroundSubtle } from '@/components/animated-background-subtle'
 import { DemoSelector } from '@/components/demo-selector'
 import { demoProjects, DemoProjectKey } from '@/lib/demo-data'
-// Profile creation handled automatically by database trigger
-import { AlertCircle, CheckCircle2, ExternalLink, Search, Shield } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
+import { ensureUserProfile } from '@/lib/supabase/ensure-profile'
 
 type MethodologyType = 'agile' | 'prince2' | 'hybrid'
 
@@ -54,17 +51,6 @@ interface ProjectData {
     documentation: number
     governance: number
   }
-  companyIntelligencePack?: {
-    id: string
-    domain: string
-    companyName: string
-    description: string
-    industry: string
-    targetMarket: string
-    competitorCount: number
-    productCount: number
-    serviceCount: number
-  }
 }
 
 const SECTORS = [
@@ -87,7 +73,6 @@ const SECTORS = [
 ]
 
 const STEPS = [
-  { id: 'company', title: 'Company Intelligence', description: 'Research your company for enhanced context' },
   { id: 'methodology', title: 'Choose Methodology', description: 'Select your project management approach' },
   { id: 'basics', title: 'Project Basics', description: 'Define your project fundamentals' },
   { id: 'timeline', title: 'Timeline & Budget', description: 'Set project timeline and budget' },
@@ -100,9 +85,6 @@ export default function NewProjectPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [researchInProgress, setResearchInProgress] = useState(false)
-  const [researchStatus, setResearchStatus] = useState<string>('')
-  const [domainError, setDomainError] = useState<string>('')
   const [projectData, setProjectData] = useState<ProjectData>({
     name: '',
     description: '',
@@ -130,7 +112,6 @@ export default function NewProjectPage() {
     }
   })
 
-  // Create Supabase client ONLY for authentication (not database access)
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -206,18 +187,16 @@ export default function NewProjectPage() {
       agilometer: demo.agilometer || projectData.agilometer
     })
 
-    // Skip company intelligence step if demo selected (already has company info)
+    // Auto-advance to basics step after selecting demo
     if (currentStep === 0) {
-      setCurrentStep(2) // Skip to methodology step
+      setCurrentStep(1)
     }
   }
 
   const canProceed = () => {
     switch (activeSteps[currentStep].id) {
-      case 'company':
-        return projectData.companyIntelligencePack !== undefined
       case 'methodology':
-        return projectData.sector !== ''
+        return projectData.companyWebsite && projectData.sector
       case 'basics':
         return projectData.name && projectData.vision
       case 'timeline':
@@ -238,156 +217,6 @@ export default function NewProjectPage() {
     }
   }
 
-  const validateAndNormalizeUrl = (url: string): { domain: string | null; error?: string } => {
-    try {
-      // Remove whitespace
-      url = url.trim()
-      
-      // Check for empty input
-      if (!url) {
-        return { domain: null, error: 'Please enter a company website URL' }
-      }
-      
-      // Check for basic domain pattern
-      const domainPattern = /^(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)(?:\/.*)?$/
-      if (!domainPattern.test(url)) {
-        return { 
-          domain: null, 
-          error: 'Invalid URL format. Please enter a valid domain (e.g., example.com or https://example.com)' 
-        }
-      }
-      
-      // Add https:// if no protocol
-      if (!url.match(/^https?:\/\//)) {
-        url = 'https://' + url
-      }
-      
-      // Parse and validate
-      const parsed = new URL(url)
-      
-      // Check for localhost or IP addresses
-      if (parsed.hostname === 'localhost' || /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(parsed.hostname)) {
-        return { 
-          domain: null, 
-          error: 'Please enter a public domain name, not localhost or IP addresses' 
-        }
-      }
-      
-      // Extract domain for research
-      const domain = parsed.hostname.replace(/^www\./, '')
-      
-      // Validate domain has at least one dot (e.g., example.com)
-      if (!domain.includes('.')) {
-        return { 
-          domain: null, 
-          error: 'Invalid domain. Please include the full domain name (e.g., example.com)' 
-        }
-      }
-      
-      return { domain }
-    } catch {
-      return { 
-        domain: null, 
-        error: 'Invalid URL. Please check the format and try again (e.g., example.com or https://example.com)' 
-      }
-    }
-  }
-
-  const startCompanyResearch = async () => {
-    setDomainError('')  // Clear any previous errors
-    
-    const validation = validateAndNormalizeUrl(projectData.companyWebsite)
-    
-    if (!validation.domain) {
-      setDomainError(validation.error || 'Please enter a valid company website URL')
-      return
-    }
-    
-    const domain = validation.domain
-    
-    setResearchInProgress(true)
-    setResearchStatus('Starting company intelligence research...')
-    
-    try {
-      permanentLogger.info('COMPANY_RESEARCH', 'Starting research from project wizard', {
-        domain,
-        website: projectData.companyWebsite
-      })
-      
-      // Call the research API
-      const response = await fetch('/api/company-intelligence/research', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain,
-          depth: 'standard',
-          options: {
-            includeNews: true,
-            includeCompetitors: true,
-            includeTechStack: true,
-            maxPages: 15,
-            timeout: 90000
-          }
-        })
-      })
-      
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Research failed')
-      }
-      
-      const result = await response.json()
-      
-      permanentLogger.info('COMPANY_RESEARCH', 'Research completed successfully', {
-        domain,
-        packId: result.packId,
-        dataQuality: result.metrics?.dataQuality
-      })
-      
-      // Store the pack summary in project data
-      const pack = result.pack
-      setProjectData(prev => ({
-        ...prev,
-        companyIntelligencePack: {
-          id: pack.id,
-          domain: pack.domain,
-          companyName: pack.companyName,
-          description: pack.basics?.description || '',
-          industry: pack.business?.industry || prev.sector,
-          targetMarket: pack.business?.targetMarket || '',
-          competitorCount: pack.marketPosition?.competitors?.length || 0,
-          productCount: pack.productsServices?.products?.length || 0,
-          serviceCount: pack.productsServices?.services?.length || 0
-        },
-        // Auto-fill sector if detected
-        sector: pack.business?.industry || prev.sector
-      }))
-      
-      setResearchStatus('Research completed successfully!')
-      
-      // Store the full pack ID for later use
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('company_intelligence_pack_id', pack.id)
-      }
-      
-      // Auto-advance after a brief delay
-      setTimeout(() => {
-        setCurrentStep(currentStep + 1)
-        setResearchInProgress(false)
-        setResearchStatus('')
-      }, 1500)
-      
-    } catch (error) {
-      permanentLogger.captureError('COMPANY_RESEARCH', error as Error, {
-        message: 'Research failed',
-        domain
-      })
-      
-      setResearchStatus(`Research failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      setResearchInProgress(false)
-    }
-  }
-
   const handleNext = () => {
     if (currentStep < activeSteps.length - 1) {
       setCurrentStep(currentStep + 1)
@@ -403,61 +232,36 @@ export default function NewProjectPage() {
   const handleCreateProject = async () => {
     setLoading(true)
 
-    // Add breadcrumb for debugging
-    if (typeof window !== 'undefined' && window.permanentLogger) {
-      window.permanentLogger.breadcrumb('ui', 'Starting project creation', {
-        projectName: projectData.name,
-        timestamp: Date.now()
-      })
-    }
-
     try {
-      // First ensure the user has a profile via API
-      const profileResponse = await fetch('/api/profile', {
-        method: 'POST', // POST will verify/create profile
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      if (!profileResponse.ok) {
-        const errorData = await profileResponse.json().catch(() => ({}))
-        console.error('Profile setup failed:', errorData)
-
-        if (typeof window !== 'undefined' && window.permanentLogger) {
-          window.permanentLogger.captureError('PROJECT_CREATE',
-            new Error('Profile setup failed'),
-            {
-              status: profileResponse.status,
-              error: errorData
-            }
-          )
-        }
-
-        throw new Error(errorData.error || 'Profile setup required. Please try again or contact support.')
+      // First ensure the user has a profile
+      const profileResult = await ensureUserProfile()
+      if (!profileResult.success) {
+        console.error('Profile setup failed:', profileResult.error)
+        throw new Error('Error creating project: Profile setup required. Please try again or contact support.')
       }
-
-      const profileData = await profileResponse.json()
-      console.log('Profile verified:', profileData.id)
-
-      // Get current user (auth operations are allowed to use Supabase directly)
+      
+      // Get current user with proper auth context
       const { data: { user }, error: authError } = await supabase.auth.getUser()
-
+      
       if (authError) {
         console.error('Auth error:', authError)
-
-        if (typeof window !== 'undefined' && window.permanentLogger) {
-          window.permanentLogger.captureError('PROJECT_CREATE', authError as Error, {
-            context: 'Failed to get authenticated user'
-          })
-        }
-
         throw new Error('Authentication error. Please sign in again.')
       }
-
+      
       if (!user) {
         throw new Error('Not authenticated. Please sign in again.')
       }
 
-      console.log('Creating project for user:', user.email, user.id)
+      console.log('Authenticated user:', user.email, user.id)
+      
+      // IMPORTANT: Show the actual user ID in the error for debugging
+      if (typeof window !== 'undefined') {
+        console.log('Current session user ID:', user.id)
+        console.log('This should match the owner_id being sent to the database')
+      }
+
+      // Profile is now guaranteed to exist from ensureUserProfile() call above
+      console.log('Profile verified for user:', user.id)
 
       // Create project with proper owner_id
       const projectPayload = {
@@ -471,43 +275,42 @@ export default function NewProjectPage() {
         status: 'planning',
         company_info: {
           website: projectData.companyWebsite,
-          sector: projectData.sector || projectData.companyIntelligencePack?.industry,
+          sector: projectData.sector,
           budget: projectData.budget || null,
           budgetNumeric: parseBudgetString(projectData.budget) || null, // Store parsed numeric value
           timeline: projectData.timeline || null,
           startDate: projectData.startDate || null,
-          endDate: projectData.endDate || null,
-          // Add company intelligence pack reference
-          companyIntelligencePackId: projectData.companyIntelligencePack?.id || null,
-          companyName: projectData.companyIntelligencePack?.companyName || null,
-          companyDomain: projectData.companyIntelligencePack?.domain || null
+          endDate: projectData.endDate || null
         }
       }
 
       console.log('Creating project with payload:', projectPayload)
 
-      // Create project via API endpoint (uses ProjectsRepository)
-      const projectResponse = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(projectPayload)
-      })
+      const { data: project, error: projectError } = await supabase
+        .from('projects')
+        .insert(projectPayload)
+        .select()
+        .single()
 
-      if (!projectResponse.ok) {
-        const errorData = await projectResponse.json()
-        console.error('Project creation error:', errorData)
-
-        // Provide helpful error messages
-        if (projectResponse.status === 403) {
-          throw new Error('Permission denied. Please ensure you are logged in.')
-        } else if (projectResponse.status === 400) {
-          throw new Error(errorData.error || 'Invalid project data')
+      if (projectError) {
+        console.error('Project creation error details:', {
+          error: projectError,
+          message: projectError.message,
+          code: projectError.code,
+          details: projectError.details,
+          hint: projectError.hint
+        })
+        
+        // Provide more helpful error messages
+        if (projectError.code === '42501') {
+          throw new Error('Permission denied. The database policies need to be updated. Please contact support.')
+        } else if (projectError.code === '23503') {
+          // Show actual user ID in error for debugging
+          throw new Error(`Profile setup required for user ${user.id}. The system will attempt to create your profile automatically. Please try again.`)
         } else {
-          throw new Error(errorData.error || 'Failed to create project')
+          throw new Error(`Failed to create project: ${projectError.message}`)
         }
       }
-
-      const project = await projectResponse.json()
 
       // Add stakeholders
       if (project) {
@@ -554,47 +357,20 @@ export default function NewProjectPage() {
           })
 
         if (stakeholdersToInsert.length > 0) {
-          // Create stakeholders via API endpoint (uses StakeholdersRepository)
-          const stakeholderResponse = await fetch('/api/stakeholders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(stakeholdersToInsert)
-          })
-
-          if (!stakeholderResponse.ok) {
-            console.error('Failed to create stakeholders:', await stakeholderResponse.text())
-            // Don't throw error for stakeholders - project is already created
-          }
+          await supabase.from('stakeholders').insert(stakeholdersToInsert)
         }
       }
 
       // Store project data in session for document generation
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(`project_data_${project.id}`, JSON.stringify(projectData))
-
-        // Log successful creation
-        if (window.permanentLogger) {
-          window.permanentLogger.info('PROJECT_CREATE', 'Project created successfully', {
-            projectId: project.id,
-            projectName: project.name
-          })
-        }
       }
-
+      
       // Redirect to document generation page
       router.push(`/projects/${project.id}/generate`)
     } catch (error: any) {
       console.error('Error creating project:', error)
       setLoading(false)
-
-      // Log error with permanent logger
-      if (typeof window !== 'undefined' && window.permanentLogger) {
-        window.permanentLogger.captureError('PROJECT_CREATE', error as Error, {
-          projectName: projectData.name,
-          stage: 'final',
-          errorCode: error?.code
-        })
-      }
       
       // Handle specific RLS error
       if (error?.code === '42501') {
@@ -618,19 +394,14 @@ export default function NewProjectPage() {
     const stepId = activeSteps[currentStep].id
 
     switch (stepId) {
-      case 'company':
+      case 'methodology':
         return (
           <div className="space-y-6">
-            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
-              <Shield className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-800 dark:text-blue-200">
-                <strong>Company Intelligence is Critical for Document Quality</strong>
-                <br />
-                Our AI will research your company website to gather essential context about your business, 
-                products, services, and market position. This ensures all generated documents are highly 
-                relevant and tailored to your specific organization.
-              </AlertDescription>
-            </Alert>
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                Company information is required to help our AI research and generate relevant project documentation.
+              </p>
+            </div>
             
             <div className="space-y-4">
               <div className="space-y-2">
@@ -642,171 +413,23 @@ export default function NewProjectPage() {
                   id="website"
                   type="url"
                   value={projectData.companyWebsite}
-                  onChange={(e) => {
-                    setProjectData({ ...projectData, companyWebsite: e.target.value })
-                    setDomainError('')  // Clear error on input change
-                  }}
+                  onChange={(e) => setProjectData({ ...projectData, companyWebsite: e.target.value })}
                   placeholder="https://www.example.com"
-                  disabled={researchInProgress}
-                  className={domainError ? 'border-red-500' : ''}
                 />
-                {domainError ? (
-                  <Alert variant="destructive" className="mt-2">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{domainError}</AlertDescription>
-                  </Alert>
-                ) : (
-                  <p className="text-xs text-gray-500">
-                    Enter your company's main website. We'll analyze it to understand your business context.
-                  </p>
-                )}
+                <p className="text-xs text-gray-500">Your company's main website for context and research</p>
               </div>
               
-              {!projectData.companyIntelligencePack && (
-                <Button
-                  onClick={startCompanyResearch}
-                  disabled={!projectData.companyWebsite || researchInProgress}
-                  className="w-full"
-                  size="lg"
-                >
-                  {researchInProgress ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Researching Company...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="mr-2 h-4 w-4" />
-                      Start Company Research
-                    </>
-                  )}
-                </Button>
-              )}
-              
-              {researchStatus && (
-                <Alert className={
-                  researchStatus.includes('failed') 
-                    ? "border-red-200 bg-red-50 dark:bg-red-900/20"
-                    : researchStatus.includes('completed')
-                    ? "border-green-200 bg-green-50 dark:bg-green-900/20"
-                    : "border-blue-200 bg-blue-50 dark:bg-blue-900/20"
-                }>
-                  {researchStatus.includes('failed') ? (
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                  ) : researchStatus.includes('completed') ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
-                  )}
-                  <AlertDescription className={
-                    researchStatus.includes('failed')
-                      ? "text-red-800 dark:text-red-200"
-                      : researchStatus.includes('completed')
-                      ? "text-green-800 dark:text-green-200"
-                      : "text-blue-800 dark:text-blue-200"
-                  }>
-                    {researchStatus}
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {projectData.companyIntelligencePack && (
-                <div className="rounded-lg border bg-green-50 dark:bg-green-900/20 p-4 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div className="flex-1">
-                      <h4 className="font-medium text-green-900 dark:text-green-100">
-                        Company Research Complete
-                      </h4>
-                      <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                        Successfully gathered intelligence about <strong>{projectData.companyIntelligencePack.companyName}</strong>
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Industry:</span>
-                      <p className="font-medium">{projectData.companyIntelligencePack.industry || 'Detected'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Target Market:</span>
-                      <p className="font-medium">{projectData.companyIntelligencePack.targetMarket || 'Analyzed'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Products:</span>
-                      <p className="font-medium">{projectData.companyIntelligencePack.productCount} identified</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Services:</span>
-                      <p className="font-medium">{projectData.companyIntelligencePack.serviceCount} identified</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Competitors:</span>
-                      <p className="font-medium">{projectData.companyIntelligencePack.competitorCount} analyzed</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Pack ID:</span>
-                      <p className="font-mono text-xs">{projectData.companyIntelligencePack.id.slice(0, 8)}...</p>
-                    </div>
-                  </div>
-                  
-                  <div className="pt-3 border-t">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      This intelligence will be used to enhance all generated project documents with relevant 
-                      company-specific context, ensuring accuracy and alignment with your business.
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
-                  What happens during research?
-                </h4>
-                <ul className="text-xs text-amber-800 dark:text-amber-200 space-y-1">
-                  <li>• We analyze your website's content and structure</li>
-                  <li>• Extract information about products, services, and mission</li>
-                  <li>• Identify your industry and target market</li>
-                  <li>• Research competitors and market position</li>
-                  <li>• Generate SWOT analysis and strategic insights</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        )
-        
-      case 'methodology':
-        return (
-          <div className="space-y-6">
-            {projectData.companyIntelligencePack && (
-              <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                    Using intelligence for: {projectData.companyIntelligencePack.companyName}
-                  </p>
-                </div>
-                <p className="text-xs text-green-700 dark:text-green-300">
-                  Industry: {projectData.companyIntelligencePack.industry} • 
-                  {projectData.companyIntelligencePack.productCount} Products • 
-                  {projectData.companyIntelligencePack.serviceCount} Services
-                </p>
-              </div>
-            )}
-            
-            <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="sector">
                   <Building2 className="inline-block w-4 h-4 mr-1" />
-                  Industry Sector
+                  Industry Sector *
                 </Label>
                 <Select 
-                  value={projectData.sector || projectData.companyIntelligencePack?.industry || ''} 
+                  value={projectData.sector} 
                   onValueChange={(value) => setProjectData({ ...projectData, sector: value })}
                 >
                   <SelectTrigger id="sector">
-                    <SelectValue placeholder="Select or confirm your industry sector" />
+                    <SelectValue placeholder="Select your industry sector" />
                   </SelectTrigger>
                   <SelectContent>
                     {SECTORS.map((sector) => (
@@ -816,15 +439,11 @@ export default function NewProjectPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500">
-                  {projectData.companyIntelligencePack?.industry 
-                    ? `Auto-detected as ${projectData.companyIntelligencePack.industry}. You can adjust if needed.`
-                    : 'Helps generate industry-specific documentation'}
-                </p>
+                <p className="text-xs text-gray-500">Helps generate industry-specific documentation</p>
               </div>
             </div>
             
-            <div className="border-t pt-6 mt-6">
+            <div className="border-t pt-6">
               <Label className="text-base font-medium mb-4 block">Select Project Methodology</Label>
               <RadioGroup
                 value={projectData.methodology}
@@ -1257,22 +876,11 @@ export default function NewProjectPage() {
         return (
           <div className="space-y-6">
             <div className="space-y-4">
-              {projectData.companyIntelligencePack && (
-                <div>
-                  <h4 className="font-medium mb-1">Company Intelligence</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>Company:</strong> {projectData.companyIntelligencePack.companyName}<br />
-                    <strong>Industry:</strong> {projectData.companyIntelligencePack.industry}<br />
-                    <strong>Products/Services:</strong> {projectData.companyIntelligencePack.productCount} products, {projectData.companyIntelligencePack.serviceCount} services<br />
-                    <strong>Competitors Analyzed:</strong> {projectData.companyIntelligencePack.competitorCount}
-                  </p>
-                </div>
-              )}
-              
               <div>
-                <h4 className="font-medium mb-1">Project Sector</h4>
+                <h4 className="font-medium mb-1">Company Information</h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {projectData.sector || projectData.companyIntelligencePack?.industry || 'Not specified'}
+                  <strong>Website:</strong> {projectData.companyWebsite}<br />
+                  <strong>Sector:</strong> {projectData.sector}
                 </p>
               </div>
 
@@ -1446,18 +1054,9 @@ export default function NewProjectPage() {
           </p>
         </div>
 
-        {/* Demo Selector - Shows on company intelligence step */}
+        {/* Demo Selector - Available for beta testing */}
         {currentStep === 0 && (
-          <div className="mb-6">
-            <Alert className="mb-4 border-amber-200 bg-amber-50 dark:bg-amber-900/20">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800 dark:text-amber-200">
-                <strong>Demo Mode Available:</strong> Select a demo project below to skip company research, 
-                or enter your real company URL above for production use.
-              </AlertDescription>
-            </Alert>
-            <DemoSelector onSelectDemo={handleDemoSelect} />
-          </div>
+          <DemoSelector onSelectDemo={handleDemoSelect} />
         )}
 
         <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 border-white/20">

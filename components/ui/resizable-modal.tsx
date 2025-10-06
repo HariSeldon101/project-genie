@@ -29,10 +29,9 @@ export function ResizableModal({
   defaultHeight
 }: ResizableModalProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
-  // SSR-safe: Use safe defaults, then update on client
   const [dimensions, setDimensions] = useState({
-    width: defaultWidth || 1024,  // Safe server-side default
-    height: defaultHeight || 768   // Safe server-side default
+    width: defaultWidth || window.innerWidth * 0.8,
+    height: defaultHeight || window.innerHeight * 0.8
   })
   const [position, setPosition] = useState({
     x: 0,
@@ -44,27 +43,15 @@ export function ResizableModal({
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 })
   const dragStartRef = useRef({ x: 0, y: 0, modalX: 0, modalY: 0 })
 
-  // SSR-safe: Update dimensions on client after mount
-  useEffect(() => {
-    // Only update if no explicit dimensions were provided
-    if (!defaultWidth || !defaultHeight) {
-      setDimensions({
-        width: defaultWidth || window.innerWidth * 0.8,
-        height: defaultHeight || window.innerHeight * 0.8
-      })
-    }
-  }, []) // Run once on mount
-
   // Center modal on open
   useEffect(() => {
     if (isOpen && !isFullscreen) {
-      // Safe to use window here as this only runs on client
       setPosition({
         x: (window.innerWidth - dimensions.width) / 2,
         y: (window.innerHeight - dimensions.height) / 2
       })
     }
-  }, [isOpen, dimensions.width, dimensions.height])
+  }, [isOpen])
 
   // Handle resize
   const startResize = (e: React.MouseEvent, direction: string) => {

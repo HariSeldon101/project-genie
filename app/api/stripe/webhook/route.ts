@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe/client'
+import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { SubscriptionsRepository } from '@/lib/repositories/subscriptions-repository'
-import { ProfilesRepository } from '@/lib/repositories/profiles-repository'
-import { permanentLogger } from '@/lib/utils/permanent-logger'
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
 
 export async function POST(request: NextRequest) {
-  const timer = permanentLogger.timing('api.stripe.webhook')
-
   // Check if Stripe is configured
   if (!stripe || !endpointSecret) {
-    timer.stop()
     return NextResponse.json(
       { error: 'Webhook handler not configured' },
       { status: 503 }
@@ -27,76 +22,83 @@ export async function POST(request: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(body, sig, endpointSecret)
   } catch (err: any) {
-    timer.stop()
-    permanentLogger.captureError('STRIPE_WEBHOOK', err, {
-      message: 'Webhook signature verification failed'
-    })
+    console.error('Webhook signature verification failed:', err.message)
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  permanentLogger.breadcrumb('api', 'Stripe webhook received', {
-    eventType: event.type,
-    eventId: event.id,
-    timestamp: Date.now()
-  })
-
-  // Get repositories
-  const subscriptionRepo = SubscriptionsRepository.getInstance()
-  const profilesRepo = ProfilesRepository.getInstance()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-
+        
         // Get subscription details
         const subscription = await stripe!.subscriptions.retrieve(
           session.subscription as string
         )
 
-        // Update user subscription in database using repository
-        await subscriptionRepo.upsertSubscription({
-          user_id: session.metadata?.user_id!,
-          stripe_customer_id: session.customer as string,
-          stripe_subscription_id: subscription.id,
-          stripe_price_id: subscription.items.data[0].price.id,
-          tier: session.metadata?.tier || 'basic',
-          status: 'active',
-          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        // Update user subscription in database
+        await supabase
+          .from('subscriptions')
+          .upsert({
+            user_id: session.metadata?.user_id,
+            stripe_customer_id: session.customer as string,
+            stripe_subscription_id: subscription.id,
+            stripe_price_id: subscription.items.data[0].price.id,
+            tier: session.metadata?.tier || 'basic',
+            status: 'active',
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+          })
 
-        // Update user's subscription tier in profile
-        await profilesRepo.updateProfile(session.metadata?.user_id!, {
-          subscription_tier: session.metadata?.tier || 'basic',
-          updated_at: new Date().toISOString()
-        })
+        // Update user's subscription tier
+        await supabase
+          .from('users')
+          .update({
+            subscription_tier: session.metadata?.tier || 'basic',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', session.metadata?.user_id)
 
         break
       }
 
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
-
-        // Update subscription status using repository
-        await subscriptionRepo.updateSubscription(subscription.id, {
-          status: subscription.status,
-          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
-          updated_at: new Date().toISOString()
-        })
+        
+        // Update subscription status
+        await supabase
+          .from('subscriptions')
+          .update({
+            status: subscription.status,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('stripe_subscription_id', subscription.id)
 
         // Update user tier if subscription is canceled
         if (subscription.status === 'canceled') {
-          const userSubscription = await subscriptionRepo.getByStripeId(subscription.id)
+          const { data } = await supabase
+            .from('subscriptions')
+            .select('user_id')
+            .eq('stripe_subscription_id', subscription.id)
+            .single()
 
-          if (userSubscription && userSubscription.user_id) {
-            await profilesRepo.updateProfile(userSubscription.user_id, {
-              subscription_tier: 'free',
-              updated_at: new Date().toISOString()
-            })
+          if (data) {
+            await supabase
+              .from('users')
+              .update({
+                subscription_tier: 'free',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', data.user_id)
           }
         }
 
@@ -105,20 +107,28 @@ export async function POST(request: NextRequest) {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
-
-        // Update subscription status to canceled and get user ID
-        const result = await subscriptionRepo.updateAndGetUserId(subscription.id, {
-          status: 'canceled',
-          canceled_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-
-        // Downgrade user to free tier
-        if (result.userId) {
-          await profilesRepo.updateProfile(result.userId, {
-            subscription_tier: 'free',
+        
+        // Update subscription status to canceled
+        const { data } = await supabase
+          .from('subscriptions')
+          .update({
+            status: 'canceled',
+            canceled_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
+          .eq('stripe_subscription_id', subscription.id)
+          .select('user_id')
+          .single()
+
+        // Downgrade user to free tier
+        if (data) {
+          await supabase
+            .from('users')
+            .update({
+              subscription_tier: 'free',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', data.user_id)
         }
 
         break
@@ -126,60 +136,54 @@ export async function POST(request: NextRequest) {
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice
-
-        // TODO: Create InvoiceRepository if invoice tracking is needed
-        permanentLogger.info('STRIPE_WEBHOOK', 'Invoice payment succeeded', {
-          invoiceId: invoice.id,
-          customerId: invoice.customer,
-          amountPaid: invoice.amount_paid
-        })
+        
+        // Store invoice record
+        await supabase
+          .from('invoices')
+          .insert({
+            user_id: invoice.metadata?.user_id,
+            stripe_invoice_id: invoice.id,
+            amount_paid: invoice.amount_paid,
+            amount_due: invoice.amount_due,
+            currency: invoice.currency,
+            status: invoice.status,
+            invoice_pdf: invoice.invoice_pdf,
+            hosted_invoice_url: invoice.hosted_invoice_url,
+            period_start: new Date(invoice.period_start * 1000).toISOString(),
+            period_end: new Date(invoice.period_end * 1000).toISOString(),
+            paid_at: invoice.status_transitions.paid_at 
+              ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+              : null
+          })
 
         break
       }
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice
-
-        permanentLogger.warn('STRIPE_WEBHOOK', 'Invoice payment failed', {
-          invoiceId: invoice.id,
-          customerId: invoice.customer,
-          amountDue: invoice.amount_due
-        })
-
-        // Update subscription status to past_due for this customer
-        if (invoice.subscription) {
-          const subscriptionId = typeof invoice.subscription === 'string'
-            ? invoice.subscription
-            : invoice.subscription.id
-
-          await subscriptionRepo.updateSubscription(subscriptionId, {
+        
+        // Update subscription status
+        await supabase
+          .from('subscriptions')
+          .update({
             status: 'past_due',
             updated_at: new Date().toISOString()
           })
+          .eq('stripe_customer_id', invoice.customer)
 
-          permanentLogger.info('STRIPE_WEBHOOK', 'Subscription marked as past due', {
-            subscriptionId,
-            customerId: invoice.customer
-          })
-        }
+        // Could send email notification here
+        console.log('Payment failed for customer:', invoice.customer)
 
         break
       }
 
       default:
-        permanentLogger.info('STRIPE_WEBHOOK', 'Unhandled event type', {
-          eventType: event.type
-        })
+        console.log(`Unhandled event type: ${event.type}`)
     }
 
-    timer.stop()
     return NextResponse.json({ received: true })
   } catch (error: any) {
-    timer.stop()
-    permanentLogger.captureError('STRIPE_WEBHOOK', error, {
-      endpoint: 'POST /api/stripe/webhook',
-      eventType: event.type
-    })
+    console.error('Webhook processing error:', error)
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }
