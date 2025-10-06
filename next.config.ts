@@ -20,6 +20,25 @@ const nextConfig: NextConfig = {
         ],
       }
     }
+
+    // Handle Node.js modules on client-side
+    if (!isServer) {
+      config.resolve = {
+        ...config.resolve,
+        fallback: {
+          ...config.resolve?.fallback,
+          fs: false,
+          path: false,
+          crypto: false,
+          stream: false,
+          os: false,
+          util: false,
+          buffer: false,
+          process: false,
+        }
+      }
+    }
+
     return config
   },
 };
