@@ -8,6 +8,7 @@ import { zodResponseFormat } from 'openai/helpers/zod'
 import { z } from 'zod'
 import { PIDSchema, PID_SCHEMA_NAME, type PIDDocument } from './schemas/pid-schema'
 import { BusinessCaseSchema, BUSINESS_CASE_SCHEMA_NAME, type BusinessCaseDocument } from './schemas/business-case-schema'
+import { AgileCharterSchema, ProductBacklogSchema, SprintPlanSchema, type AgileCharter, type ProductBacklog, type SprintPlan } from './schemas/agile-charter'
 import { SanitizedProjectData, GeneratedDocument, DocumentMetadata } from '../llm/types'
 import { documentLogger } from '../utils/document-logger'
 
@@ -986,6 +987,305 @@ Generate professional, detailed content with specific metrics and realistic fina
         assumptions: ['Stable requirements', 'Continued funding', 'Stakeholder support']
       }
     }
+  }
+
+  /**
+   * Generate Agile Charter using Structured Outputs
+   */
+  async generateAgileCharter(
+    data: SanitizedProjectData,
+    projectId: string
+  ): Promise<GeneratedDocument> {
+    const startTime = Date.now()
+    documentLogger.logGenerationAttempt(projectId, 'Charter', 'OpenAI', this.model)
+
+    try {
+      const systemPrompt = `You are an expert Agile project manager creating a comprehensive Project Charter.
+
+Your task is to generate a complete, professional Agile Project Charter.
+
+IMPORTANT INSTRUCTIONS:
+1. Generate detailed, comprehensive content for EVERY field
+2. Create 5+ measurable objectives with clear target dates
+3. Define clear success criteria with metrics and targets
+4. Include comprehensive scope definition (in/out, assumptions, constraints)
+5. List 5+ deliverables with acceptance criteria
+6. Analyze 5+ stakeholders with communication needs
+7. Define complete team structure (PO, SM, Dev Team with roles)
+8. Create realistic timeline with sprints and milestones
+9. Identify 5+ risks with mitigation strategies
+10. Define communication ceremonies and reports
+
+Generate professional, actionable content for all sections.`
+
+      const userPrompt = `Generate a complete Agile Project Charter for:
+
+PROJECT DETAILS:
+- Name: ${data.projectName}
+- Description: ${data.description}
+- Vision: ${data.vision || 'Transform operations through innovative solutions'}
+- Business Case: ${data.businessCase}
+- Timeline: ${data.timeline}
+- Start Date: ${data.startDate}
+- End Date: ${data.endDate}
+- Budget: ${data.budget || 'Not specified'}
+
+Generate comprehensive, professional content for all charter sections.`
+
+      documentLogger.logLLMRequest('OpenAI', this.model, systemPrompt.length + userPrompt.length, 0.7)
+
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        response_format: zodResponseFormat(AgileCharterSchema, 'agile_charter'),
+        temperature: 0.7,
+        max_completion_tokens: 8000
+      })
+
+      if (response.choices[0].message.refusal) {
+        throw new Error(`Model refused to generate Charter: ${response.choices[0].message.refusal}`)
+      }
+
+      const parsedContent = response.choices[0].message.parsed as AgileCharter
+
+      const duration = Date.now() - startTime
+      documentLogger.logGenerationSuccess(projectId, 'Charter', duration, JSON.stringify(parsedContent).length)
+
+      const usage = response.usage
+      const inputTokens = usage?.prompt_tokens || 0
+      const outputTokens = usage?.completion_tokens || 0
+      const totalTokens = usage?.total_tokens || 0
+      const costUsd = this.calculateCostUsd(inputTokens, outputTokens)
+
+      documentLogger.logLLMResponse(inputTokens, outputTokens, totalTokens, costUsd, duration)
+
+      return {
+        content: parsedContent,
+        metadata: {
+          projectId,
+          type: 'charter',
+          methodology: 'agile',
+          version: 1,
+          generatedAt: new Date(),
+          provider: 'OpenAI',
+          model: this.model,
+          usage: {
+            inputTokens,
+            outputTokens,
+            reasoningTokens: 0,
+            totalTokens,
+            costUsd
+          }
+        },
+        formatted: ''
+      }
+    } catch (error: any) {
+      console.error('Charter generation failed:', error)
+      documentLogger.logGenerationFailure(projectId, 'Charter', error, 1, 1)
+      throw error
+    }
+  }
+
+  /**
+   * Generate Product Backlog using Structured Outputs
+   */
+  async generateProductBacklog(
+    data: SanitizedProjectData,
+    projectId: string
+  ): Promise<GeneratedDocument> {
+    const startTime = Date.now()
+    documentLogger.logGenerationAttempt(projectId, 'Backlog', 'OpenAI', this.model)
+
+    try {
+      const systemPrompt = `You are an expert Product Owner creating a comprehensive Product Backlog.
+
+Your task is to generate a complete, prioritized Product Backlog.
+
+IMPORTANT INSTRUCTIONS:
+1. Create 10-15 user stories with proper format ("As a [role], I want [feature], so that [benefit]")
+2. Organize stories into 3-5 epics
+3. Use story points (1, 2, 3, 5, 8, 13, 21)
+4. Apply MoSCoW prioritization (must_have, should_have, could_have, wont_have)
+5. Include acceptance criteria (3-5 per story)
+6. Identify dependencies between stories
+7. Provide clear business value for each epic
+
+Generate professional, ready-to-implement backlog items.`
+
+      const userPrompt = `Generate a complete Product Backlog for:
+
+PROJECT DETAILS:
+- Name: ${data.projectName}
+- Description: ${data.description}
+- Vision: ${data.vision || 'Deliver maximum value to users'}
+
+Generate 10-15 comprehensive user stories organized into epics.`
+
+      documentLogger.logLLMRequest('OpenAI', this.model, systemPrompt.length + userPrompt.length, 0.7)
+
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        response_format: zodResponseFormat(ProductBacklogSchema, 'product_backlog'),
+        temperature: 0.7,
+        max_completion_tokens: 8000
+      })
+
+      if (response.choices[0].message.refusal) {
+        throw new Error(`Model refused to generate Backlog: ${response.choices[0].message.refusal}`)
+      }
+
+      const parsedContent = response.choices[0].message.parsed as ProductBacklog
+
+      const duration = Date.now() - startTime
+      documentLogger.logGenerationSuccess(projectId, 'Backlog', duration, JSON.stringify(parsedContent).length)
+
+      const usage = response.usage
+      const inputTokens = usage?.prompt_tokens || 0
+      const outputTokens = usage?.completion_tokens || 0
+      const totalTokens = usage?.total_tokens || 0
+      const costUsd = this.calculateCostUsd(inputTokens, outputTokens)
+
+      documentLogger.logLLMResponse(inputTokens, outputTokens, totalTokens, costUsd, duration)
+
+      return {
+        content: parsedContent,
+        metadata: {
+          projectId,
+          type: 'backlog',
+          methodology: 'agile',
+          version: 1,
+          generatedAt: new Date(),
+          provider: 'OpenAI',
+          model: this.model,
+          usage: {
+            inputTokens,
+            outputTokens,
+            reasoningTokens: 0,
+            totalTokens,
+            costUsd
+          }
+        },
+        formatted: ''
+      }
+    } catch (error: any) {
+      console.error('Backlog generation failed:', error)
+      documentLogger.logGenerationFailure(projectId, 'Backlog', error, 1, 1)
+      throw error
+    }
+  }
+
+  /**
+   * Generate Sprint Plan using Structured Outputs
+   */
+  async generateSprintPlan(
+    data: SanitizedProjectData,
+    projectId: string
+  ): Promise<GeneratedDocument> {
+    const startTime = Date.now()
+    documentLogger.logGenerationAttempt(projectId, 'Sprint Plan', 'OpenAI', this.model)
+
+    try {
+      const systemPrompt = `You are an expert Scrum Master creating a comprehensive Sprint Plan.
+
+Your task is to generate a complete, actionable Sprint Plan.
+
+IMPORTANT INSTRUCTIONS:
+1. Define clear sprint goal and duration (typically 2 weeks)
+2. Calculate realistic capacity (hours, team members, planned leave)
+3. Select 5-10 backlog items appropriate for sprint capacity
+4. Break down items into tasks with hour estimates
+5. Define all Scrum ceremonies (daily standup, planning, review, retrospective)
+6. Identify sprint risks and mitigation strategies
+7. Include definition of done checklist
+
+Generate professional, implementable sprint plan.`
+
+      const userPrompt = `Generate a complete Sprint Plan for:
+
+PROJECT DETAILS:
+- Name: ${data.projectName}
+- Description: ${data.description}
+- Timeline: ${data.timeline}
+- Start Date: ${data.startDate}
+
+Generate Sprint 1 plan with realistic capacity and backlog items.`
+
+      documentLogger.logLLMRequest('OpenAI', this.model, systemPrompt.length + userPrompt.length, 0.7)
+
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        response_format: zodResponseFormat(SprintPlanSchema, 'sprint_plan'),
+        temperature: 0.7,
+        max_completion_tokens: 8000
+      })
+
+      if (response.choices[0].message.refusal) {
+        throw new Error(`Model refused to generate Sprint Plan: ${response.choices[0].message.refusal}`)
+      }
+
+      const parsedContent = response.choices[0].message.parsed as SprintPlan
+
+      const duration = Date.now() - startTime
+      documentLogger.logGenerationSuccess(projectId, 'Sprint Plan', duration, JSON.stringify(parsedContent).length)
+
+      const usage = response.usage
+      const inputTokens = usage?.prompt_tokens || 0
+      const outputTokens = usage?.completion_tokens || 0
+      const totalTokens = usage?.total_tokens || 0
+      const costUsd = this.calculateCostUsd(inputTokens, outputTokens)
+
+      documentLogger.logLLMResponse(inputTokens, outputTokens, totalTokens, costUsd, duration)
+
+      return {
+        content: parsedContent,
+        metadata: {
+          projectId,
+          type: 'sprint_plan',
+          methodology: 'agile',
+          version: 1,
+          generatedAt: new Date(),
+          provider: 'OpenAI',
+          model: this.model,
+          usage: {
+            inputTokens,
+            outputTokens,
+            reasoningTokens: 0,
+            totalTokens,
+            costUsd
+          }
+        },
+        formatted: ''
+      }
+    } catch (error: any) {
+      console.error('Sprint Plan generation failed:', error)
+      documentLogger.logGenerationFailure(projectId, 'Sprint Plan', error, 1, 1)
+      throw error
+    }
+  }
+
+  /**
+   * Calculate cost in USD based on token usage
+   */
+  private calculateCostUsd(inputTokens: number, outputTokens: number): number {
+    // GPT-4o-mini pricing
+    const inputCostPer1M = 0.150  // $0.150 per 1M input tokens
+    const outputCostPer1M = 0.600 // $0.600 per 1M output tokens
+
+    const inputCost = (inputTokens / 1_000_000) * inputCostPer1M
+    const outputCost = (outputTokens / 1_000_000) * outputCostPer1M
+
+    return inputCost + outputCost
   }
 }
 

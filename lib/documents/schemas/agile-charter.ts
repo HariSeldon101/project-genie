@@ -118,3 +118,64 @@ export const ProductBacklogSchema = z.object({
 })
 
 export type ProductBacklog = z.infer<typeof ProductBacklogSchema>
+
+export const SprintPlanSchema = z.object({
+  sprintNumber: z.number(),
+  sprintGoal: z.string(),
+  duration: z.object({
+    weeks: z.number(),
+    startDate: z.string(),
+    endDate: z.string()
+  }),
+  capacity: z.object({
+    totalHours: z.number(),
+    availableTeamMembers: z.number(),
+    plannedLeave: z.array(z.object({
+      member: z.string(),
+      dates: z.string()
+    })).optional()
+  }),
+  backlogItems: z.array(z.object({
+    id: z.string(),
+    userStory: z.string(),
+    storyPoints: z.number(),
+    priority: z.enum(['high', 'medium', 'low']),
+    assignee: z.string(),
+    status: z.enum(['todo', 'in_progress', 'done']),
+    tasks: z.array(z.object({
+      description: z.string(),
+      estimatedHours: z.number(),
+      assignee: z.string()
+    }))
+  })),
+  ceremonies: z.object({
+    dailyStandup: z.object({
+      time: z.string(),
+      duration: z.string(),
+      format: z.string()
+    }),
+    sprintPlanning: z.object({
+      date: z.string(),
+      duration: z.string(),
+      participants: z.array(z.string())
+    }),
+    sprintReview: z.object({
+      date: z.string(),
+      duration: z.string(),
+      participants: z.array(z.string())
+    }),
+    sprintRetrospective: z.object({
+      date: z.string(),
+      duration: z.string(),
+      format: z.string()
+    })
+  }),
+  risks: z.array(z.object({
+    description: z.string(),
+    impact: z.enum(['high', 'medium', 'low']),
+    mitigation: z.string()
+  })),
+  definitionOfDone: z.array(z.string())
+})
+
+export type SprintPlan = z.infer<typeof SprintPlanSchema>

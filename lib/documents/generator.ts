@@ -1064,8 +1064,42 @@ export class DocumentGenerator {
 
   /**
    * Generate Agile Project Charter
+   * Now uses StructuredDocumentGenerator (same as PRINCE2 PID)
    */
   private async generateAgileCharter(
+    data: SanitizedProjectData,
+    projectId: string,
+    researchContext?: ResearchContext
+  ): Promise<GeneratedDocument> {
+    console.log('📋 Generating Agile Charter using structured outputs approach (GPT-4o-mini)...')
+
+    try {
+      // Use structured generator with proper Zod schemas (same pattern as PID)
+      const result = await this.structuredGenerator.generateAgileCharter(data, projectId)
+
+      console.log(`  ✅ Charter generated successfully with structured outputs`)
+
+      // Update aggregated metrics
+      if (result.metadata.usage) {
+        this.aggregatedMetrics.totalInputTokens += result.metadata.usage.inputTokens || 0
+        this.aggregatedMetrics.totalOutputTokens += result.metadata.usage.outputTokens || 0
+        this.aggregatedMetrics.totalReasoningTokens += result.metadata.usage.reasoningTokens || 0
+        this.aggregatedMetrics.totalTokens += result.metadata.usage.totalTokens || 0
+        this.aggregatedMetrics.totalCostUsd += result.metadata.usage.costUsd || 0
+        this.aggregatedMetrics.totalGenerationTimeMs += result.metadata.usage.inputTokens || 0
+        this.aggregatedMetrics.documentCount++
+      }
+
+      return result
+
+    } catch (error: any) {
+      console.error('Charter generation failed:', error)
+      throw error
+    }
+  }
+
+  // Keep original method signature for backward compatibility
+  private OLD_generateAgileCharter_DEPRECATED(
     data: SanitizedProjectData,
     projectId: string,
     researchContext?: ResearchContext
@@ -1077,7 +1111,7 @@ export class DocumentGenerator {
       agilePrompts.projectCharter.user,
       data
     )
-    
+
     // Enhance prompt with research context if available
     if (researchContext) {
       prompt.user = TwoStageGenerator.enhancePromptWithContext(prompt.user, researchContext, 'charter')
@@ -1090,7 +1124,7 @@ export class DocumentGenerator {
       reasoningEffort: config.reasoningEffort,
       temperature: providerInfo.temperature || 0.7
     }
-    
+
     // Log generation details
     console.log('[Generator] Generating Agile Charter:', {
       provider: providerInfo.provider,
@@ -1100,14 +1134,14 @@ export class DocumentGenerator {
       reasoningEffort: config.reasoningEffort,
       maxTokens: config.maxTokens
     })
-    
+
     const startTime = Date.now()
-    const result = await this.gateway.generateJSONWithMetrics(
+    const result = this.gateway.generateJSONWithMetrics(
       optimizedPrompt,
       AgileCharterSchema
     )
     const generationTimeMs = Date.now() - startTime
-    
+
     const metadata: DocumentMetadata = {
       projectId,
       type: 'charter',
@@ -1169,106 +1203,73 @@ export class DocumentGenerator {
 
   /**
    * Generate Product Backlog
+   * Now uses StructuredDocumentGenerator (same as PRINCE2 PID)
    */
   private async generateProductBacklog(
     data: SanitizedProjectData,
     projectId: string,
     researchContext?: ResearchContext
   ): Promise<GeneratedDocument> {
-    const config = DOCUMENT_CONFIG.backlog
-    const providerInfo = this.getProviderInfo()
-    let prompt = this.gateway.buildContextPrompt(
-      agilePrompts.productBacklog.system,
-      agilePrompts.productBacklog.user,
-      data
-    )
-    
-    // Enhance prompt with research context if available
-    if (researchContext) {
-      prompt.user = TwoStageGenerator.enhancePromptWithContext(prompt.user, researchContext, 'backlog')
-    }
+    console.log('📋 Generating Product Backlog using structured outputs approach (GPT-4o-mini)...')
 
-    // Add GPT-5 optimizations
-    const optimizedPrompt = {
-      ...prompt,
-      maxTokens: config.maxTokens,
-      reasoningEffort: config.reasoningEffort,
-      temperature: providerInfo.temperature || 0.7
-    }
-    
-    const content = await this.gateway.generateJSON(
-      optimizedPrompt,
-      ProductBacklogSchema
-    )
-    
-    const metadata: DocumentMetadata = {
-      projectId,
-      type: 'backlog',
-      methodology: 'agile',
-      version: 1,
-      generatedAt: new Date(),
-      llmProvider: providerInfo.provider,
-      model: providerInfo.model,
-      reasoningEffort: config.reasoningEffort,
-      temperature: optimizedPrompt.temperature,
-      maxTokens: config.maxTokens
-    }
-    
-    return {
-      metadata,
-      content,
-      aiInsights: {
-        recommendedKPIs: [
-          'Velocity trend',
-          'Burndown rate',
-          'Story completion rate'
-        ]
+    try {
+      // Use structured generator with proper Zod schemas (same pattern as PID)
+      const result = await this.structuredGenerator.generateProductBacklog(data, projectId)
+
+      console.log(`  ✅ Backlog generated successfully with structured outputs`)
+
+      // Update aggregated metrics
+      if (result.metadata.usage) {
+        this.aggregatedMetrics.totalInputTokens += result.metadata.usage.inputTokens || 0
+        this.aggregatedMetrics.totalOutputTokens += result.metadata.usage.outputTokens || 0
+        this.aggregatedMetrics.totalReasoningTokens += result.metadata.usage.reasoningTokens || 0
+        this.aggregatedMetrics.totalTokens += result.metadata.usage.totalTokens || 0
+        this.aggregatedMetrics.totalCostUsd += result.metadata.usage.costUsd || 0
+        this.aggregatedMetrics.totalGenerationTimeMs += result.metadata.usage.inputTokens || 0
+        this.aggregatedMetrics.documentCount++
       }
+
+      return result
+
+    } catch (error: any) {
+      console.error('Backlog generation failed:', error)
+      throw error
     }
   }
 
   /**
    * Generate Sprint Plan
+   * Now uses StructuredDocumentGenerator (same as PRINCE2 PID)
    */
   private async generateSprintPlan(
     data: SanitizedProjectData,
     projectId: string,
     researchContext?: ResearchContext
   ): Promise<GeneratedDocument> {
-    const providerInfo = this.getProviderInfo()
-    const prompt = this.gateway.buildContextPrompt(
-      agilePrompts.sprintPlan.system,
-      agilePrompts.sprintPlan.user,
-      data
-    )
-    
-    // Use generateTextWithMetrics to capture usage data
-    const metricsResponse = await this.gateway.generateTextWithMetrics(prompt)
-    const content = metricsResponse.content
-    
-    const metadata: DocumentMetadata = {
-      projectId,
-      type: 'sprint_plan',  // ✅ FIXED: Was 'project_plan', now correctly 'sprint_plan'
-      methodology: 'agile',
-      version: 1,
-      generatedAt: new Date(),
-      llmProvider: metricsResponse.provider || 'openai',
-      model: metricsResponse.model || process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
-      temperature: 0.7,
-      maxTokens: 8000,
-      usage: metricsResponse.usage,
-      generationTimeMs: metricsResponse.generationTimeMs
-    }
+    console.log('📋 Generating Sprint Plan using structured outputs approach (GPT-4o-mini)...')
 
-    return {
-      metadata,
-      content: { plan: content }, // Wrap text in object
-      aiInsights: {
-        suggestions: [
-          'Adjust sprint capacity based on team availability',
-          'Consider holidays and training in planning'
-        ]
+    try {
+      // Use structured generator with proper Zod schemas (same pattern as PID)
+      const result = await this.structuredGenerator.generateSprintPlan(data, projectId)
+
+      console.log(`  ✅ Sprint Plan generated successfully with structured outputs`)
+
+      // Update aggregated metrics
+      if (result.metadata.usage) {
+        this.aggregatedMetrics.totalInputTokens += result.metadata.usage.inputTokens || 0
+        this.aggregatedMetrics.totalOutputTokens += result.metadata.usage.outputTokens || 0
+        this.aggregatedMetrics.totalReasoningTokens += result.metadata.usage.reasoningTokens || 0
+        this.aggregatedMetrics.totalTokens += result.metadata.usage.totalTokens || 0
+        this.aggregatedMetrics.totalCostUsd += result.metadata.usage.costUsd || 0
+        this.aggregatedMetrics.totalGenerationTimeMs += result.metadata.usage.inputTokens || 0
+        this.aggregatedMetrics.documentCount++
       }
+
+      return result
+
+    } catch (error: any) {
+      console.error('Sprint Plan generation failed:', error)
+      throw error
     }
   }
 
