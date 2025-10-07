@@ -1034,7 +1034,7 @@ Generate comprehensive, professional content for all charter sections.`
 
       documentLogger.logLLMRequest('OpenAI', this.model, systemPrompt.length + userPrompt.length, 0.7)
 
-      const response = await this.client.chat.completions.create({
+      const response = await this.client.chat.completions.parse({
         model: this.model,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -1126,7 +1126,7 @@ Generate 10-15 comprehensive user stories organized into epics.`
 
       documentLogger.logLLMRequest('OpenAI', this.model, systemPrompt.length + userPrompt.length, 0.7)
 
-      const response = await this.client.chat.completions.create({
+      const response = await this.client.chat.completions.parse({
         model: this.model,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -1219,7 +1219,7 @@ Generate Sprint 1 plan with realistic capacity and backlog items.`
 
       documentLogger.logLLMRequest('OpenAI', this.model, systemPrompt.length + userPrompt.length, 0.7)
 
-      const response = await this.client.chat.completions.create({
+      const response = await this.client.chat.completions.parse({
         model: this.model,
         messages: [
           { role: 'system', content: systemPrompt },
