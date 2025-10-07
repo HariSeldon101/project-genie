@@ -1026,7 +1026,7 @@ export class DocumentGenerator {
         this.aggregatedMetrics.documentCount++
         
         // Log to permanent file
-        permanentLogger.docGen(projectId, documentType, 'completed', {
+        permanentLogger.info('DOC_GEN', `Document ${documentType} completed for project ${projectId}`, {
           ...doc.metadata.usage,
           generationTimeMs: duration,
           provider: doc.metadata.provider,
@@ -1135,7 +1135,7 @@ export class DocumentGenerator {
       })
       
       // Log to permanent file
-      permanentLogger.docGen(projectId, 'charter', 'completed', {
+      permanentLogger.info('DOC_GEN', `Charter generation completed for project ${projectId}`, {
         ...result.usage,
         generationTimeMs,
         provider: providerInfo.provider,

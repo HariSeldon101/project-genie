@@ -112,12 +112,19 @@ export class DocumentStorage {
           .single()
         
         if (error) {
-          permanentLogger.database('INSERT', 'artifacts', false, error.message, { doc: doc.metadata })
+          permanentLogger.captureError('DATABASE', error, {
+            metadata: { operation: 'INSERT', table: 'artifacts', doc: doc.metadata }
+          })
           DevLogger.logError(`Failed to store ${doc.metadata.type}`, error)
           throw error
         }
 
-        permanentLogger.database('INSERT', 'artifacts', true, undefined, { artifactId: data.id, type: doc.metadata.type })
+        permanentLogger.info('DATABASE', `Successfully inserted artifact for ${doc.metadata.type}`, {
+          operation: 'INSERT',
+          table: 'artifacts',
+          artifactId: data.id,
+          type: doc.metadata.type
+        })
         DevLogger.logSuccess(`Stored ${doc.metadata.type}`, { artifactId: data.id })
         artifactIds.push(data.id)
         
@@ -231,10 +238,16 @@ export class DocumentStorage {
       .eq('id', artifactId)
     
     if (error) {
-      permanentLogger.database('UPDATE', 'artifacts', false, error.message, { artifactId, insights })
+      permanentLogger.captureError('DATABASE', error, {
+        metadata: { operation: 'UPDATE', table: 'artifacts', artifactId, insights }
+      })
       console.error('Failed to store AI insights:', error)
     } else {
-      permanentLogger.database('UPDATE', 'artifacts', true, undefined, { artifactId })
+      permanentLogger.info('DATABASE', `Successfully updated artifacts with AI insights`, {
+        operation: 'UPDATE',
+        table: 'artifacts',
+        artifactId
+      })
     }
   }
 
@@ -259,7 +272,9 @@ export class DocumentStorage {
       })
     
     if (error) {
-      permanentLogger.database('INSERT', 'activity_log', false, error.message, { action, entityId })
+      permanentLogger.captureError('DATABASE', error, {
+        metadata: { operation: 'INSERT', table: 'activity_log', action, entityId }
+      })
       console.error('Failed to log activity:', error)
     }
   }
@@ -373,11 +388,18 @@ export class DocumentStorage {
         })
       
       if (error) {
-        permanentLogger.database('INSERT', 'generation_analytics', false, error.message, metrics)
+        permanentLogger.captureError('DATABASE', error, {
+          metadata: { operation: 'INSERT', table: 'generation_analytics', metrics }
+        })
         console.error('Failed to store generation analytics:', error)
         // Don't throw error - analytics failure shouldn't break document storage
       } else {
-        permanentLogger.database('INSERT', 'generation_analytics', true, undefined, { projectId, documentId })
+        permanentLogger.info('DATABASE', `Successfully stored generation analytics`, {
+          operation: 'INSERT',
+          table: 'generation_analytics',
+          projectId,
+          documentId
+        })
       }
     } catch (error) {
       permanentLogger.captureError('ANALYTICS', error, {
