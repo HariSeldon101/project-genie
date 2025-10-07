@@ -66,18 +66,120 @@ export class UnifiedBacklogFormatter extends BaseUnifiedFormatter<BacklogData> {
   }
   
   protected ensureStructure(data: any): BacklogData {
-    return {
-      projectName: data?.projectName || this.metadata?.projectName || '',
-      productVision: data?.productVision || '',
-      epics: data?.epics || [],
-      items: data?.items || [],
-      sprints: data?.sprints || [],
-      metrics: data?.metrics || {},
-      prioritizationCriteria: data?.prioritizationCriteria || [],
-      definitionOfReady: data?.definitionOfReady || [],
-      definitionOfDone: data?.definitionOfDone || [],
-      ...data
+    // Map ProductBacklog schema ({stories[], epics[]}) to formatter expected structure ({items[], epics[], metrics[]})
+    console.log('[BacklogFormatter] ensureStructure called with data:', JSON.stringify(data, null, 2).substring(0, 500))
+
+    let items: BacklogItem[] = []
+
+    // Map stories[] from schema to items[] for formatter
+    if (data?.stories && Array.isArray(data.stories)) {
+      items = data.stories.map((story: any) => ({
+        id: story.id,
+        title: story.userStory,  // Map userStory → title
+        description: story.userStory,
+        priority: this.mapMoSCoWPriority(story.priority),  // must_have → Critical
+        effort: story.storyPoints,  // storyPoints → effort
+        value: this.calculateBusinessValue(story.priority, story.storyPoints),
+        acceptanceCriteria: story.acceptanceCriteria,
+        dependencies: story.dependencies || [],
+        epic: story.epic,
+        status: 'Backlog',  // Default status for Product Backlog
+        tags: [],
+        sprint: undefined,
+        notes: story.notes
+      }))
+      console.log(`[BacklogFormatter] Mapped ${items.length} stories to items`)
+    } else {
+      console.warn('[BacklogFormatter] No stories array found in data')
     }
+
+    // Map epics with story counts
+    let epics = []
+    if (data?.epics && Array.isArray(data.epics)) {
+      epics = data.epics.map((epic: any) => ({
+        name: epic.name,
+        description: epic.description,
+        priority: 'High',  // Could derive from constituent stories
+        items: items.filter(i => i.epic === epic.id).length
+      }))
+      console.log(`[BacklogFormatter] Mapped ${epics.length} epics`)
+    } else {
+      console.warn('[BacklogFormatter] No epics array found in data')
+    }
+
+    // Calculate REAL metrics from actual data
+    const totalEffort = items.reduce((sum, i) => sum + (i.effort || 0), 0)
+    const metrics = {
+      totalItems: items.length,
+      completedItems: 0,  // Product Backlog doesn't track completion
+      averageVelocity: 20,  // Assumption for planning
+      totalEffort,
+      completedEffort: 0
+    }
+    console.log('[BacklogFormatter] Calculated metrics:', metrics)
+
+    return {
+      projectName: data?.projectName || this.metadata?.projectName || 'Untitled Project',
+      productVision: this.generateProductVision(data, this.metadata),
+      epics,
+      items,
+      metrics,
+      sprints: [],  // Product Backlog doesn't include sprint assignments
+      prioritizationCriteria: [
+        'Business value and ROI (Agile Principle #2)',
+        'User impact and satisfaction',
+        'Technical dependencies and risks (Agile Principle #5)',
+        'Strategic alignment with business objectives'
+      ],
+      definitionOfReady: [
+        'User story is clear and testable',
+        'Acceptance criteria are defined',
+        'Story is estimated with story points',
+        'Dependencies are identified'
+      ],
+      definitionOfDone: data?.definitionOfDone || [
+        'Code is reviewed and merged',
+        'All unit tests pass',
+        'Functional tests complete',
+        'Documentation updated'
+      ]
+    }
+  }
+
+  /**
+   * Map MoSCoW priority to formatter priority levels
+   */
+  private mapMoSCoWPriority(moscowPriority: string): 'Critical' | 'High' | 'Medium' | 'Low' {
+    const mapping: Record<string, 'Critical' | 'High' | 'Medium' | 'Low'> = {
+      'must_have': 'Critical',
+      'should_have': 'High',
+      'could_have': 'Medium',
+      'wont_have': 'Low'
+    }
+    return mapping[moscowPriority] || 'Medium'
+  }
+
+  /**
+   * Calculate business value from priority and story points
+   */
+  private calculateBusinessValue(priority: string, storyPoints: number): number {
+    const priorityValue: Record<string, number> = {
+      'must_have': 10,
+      'should_have': 7,
+      'could_have': 4,
+      'wont_have': 1
+    }
+    // Value = Priority weight × Story points normalized
+    return Math.round(((priorityValue[priority] || 5) * (storyPoints || 5)) / 10)
+  }
+
+  /**
+   * Generate product vision from data and metadata
+   */
+  private generateProductVision(data: any, metadata: any): string {
+    return metadata?.vision ||
+           data?.vision ||
+           `Deliver maximum value through iterative development of ${metadata?.projectName || 'this product'}, aligned with business objectives and user needs.`
   }
 
   generateHTML(): string {
@@ -334,14 +436,22 @@ export class UnifiedBacklogFormatter extends BaseUnifiedFormatter<BacklogData> {
 
   private generatePriorityMatrix(): string {
     const items = this.data.items || []
-    
-    // Create sample items if none exist
-    const matrixItems = items.length > 0 ? items : [
-      { title: 'User Authentication', effort: 8, value: 10 },
-      { title: 'Dashboard UI', effort: 5, value: 8 },
-      { title: 'API Integration', effort: 13, value: 7 },
-      { title: 'Performance Optimization', effort: 3, value: 5 }
-    ]
+
+    // If no items, show message
+    if (items.length === 0) {
+      return `
+        <section class="document-section" id="priority-matrix">
+          <h2>Priority Matrix</h2>
+          <div class="no-data-message">
+            <p><strong>No backlog items to display in priority matrix.</strong></p>
+          </div>
+          <h3>Prioritization Criteria</h3>
+          <ul>
+            ${(this.data.prioritizationCriteria || []).map(criteria => `<li>${criteria}</li>`).join('')}
+          </ul>
+        </section>
+      `
+    }
 
     const matrix = this.createMermaidChart('quadrantChart', `
       quadrantChart
@@ -352,7 +462,7 @@ export class UnifiedBacklogFormatter extends BaseUnifiedFormatter<BacklogData> {
         quadrant-2 High Value, Low Effort (Quick Wins)
         quadrant-3 Low Value, Low Effort
         quadrant-4 Low Value, High Effort (Avoid)
-        ${matrixItems.slice(0, 10).map(item => {
+        ${items.slice(0, 10).map(item => {
           const effort = (item.effort || 5) / 20  // Normalize to 0-1
           const value = (item.value || 5) / 10    // Normalize to 0-1
           return `"${item.title || 'Item'}": [${Math.min(effort, 1)}, ${Math.min(value, 1)}]`
@@ -382,38 +492,20 @@ export class UnifiedBacklogFormatter extends BaseUnifiedFormatter<BacklogData> {
   }
 
   private generateBacklogItems(): string {
-    const items = this.data.items || [
-      {
-        id: 'US-001',
-        title: 'User Registration',
-        description: 'As a user, I want to register for an account',
-        priority: 'High',
-        effort: 5,
-        value: 8,
-        status: 'Ready',
-        epic: 'User Management'
-      },
-      {
-        id: 'US-002',
-        title: 'Dashboard View',
-        description: 'As a user, I want to see my dashboard',
-        priority: 'High',
-        effort: 8,
-        value: 9,
-        status: 'In Progress',
-        epic: 'Core Features'
-      },
-      {
-        id: 'US-003',
-        title: 'Export Data',
-        description: 'As a user, I want to export my data',
-        priority: 'Medium',
-        effort: 3,
-        value: 5,
-        status: 'Backlog',
-        epic: 'Core Features'
-      }
-    ]
+    const items = this.data.items || []
+
+    // If no items, show message instead of fake data
+    if (items.length === 0) {
+      return `
+        <section class="document-section" id="backlog-items">
+          <h2>Backlog Items</h2>
+          <div class="no-data-message">
+            <p><strong>No backlog items available.</strong></p>
+            <p>This may occur if document generation did not complete successfully. Please try regenerating the document.</p>
+          </div>
+        </section>
+      `
+    }
 
     const itemRows = items.slice(0, 20).map(item => {
       const priorityClass = `priority-${(item.priority || 'Medium').toLowerCase()}`
