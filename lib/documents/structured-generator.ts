@@ -1000,37 +1000,59 @@ Generate professional, detailed content with specific metrics and realistic fina
     documentLogger.logGenerationAttempt(projectId, 'Charter', 'OpenAI', this.model)
 
     try {
-      const systemPrompt = `You are an expert Agile project manager creating a comprehensive Project Charter.
+      const systemPrompt = `You are an expert Agile Coach creating a Project Charter using the Agile Factory Framework.
 
-Your task is to generate a complete, professional Agile Project Charter.
+THE AGILE FACTORY FRAMEWORK - 6 CORE PRINCIPLES:
+1. Working software is defined incrementally and delivered iteratively (2-week sprints)
+2. Technical solutions are driven by business and operational objectives
+3. Software engineering is a set of systematic practices (CI/CD, code reviews, testing)
+4. Requirements, architectures and integration strategies are formalized
+5. Effort estimates are calculated upon size, complexity and risks
+6. Working software is validated and improved continuously
 
-IMPORTANT INSTRUCTIONS:
-1. Generate detailed, comprehensive content for EVERY field
-2. Create 5+ measurable objectives with clear target dates
-3. Define clear success criteria with metrics and targets
-4. Include comprehensive scope definition (in/out, assumptions, constraints)
-5. List 5+ deliverables with acceptance criteria
-6. Analyze 5+ stakeholders with communication needs
-7. Define complete team structure (PO, SM, Dev Team with roles)
-8. Create realistic timeline with sprints and milestones
-9. Identify 5+ risks with mitigation strategies
-10. Define communication ceremonies and reports
+CHARTER REQUIREMENTS:
+1. Executive Summary: Clear, inspiring vision aligned with business objectives (Principle #2)
+2. Vision & Objectives: 5+ SMART objectives that drive technical solutions
+3. Success Criteria: Measurable metrics with baselines and targets
+4. Scope: Clear boundaries (in/out scope, assumptions, constraints)
+5. Deliverables: 5+ deliverables mapped to sprints with acceptance criteria
+6. Stakeholder Analysis: How stakeholders participate in Agile ceremonies
+7. Team Structure: Product Owner, Scrum Master, Development Team roles
+8. Timeline: Sprint-based (2 weeks each), with key milestones
+9. Risks: Technical, business, and operational risks with mitigation (Principle #5)
+10. Dependencies: Internal/external dependencies affecting delivery
+11. Communication Plan: Agile ceremonies (Daily Standup, Sprint Planning, Review, Retro)
+12. Definition of Done: Clear completion criteria for each sprint
 
-Generate professional, actionable content for all sections.`
+Generate a charter that embodies Agile values: individuals and interactions, working software,
+customer collaboration, responding to change. Focus on "just enough documentation" to guide
+the project successfully.`
 
-      const userPrompt = `Generate a complete Agile Project Charter for:
+      const userPrompt = `Generate a comprehensive Agile Project Charter for:
 
-PROJECT DETAILS:
+PROJECT CONTEXT:
 - Name: ${data.projectName}
 - Description: ${data.description}
 - Vision: ${data.vision || 'Transform operations through innovative solutions'}
 - Business Case: ${data.businessCase}
-- Timeline: ${data.timeline}
+- Industry: ${data.industry || 'Technology'}
+- Target Users: ${data.targetUsers || 'End users and administrators'}
+
+TIMELINE & BUDGET:
 - Start Date: ${data.startDate}
 - End Date: ${data.endDate}
-- Budget: ${data.budget || 'Not specified'}
+- Duration: ${data.timeline}
+- Budget: ${data.budget || 'To be determined'}
 
-Generate comprehensive, professional content for all charter sections.`
+CRITICAL REQUIREMENTS:
+- Apply the 6 Agile Factory Framework principles throughout
+- Ensure technical solutions directly serve business objectives (Principle #2)
+- Define systematic practices for CI/CD, testing, code quality (Principle #3)
+- Create sprint-based timeline with realistic milestones (2-week sprints)
+- Identify risks related to size, complexity, and dependencies (Principle #5)
+- Include Agile ceremonies and how stakeholders participate
+
+Generate a professional, actionable charter that teams can immediately use to guide development.`
 
       documentLogger.logLLMRequest('OpenAI', this.model, systemPrompt.length + userPrompt.length, 0.7)
 
@@ -1100,29 +1122,54 @@ Generate comprehensive, professional content for all charter sections.`
     documentLogger.logGenerationAttempt(projectId, 'Backlog', 'OpenAI', this.model)
 
     try {
-      const systemPrompt = `You are an expert Product Owner creating a comprehensive Product Backlog.
+      const systemPrompt = `You are an expert Product Owner creating a Product Backlog using Agile best practices.
 
-Your task is to generate a complete, prioritized Product Backlog.
+PRODUCT BACKLOG PRINCIPLES:
+- Organized into 3-5 epics representing major feature areas
+- User stories follow INVEST criteria: Independent, Negotiable, Valuable, Estimable, Small, Testable
+- Stories use format: "As a [role], I want [feature], so that [benefit]"
+- Prioritized using MoSCoW: must_have, should_have, could_have, wont_have
+- Estimated using Fibonacci story points: 1, 2, 3, 5, 8, 13, 21
+- Each story has 3-5 acceptance criteria
+- Dependencies between stories are explicitly identified
 
-IMPORTANT INSTRUCTIONS:
-1. Create 10-15 user stories with proper format ("As a [role], I want [feature], so that [benefit]")
-2. Organize stories into 3-5 epics
-3. Use story points (1, 2, 3, 5, 8, 13, 21)
-4. Apply MoSCoW prioritization (must_have, should_have, could_have, wont_have)
-5. Include acceptance criteria (3-5 per story)
-6. Identify dependencies between stories
-7. Provide clear business value for each epic
+BACKLOG REQUIREMENTS:
+1. Create 10-15 user stories that solve REAL user problems (not generic placeholders!)
+2. Organize stories into 3-5 epics with clear business value
+3. Ensure stories are sized appropriately (most should be 3-8 points)
+4. Prioritize based on business value, risk, and dependencies
+5. Stories should be implementable within 2-week sprints
+6. Include acceptance criteria that are testable and measurable
+7. Each epic must have a clear business value statement
 
-Generate professional, ready-to-implement backlog items.`
+Generate realistic, implementable stories that address the actual project needs!`
 
-      const userPrompt = `Generate a complete Product Backlog for:
+      const userPrompt = `Generate a Product Backlog for:
 
-PROJECT DETAILS:
+PROJECT CONTEXT:
 - Name: ${data.projectName}
 - Description: ${data.description}
 - Vision: ${data.vision || 'Deliver maximum value to users'}
+- Industry: ${data.industry || 'Technology'}
+- Target Users: ${data.targetUsers || 'End users, administrators, and stakeholders'}
+- Business Objectives: ${data.businessCase || 'Improve efficiency and user satisfaction'}
 
-Generate 10-15 comprehensive user stories organized into epics.`
+USER PERSONAS (infer from context):
+- Primary users and their key needs
+- Secondary users and their requirements
+- Administrators and their management needs
+
+REQUIREMENTS:
+- Create 10-15 user stories addressing the project description and business objectives
+- Organize into 3-5 epics representing major feature areas
+- Apply MoSCoW prioritization thoughtfully (not all must_have!)
+- Use Fibonacci story points (prefer 3, 5, 8 for most stories)
+- Include 3-5 testable acceptance criteria per story
+- Identify dependencies between stories
+- Ensure each epic has clear business value statement
+- Stories must follow INVEST criteria
+
+Generate a backlog that a development team can immediately start implementing!`
 
       documentLogger.logLLMRequest('OpenAI', this.model, systemPrompt.length + userPrompt.length, 0.7)
 

@@ -67,103 +67,144 @@ export class UnifiedCharterFormatter extends BaseUnifiedFormatter<CharterData> {
   }
   
   protected ensureStructure(data: any): CharterData {
-    // Handle Agile Charter schema structure
-    // The LLM generates fields like executiveSummary, visionAndObjectives, scope
-    // but the formatter expects projectDescription, businessObjectives, projectScope
+    // Handle Agile Charter schema structure with comprehensive error handling
+    console.log('[CharterFormatter] ensureStructure called with data:', JSON.stringify(data, null, 2).substring(0, 500))
 
-    // Extract objectives from Agile schema structure
-    let objectives: string[] = []
-    if (data?.visionAndObjectives?.objectives) {
-      objectives = data.visionAndObjectives.objectives.map((obj: any) =>
-        obj.description || obj
-      )
-    } else if (data?.businessObjectives) {
-      objectives = data.businessObjectives
-    }
-
-    // Extract scope from Agile schema structure
-    let scope: any = {}
-    if (data?.scope) {
-      scope = {
-        inScope: data.scope.inScope || [],
-        outOfScope: data.scope.outOfScope || [],
-        assumptions: data.scope.assumptions || [],
-        constraints: data.scope.constraints || []
+    try {
+      // Extract objectives from Agile schema structure with null safety
+      let objectives: string[] = []
+      if (data?.visionAndObjectives?.objectives && Array.isArray(data.visionAndObjectives.objectives)) {
+        objectives = data.visionAndObjectives.objectives
+          .filter((obj: any) => obj?.description)  // Null safety
+          .map((obj: any) => obj.description)
+      } else if (data?.businessObjectives && Array.isArray(data.businessObjectives)) {
+        objectives = data.businessObjectives
       }
-    } else if (data?.projectScope) {
-      scope = data.projectScope
-    }
+      console.log(`[CharterFormatter] Extracted ${objectives.length} objectives`)
 
-    // Extract deliverables from Agile schema structure
-    let deliverables: any[] = []
-    if (data?.deliverables) {
-      deliverables = data.deliverables.map((d: any) => ({
-        name: d.name,
-        description: d.description,
-        dueDate: d.targetSprint || d.dueDate
-      }))
-    }
+      // Extract scope from Agile schema structure
+      let scope: any = {}
+      if (data?.scope) {
+        scope = {
+          inScope: Array.isArray(data.scope.inScope) ? data.scope.inScope : [],
+          outOfScope: Array.isArray(data.scope.outOfScope) ? data.scope.outOfScope : [],
+          assumptions: Array.isArray(data.scope.assumptions) ? data.scope.assumptions : [],
+          constraints: Array.isArray(data.scope.constraints) ? data.scope.constraints : []
+        }
+      } else if (data?.projectScope) {
+        scope = data.projectScope
+      }
 
-    // Extract milestones from Agile schema structure
-    let milestones: any[] = []
-    if (data?.timeline?.keyMilestones) {
-      milestones = data.timeline.keyMilestones.map((m: any) => ({
-        name: m.name,
-        date: m.date,
-        criteria: m.deliverables?.join(', ') || m.criteria
-      }))
-    } else if (data?.milestones) {
-      milestones = data.milestones
-    }
+      // Extract deliverables from Agile schema structure
+      let deliverables: any[] = []
+      if (data?.deliverables && Array.isArray(data.deliverables)) {
+        deliverables = data.deliverables.map((d: any) => ({
+          name: d?.name || 'Unnamed Deliverable',
+          description: d?.description || '',
+          dueDate: d?.targetSprint || d?.dueDate || 'TBD',
+          acceptanceCriteria: d?.acceptanceCriteria || []
+        }))
+      }
+      console.log(`[CharterFormatter] Extracted ${deliverables.length} deliverables`)
 
-    // Extract stakeholders from Agile schema structure
-    let stakeholders: any[] = []
-    if (data?.stakeholderAnalysis) {
-      stakeholders = data.stakeholderAnalysis.map((s: any) => ({
-        name: s.role,
-        role: s.role,
-        interest: s.interest,
-        influence: s.influence
-      }))
-    } else if (data?.stakeholders) {
-      stakeholders = data.stakeholders
-    }
+      // Extract milestones from Agile schema structure
+      let milestones: any[] = []
+      if (data?.timeline?.keyMilestones && Array.isArray(data.timeline.keyMilestones)) {
+        milestones = data.timeline.keyMilestones.map((m: any) => ({
+          name: m?.name || 'Unnamed Milestone',
+          date: m?.date || 'TBD',
+          criteria: Array.isArray(m?.deliverables) ? m.deliverables.join(', ') : (m?.criteria || '')
+        }))
+      } else if (data?.milestones && Array.isArray(data.milestones)) {
+        milestones = data.milestones
+      }
 
-    // Extract risks from Agile schema structure
-    let risks: any[] = []
-    if (data?.risks) {
-      risks = data.risks.map((r: any) => ({
-        description: r.description,
-        impact: r.impact,
-        likelihood: r.probability,
-        mitigation: r.mitigation
-      }))
-    }
+      // Extract stakeholders from Agile schema structure
+      let stakeholders: any[] = []
+      if (data?.stakeholderAnalysis && Array.isArray(data.stakeholderAnalysis)) {
+        stakeholders = data.stakeholderAnalysis.map((s: any) => ({
+          name: s?.role || 'Unnamed Stakeholder',
+          role: s?.role || 'Role TBD',
+          interest: s?.interest || 'medium',
+          influence: s?.influence || 'medium',
+          communicationNeeds: s?.communicationNeeds || ''
+        }))
+      } else if (data?.stakeholders && Array.isArray(data.stakeholders)) {
+        stakeholders = data.stakeholders
+      }
+      console.log(`[CharterFormatter] Extracted ${stakeholders.length} stakeholders`)
 
-    // Extract success criteria
-    let successCriteria: string[] = []
-    if (data?.successCriteria) {
-      successCriteria = data.successCriteria.map((c: any) =>
-        typeof c === 'string' ? c : `${c.criterion}: ${c.metric} (target: ${c.target})`
-      )
-    } else if (data?.definitionOfDone) {
-      successCriteria = data.definitionOfDone
-    }
+      // Extract risks from Agile schema structure
+      let risks: any[] = []
+      if (data?.risks && Array.isArray(data.risks)) {
+        risks = data.risks.map((r: any) => ({
+          description: r?.description || 'Risk description unavailable',
+          impact: r?.impact || 'medium',
+          likelihood: r?.probability || r?.likelihood || 'medium',
+          mitigation: r?.mitigation || 'Mitigation strategy TBD'
+        }))
+      }
+      console.log(`[CharterFormatter] Extracted ${risks.length} risks`)
 
+      // Extract success criteria
+      let successCriteria: string[] = []
+      if (data?.successCriteria && Array.isArray(data.successCriteria)) {
+        successCriteria = data.successCriteria.map((c: any) =>
+          typeof c === 'string' ? c : `${c?.criterion || 'Criterion'}: ${c?.metric || 'metric'} (target: ${c?.target || 'TBD'})`
+        )
+      } else if (data?.definitionOfDone && Array.isArray(data.definitionOfDone)) {
+        successCriteria = data.definitionOfDone
+      }
+
+      const result = {
+        projectName: data?.projectName || this.metadata?.projectName || 'Untitled Project',
+        projectDescription: data?.executiveSummary || data?.projectDescription || data?.visionAndObjectives?.vision || 'Project description not available',
+        businessObjectives: objectives,
+        projectScope: scope,
+        deliverables: deliverables,
+        milestones: milestones,
+        stakeholders: stakeholders,
+        budget: data?.budget || {},
+        timeline: data?.timeline || {},
+        risks: risks,
+        successCriteria: successCriteria,
+        approvals: data?.approvals || []
+      }
+
+      console.log('[CharterFormatter] ensureStructure completed successfully')
+      return result
+
+    } catch (error) {
+      console.error('[CharterFormatter] ensureStructure FAILED:', error)
+      console.error('[CharterFormatter] Data that caused error:', JSON.stringify(data, null, 2))
+
+      // Return minimal valid structure instead of crashing
+      return this.getDefaultCharterStructure()
+    }
+  }
+
+  /**
+   * Provides default charter structure when mapping fails
+   */
+  private getDefaultCharterStructure(): CharterData {
     return {
-      projectName: data?.projectName || this.metadata?.projectName || '',
-      projectDescription: data?.executiveSummary || data?.projectDescription || data?.visionAndObjectives?.vision || '',
-      businessObjectives: objectives,
-      projectScope: scope,
-      deliverables: deliverables,
-      milestones: milestones,
-      stakeholders: stakeholders,
-      budget: data?.budget || {},
-      timeline: data?.timeline || {},
-      risks: risks,
-      successCriteria: successCriteria,
-      approvals: data?.approvals || [],
-      ...data
+      projectName: this.metadata?.projectName || 'Untitled Project',
+      projectDescription: 'Charter generation encountered an error during data mapping. Please try regenerating.',
+      businessObjectives: ['Charter mapping error - please regenerate'],
+      projectScope: {
+        inScope: ['Error mapping scope data'],
+        outOfScope: [],
+        assumptions: [],
+        constraints: []
+      },
+      deliverables: [],
+      milestones: [],
+      stakeholders: [],
+      budget: {},
+      timeline: {},
+      risks: [],
+      successCriteria: ['Error: Charter data mapping failed'],
+      approvals: []
     }
   }
 
