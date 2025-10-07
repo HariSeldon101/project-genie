@@ -429,6 +429,7 @@ export default function AllDocumentsPage() {
       case 'technical_landscape': return <FileText className="h-5 w-5 text-cyan-500" />
       case 'charter': return <FileText className="h-5 w-5 text-blue-500" />
       case 'backlog': return <FileSpreadsheet className="h-5 w-5 text-green-500" />
+      case 'sprint_plan': return <Calendar className="h-5 w-5 text-violet-500" />
       default: return <FileText className="h-5 w-5 text-gray-500" />
     }
   }
@@ -445,7 +446,25 @@ export default function AllDocumentsPage() {
       case 'technical_landscape': return 'bg-gradient-to-br from-cyan-50 to-cyan-100/50 dark:from-cyan-950/20 dark:to-cyan-900/10'
       case 'charter': return 'bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-900/10'
       case 'backlog': return 'bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/20 dark:to-green-900/10'
+      case 'sprint_plan': return 'bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/20 dark:to-violet-900/10'
       default: return 'bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-950/20 dark:to-gray-900/10'
+    }
+  }
+
+  const getDocumentTypeName = (type: string): string => {
+    switch (type) {
+      case 'pid': return 'Project Initiation Document'
+      case 'business_case': return 'Business Case'
+      case 'project_plan': return 'Project Plan'
+      case 'risk_register': return 'Risk Register'
+      case 'communication_plan': return 'Communication Plan'
+      case 'quality_management': return 'Quality Management'
+      case 'comparable_projects': return 'Comparable Projects'
+      case 'technical_landscape': return 'Technical Landscape'
+      case 'charter': return 'Project Charter'
+      case 'backlog': return 'Product Backlog'
+      case 'sprint_plan': return 'Sprint Plan'
+      default: return 'Project Document'
     }
   }
 
@@ -599,7 +618,7 @@ export default function AllDocumentsPage() {
                   <div className="flex items-center gap-2">
                     {getDocumentIcon(doc.type)}
                     <div className="min-w-0 flex-1">
-                      <CardTitle className="text-lg truncate">{doc.title}</CardTitle>
+                      <CardTitle className="text-lg truncate">{getDocumentTypeName(doc.type)}</CardTitle>
                       <CardDescription>
                         <Link href={`/projects/${doc.project_id}`} className="hover:underline">
                           {doc.project?.name}
@@ -757,7 +776,7 @@ export default function AllDocumentsPage() {
       <ResizableModal
         isOpen={!!selectedDoc}
         onClose={() => setSelectedDoc(null)}
-        title={selectedDoc?.title}
+        title={selectedDoc ? getDocumentTypeName(selectedDoc.type) : undefined}
         defaultWidth={window.innerWidth * 0.85}
         defaultHeight={window.innerHeight * 0.85}
         minWidth={600}
