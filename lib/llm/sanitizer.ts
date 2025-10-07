@@ -142,9 +142,10 @@ export class DataSanitizer {
     
     // 3. Only block VERY obvious personal data patterns
     // Look for "My name is X" or "I am X" patterns which shouldn't appear in prompts
-    const personalIntroPattern = /\b(my name is|i am|i'm|this is)\s+[A-Z][a-z]+\s+[A-Z][a-z]+/gi
+    // EXCLUDE "This is" pattern as it's commonly used for project descriptions ("This is a platform...")
+    const personalIntroPattern = /\b(my name is|i am|i'm)\s+[A-Z][a-z]+\s+[A-Z][a-z]+/gi
     if (personalIntroPattern.test(prompt)) {
-      console.error('Personal introduction pattern detected')
+      console.error('Personal introduction pattern detected in prompt')
       throw new Error('SECURITY: Personal data pattern detected - blocking request')
     }
     
