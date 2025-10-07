@@ -9,7 +9,7 @@ export const AgileCharterSchema = z.object({
       id: z.string(),
       description: z.string(),
       measurable: z.boolean(),
-      targetDate: z.string().optional()
+      targetDate: z.string().nullish() // OpenAI Structured Outputs requires nullish() for optional fields
     }))
   }),
   
@@ -17,7 +17,7 @@ export const AgileCharterSchema = z.object({
     criterion: z.string(),
     metric: z.string(),
     target: z.string(),
-    baseline: z.string().optional()
+    baseline: z.string().nullish()
   })),
   
   scope: z.object({
@@ -31,7 +31,7 @@ export const AgileCharterSchema = z.object({
     name: z.string(),
     description: z.string(),
     acceptanceCriteria: z.array(z.string()),
-    targetSprint: z.string().optional()
+    targetSprint: z.string().nullish()
   })),
   
   stakeholderAnalysis: z.array(z.object({
@@ -74,7 +74,7 @@ export const AgileCharterSchema = z.object({
     type: z.enum(['internal', 'external']),
     description: z.string(),
     owner: z.string(),
-    dueDate: z.string().optional()
+    dueDate: z.string().nullish()
   })),
   
   communicationPlan: z.object({
@@ -105,8 +105,8 @@ export const ProductBacklogSchema = z.object({
     acceptanceCriteria: z.array(z.string()),
     storyPoints: z.number(),
     priority: z.enum(['must_have', 'should_have', 'could_have', 'wont_have']),
-    dependencies: z.array(z.string()).optional(),
-    notes: z.string().optional()
+    dependencies: z.array(z.string()).nullish(),
+    notes: z.string().nullish()
   })),
   
   epics: z.array(z.object({
@@ -133,7 +133,7 @@ export const SprintPlanSchema = z.object({
     plannedLeave: z.array(z.object({
       member: z.string(),
       dates: z.string()
-    })).optional()
+    })).nullish()
   }),
   backlogItems: z.array(z.object({
     id: z.string(),
