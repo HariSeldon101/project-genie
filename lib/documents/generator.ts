@@ -246,7 +246,7 @@ export class DocumentGenerator {
       let researchContext: ResearchContext = {}
       
       if (useTwoStage) {
-        logger.info('TWO_STAGE', 'Using two-stage generation with research context')
+        permanentLogger.info('TWO_STAGE', 'Using two-stage generation with research context')
       }
       
       switch (methodology) {
@@ -1026,7 +1026,7 @@ export class DocumentGenerator {
         this.aggregatedMetrics.documentCount++
         
         // Log to permanent file
-        logger.docGen(projectId, documentType, 'completed', {
+        permanentLogger.docGen(projectId, documentType, 'completed', {
           ...doc.metadata.usage,
           generationTimeMs: duration,
           provider: doc.metadata.provider,
@@ -1135,7 +1135,7 @@ export class DocumentGenerator {
       })
       
       // Log to permanent file
-      logger.docGen(projectId, 'charter', 'completed', {
+      permanentLogger.docGen(projectId, 'charter', 'completed', {
         ...result.usage,
         generationTimeMs,
         provider: providerInfo.provider,
