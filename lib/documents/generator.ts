@@ -1248,7 +1248,7 @@ export class DocumentGenerator {
     
     const metadata: DocumentMetadata = {
       projectId,
-      type: 'project_plan',
+      type: 'sprint_plan',  // ✅ FIXED: Was 'project_plan', now correctly 'sprint_plan'
       methodology: 'agile',
       version: 1,
       generatedAt: new Date(),
@@ -1259,7 +1259,7 @@ export class DocumentGenerator {
       usage: metricsResponse.usage,
       generationTimeMs: metricsResponse.generationTimeMs
     }
-    
+
     return {
       metadata,
       content: { plan: content }, // Wrap text in object
