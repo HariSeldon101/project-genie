@@ -1080,9 +1080,9 @@ export class DocumentGenerator {
     
     // Enhance prompt with research context if available
     if (researchContext) {
-      prompt = TwoStageGenerator.enhancePromptWithContext(prompt, researchContext, 'charter')
+      prompt.user = TwoStageGenerator.enhancePromptWithContext(prompt.user, researchContext, 'charter')
     }
-    
+
     // Add GPT-5 optimizations to prompt
     const optimizedPrompt = {
       ...prompt,
@@ -1185,9 +1185,9 @@ export class DocumentGenerator {
     
     // Enhance prompt with research context if available
     if (researchContext) {
-      prompt = TwoStageGenerator.enhancePromptWithContext(prompt, researchContext, 'backlog')
+      prompt.user = TwoStageGenerator.enhancePromptWithContext(prompt.user, researchContext, 'backlog')
     }
-    
+
     // Add GPT-5 optimizations
     const optimizedPrompt = {
       ...prompt,
