@@ -67,18 +67,101 @@ export class UnifiedCharterFormatter extends BaseUnifiedFormatter<CharterData> {
   }
   
   protected ensureStructure(data: any): CharterData {
+    // Handle Agile Charter schema structure
+    // The LLM generates fields like executiveSummary, visionAndObjectives, scope
+    // but the formatter expects projectDescription, businessObjectives, projectScope
+
+    // Extract objectives from Agile schema structure
+    let objectives: string[] = []
+    if (data?.visionAndObjectives?.objectives) {
+      objectives = data.visionAndObjectives.objectives.map((obj: any) =>
+        obj.description || obj
+      )
+    } else if (data?.businessObjectives) {
+      objectives = data.businessObjectives
+    }
+
+    // Extract scope from Agile schema structure
+    let scope: any = {}
+    if (data?.scope) {
+      scope = {
+        inScope: data.scope.inScope || [],
+        outOfScope: data.scope.outOfScope || [],
+        assumptions: data.scope.assumptions || [],
+        constraints: data.scope.constraints || []
+      }
+    } else if (data?.projectScope) {
+      scope = data.projectScope
+    }
+
+    // Extract deliverables from Agile schema structure
+    let deliverables: any[] = []
+    if (data?.deliverables) {
+      deliverables = data.deliverables.map((d: any) => ({
+        name: d.name,
+        description: d.description,
+        dueDate: d.targetSprint || d.dueDate
+      }))
+    }
+
+    // Extract milestones from Agile schema structure
+    let milestones: any[] = []
+    if (data?.timeline?.keyMilestones) {
+      milestones = data.timeline.keyMilestones.map((m: any) => ({
+        name: m.name,
+        date: m.date,
+        criteria: m.deliverables?.join(', ') || m.criteria
+      }))
+    } else if (data?.milestones) {
+      milestones = data.milestones
+    }
+
+    // Extract stakeholders from Agile schema structure
+    let stakeholders: any[] = []
+    if (data?.stakeholderAnalysis) {
+      stakeholders = data.stakeholderAnalysis.map((s: any) => ({
+        name: s.role,
+        role: s.role,
+        interest: s.interest,
+        influence: s.influence
+      }))
+    } else if (data?.stakeholders) {
+      stakeholders = data.stakeholders
+    }
+
+    // Extract risks from Agile schema structure
+    let risks: any[] = []
+    if (data?.risks) {
+      risks = data.risks.map((r: any) => ({
+        description: r.description,
+        impact: r.impact,
+        likelihood: r.probability,
+        mitigation: r.mitigation
+      }))
+    }
+
+    // Extract success criteria
+    let successCriteria: string[] = []
+    if (data?.successCriteria) {
+      successCriteria = data.successCriteria.map((c: any) =>
+        typeof c === 'string' ? c : `${c.criterion}: ${c.metric} (target: ${c.target})`
+      )
+    } else if (data?.definitionOfDone) {
+      successCriteria = data.definitionOfDone
+    }
+
     return {
       projectName: data?.projectName || this.metadata?.projectName || '',
-      projectDescription: data?.projectDescription || '',
-      businessObjectives: data?.businessObjectives || [],
-      projectScope: data?.projectScope || {},
-      deliverables: data?.deliverables || [],
-      milestones: data?.milestones || [],
-      stakeholders: data?.stakeholders || [],
+      projectDescription: data?.executiveSummary || data?.projectDescription || data?.visionAndObjectives?.vision || '',
+      businessObjectives: objectives,
+      projectScope: scope,
+      deliverables: deliverables,
+      milestones: milestones,
+      stakeholders: stakeholders,
       budget: data?.budget || {},
       timeline: data?.timeline || {},
-      risks: data?.risks || [],
-      successCriteria: data?.successCriteria || [],
+      risks: risks,
+      successCriteria: successCriteria,
       approvals: data?.approvals || [],
       ...data
     }
